@@ -1,0 +1,8 @@
+# Copy to terraform.tfvars and adjust if needed.
+#
+# domain_name = "nosyneighborscoffeeco.com"
+# aws_region  = "us-west-2"
+#
+# Only set this true if `aws route53 list-hosted-zones-by-name --dns-name
+# nosyneighborscoffeeco.com` shows no zone for the domain.
+# create_hosted_zone = false

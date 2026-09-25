@@ -1,0 +1,9 @@
+# Copy to terraform.tfvars and fill in the domain before the first apply.
+
+domain_name = "CHANGE-ME.com"
+
+# aws_region = "us-west-2"
+
+# Set true only if no hosted zone exists yet:
+#   aws route53 list-hosted-zones-by-name --dns-name CHANGE-ME.com
+# create_hosted_zone = false
