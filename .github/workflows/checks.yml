@@ -1,0 +1,72 @@
+name: checks
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: checks-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  terraform:
+    name: terraform
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.9.8"
+          terraform_wrapper: false
+
+      - name: fmt
+        run: terraform fmt -recursive -check -diff aws
+
+      # init -backend=false installs the module and providers without touching
+      # remote state, which is all validate needs. No AWS credentials involved.
+      - name: validate every stack
+        run: |
+          set -euo pipefail
+          for stack in aws/stacks/*/; do
+            echo "::group::${stack}"
+            terraform -chdir="${stack}" init -backend=false -input=false -no-color
+            terraform -chdir="${stack}" validate -no-color
+            echo "::endgroup::"
+          done
+
+  scripts:
+    name: scripts and site layout
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: cloudfront router tests
+        run: node aws/modules/static-site/cloudfront-router.test.js
+
+      - name: shellcheck
+        run: shellcheck aws/scripts/deploy.sh
+
+      # CloudFront maps 403 and 404 onto /404.html. If that file is missing the
+      # error page itself errors, and nothing else here would catch it.
+      - name: every site has a 404 page
+        run: |
+          set -euo pipefail
+          missing=0
+          for site in sites/*/; do
+            if [ ! -f "${site}404.html" ]; then
+              echo "::error::${site} has no 404.html"
+              missing=1
+            else
+              echo "ok: ${site}404.html"
+            fi
+          done
+          exit "${missing}"

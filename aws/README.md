@@ -226,3 +226,9 @@ piece of real logic here, and a mistake in it breaks every request:
 ```bash
 node aws/modules/static-site/cloudfront-router.test.js
 ```
+
+CI runs all of this on every pull request — formatting, `validate` on both
+stacks, the router tests, shellcheck on `deploy.sh`, and a check that every site
+directory has its `404.html`. None of it needs AWS credentials, so it runs on
+forks and on branches without touching the account. See
+`.github/workflows/checks.yml`.
