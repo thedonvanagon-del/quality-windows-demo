@@ -327,3 +327,32 @@ resource "aws_route53_record" "site" {
     evaluate_target_health = false
   }
 }
+
+# ---------------------------------------------------------------------------
+# Mail and verification records.
+#
+# These have nothing to do with serving the site, but they have to live in
+# whichever zone is authoritative for the domain. When a domain moves off its
+# registrar's nameservers, anything not recreated here stops resolving — and
+# missing MX records fail quietly, because nothing about the website breaks.
+# ---------------------------------------------------------------------------
+
+resource "aws_route53_record" "mx" {
+  count = length(var.mx_records) > 0 ? 1 : 0
+
+  zone_id = local.zone_id
+  name    = var.domain_name
+  type    = "MX"
+  ttl     = var.mail_record_ttl
+  records = var.mx_records
+}
+
+resource "aws_route53_record" "txt" {
+  count = length(var.txt_records) > 0 ? 1 : 0
+
+  zone_id = local.zone_id
+  name    = var.domain_name
+  type    = "TXT"
+  ttl     = var.mail_record_ttl
+  records = var.txt_records
+}

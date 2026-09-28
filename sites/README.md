@@ -35,8 +35,10 @@ detail customers act on:
       if the shop opens weekends, the hero chip, the hours entry and the `180`
       stat block all need updating.
 - [ ] **Instagram** — @nosyneighborscoffee
-- [ ] **Franchise email** — `hello@nosyneighborscoffeeco.com` is a placeholder.
-      It must exist, or point it at the real address.
+- [ ] **Franchise email** — `hello@nosyneighbors.coffee` is a placeholder.
+      It must exist, or point it at the real address. Note the domain currently
+      uses Namecheap email forwarding, which may not survive the nameserver
+      move to Route53 — see the email warning in `aws/README.md`.
 - [ ] **Menu items** — names are listed, prices deliberately are not. The page
       says prices are on the board in the shop, so no number can go stale.
 - [ ] **The 180 square feet story** — repeated from the brand's own telling.
@@ -44,8 +46,9 @@ detail customers act on:
 ### Also worth deciding
 
 There is an existing live site at **nosyneighborscoffee.com** (no "co") running
-on Squarespace. Two sites for one business splits search traffic and confuses
-customers. Pick one as canonical and redirect the other.
+on Squarespace, separate from **nosyneighbors.coffee** which this stack serves.
+Two sites for one business splits search traffic and confuses customers. Pick
+one as canonical and redirect the other.
 
 ### Nice to add later
 

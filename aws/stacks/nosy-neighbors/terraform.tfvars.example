@@ -1,8 +1,10 @@
-# Copy to terraform.tfvars and adjust if needed.
+# Copy to terraform.tfvars only if you need to override something.
+# The defaults in variables.tf already describe the real domain.
 #
-# domain_name = "nosyneighborscoffeeco.com"
+# domain_name = "nosyneighbors.coffee"
 # aws_region  = "us-west-2"
 #
-# Only set this true if `aws route53 list-hosted-zones-by-name --dns-name
-# nosyneighborscoffeeco.com` shows no zone for the domain.
-# create_hosted_zone = false
+# Leave create_hosted_zone = true until the apex zone exists in Route53.
+# Once it does, flip it to false so future runs adopt it instead of
+# trying to create a second one.
+# create_hosted_zone = true

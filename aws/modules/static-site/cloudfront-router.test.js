@@ -8,8 +8,8 @@ vm.runInContext(src + '\nthis.handler = handler;', ctx);
 
 const ev = (host, uri, querystring = {}) => ({ request: { uri, querystring, headers: { host: { value: host } } } });
 
-const APEX = 'nosyneighborscoffeeco.com';
-const WWW = 'www.nosyneighborscoffeeco.com';
+const APEX = 'nosyneighbors.coffee';
+const WWW = 'www.nosyneighbors.coffee';
 
 const cases = [
   ['root',                 ev(APEX, '/'),                    r => r.uri === '/index.html'],

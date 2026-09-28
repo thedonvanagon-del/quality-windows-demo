@@ -1,5 +1,5 @@
 variable "domain_name" {
-  description = "Apex domain for the site, e.g. nosyneighborscoffeeco.com. No scheme, no www, no trailing dot."
+  description = "Apex domain for the site, e.g. nosyneighbors.coffee. No scheme, no www, no trailing dot."
   type        = string
 
   validation {
@@ -77,4 +77,35 @@ variable "content_security_policy" {
   type        = string
   default     = "default-src 'self'; img-src 'self' data: https:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; script-src 'self' 'unsafe-inline'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
   nullable    = true
+}
+
+variable "mx_records" {
+  description = <<-DESC
+    Apex MX records, each "<priority> <host>" — for example
+    "10 eforward1.registrar-servers.com".
+
+    Set these when moving a domain's nameservers to Route53. Mail routing lives
+    in DNS, so a zone that omits MX silently stops delivering the moment the
+    registrar's nameservers are dropped. Empty means no MX record is managed.
+  DESC
+  type        = list(string)
+  default     = []
+}
+
+variable "txt_records" {
+  description = <<-DESC
+    Apex TXT records — SPF, domain verification, and similar.
+
+    Values are passed to Route53 as written. A single string longer than 255
+    characters has to be split into quoted chunks by hand; standard SPF is well
+    under that.
+  DESC
+  type        = list(string)
+  default     = []
+}
+
+variable "mail_record_ttl" {
+  description = "TTL for the MX and TXT records, in seconds."
+  type        = number
+  default     = 3600
 }

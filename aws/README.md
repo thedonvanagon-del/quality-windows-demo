@@ -4,7 +4,7 @@ Two sites, one shared module:
 
 | Stack | Site source | Domain |
 |---|---|---|
-| `nosy-neighbors` | `sites/nosy-neighbors/` | `nosyneighborscoffeeco.com` |
+| `nosy-neighbors` | `sites/nosy-neighbors/` | `nosyneighbors.coffee` |
 | `sb-builder` | `sites/sb-builder/` | not set yet — you fill it in |
 
 Both get the same architecture: a private S3 bucket, CloudFront in front of it
@@ -21,152 +21,236 @@ readable straight from S3; CloudFront is the only way in.
 
 ## Before you start
 
-You need:
-
 - **Terraform** >= 1.6 — `brew install terraform`
 - **AWS CLI v2** — `brew install awscli`, then `aws configure`
 - **Credentials** with permission over S3, CloudFront, ACM, and Route53
 
-Check you are pointed at the right account before anything else:
+Confirm the account first:
 
 ```bash
 aws sts get-caller-identity
 ```
 
-## Step 1 — find out what already exists
+---
 
-This matters more than it sounds. If you built any of this in the console
-already, Terraform will try to create a *second* copy and hit errors that are
-annoying to unpick. Look first:
+# nosyneighbors.coffee: what is already live
 
-```bash
-DOMAIN=nosyneighborscoffeeco.com
+Checked 2026-09-28 from public DNS. Read this before running anything, because
+the domain is **half-configured across two providers** and a plain `apply` will
+collide with what exists.
 
-# Is there a hosted zone? (Registering through Route53 creates one automatically.)
-aws route53 list-hosted-zones-by-name --dns-name "$DOMAIN" \
-  --query 'HostedZones[].{Name:Name,Id:Id}' --output table
+**The apex is on Namecheap.**
 
-# Any distribution already claiming this domain?
-aws cloudfront list-distributions \
-  --query "DistributionList.Items[?Aliases.Quantity>\`0\`].{Id:Id,Domain:DomainName,Aliases:Aliases.Items}" \
-  --output json
-
-# Any certificate already issued?
-aws acm list-certificates --region us-east-1 \
-  --query "CertificateSummaryList[?DomainName=='$DOMAIN']" --output table
-
-# Any bucket that looks like the site bucket?
-aws s3 ls | grep -i nosy
+```
+nosyneighbors.coffee
+  NS   dns1.registrar-servers.com, dns2.registrar-servers.com
+  A    13.227.34.x                (CloudFront)
+  MX   eforward1-5.registrar-servers.com   <- Namecheap email forwarding
+  TXT  v=spf1 include:spf.efwd.registrar-servers.com ~all
 ```
 
-Then:
+**`www` is delegated to its own Route53 zone.**
 
-- **Hosted zone exists** — good, that is the default. Leave
-  `create_hosted_zone = false` and Terraform will adopt it.
-- **No hosted zone** — set `create_hosted_zone = true` in `terraform.tfvars`.
-- **A distribution already serves this domain** — import it (Step 4) or remove
-  the alias from it first. CloudFront refuses to put the same CNAME on two
-  distributions, so a fresh apply will fail with `CNAMEAlreadyExists`.
-- **Bucket or certificate exists** — import them (Step 4), or let Terraform
-  create new ones and clean the old up afterwards.
+```
+www.nosyneighbors.coffee
+  NS     ns-214.awsdns-26.com, ns-912.awsdns-50.net,
+         ns-1455.awsdns-53.org, ns-1996.awsdns-57.co.uk
+  CNAME  dt3yywat0csl.cloudfront.net
+```
 
-## Step 2 — configure
+That Route53 hosted zone was created for `www.nosyneighbors.coffee` rather than
+for `nosyneighbors.coffee`. It is a zone one level too deep — it can only ever
+hold `www` records, which is why the apex had to be handled separately at
+Namecheap. Its SOA serial is 1, so nothing has been changed in it since
+creation.
+
+### Three things this implies
+
+1. **`create_hosted_zone = true`** for this stack. There is no apex zone to
+   adopt, and adopting the `www` one would put apex records at the wrong level.
+
+2. **A CloudFront distribution already claims `www.nosyneighbors.coffee`**
+   (`dt3yywat0csl.cloudfront.net`). CloudFront refuses to serve one alias from
+   two distributions, so a fresh apply fails with `CNAMEAlreadyExists` until you
+   either import that distribution or take the alias off it. See
+   *Adopting what exists* below.
+
+3. **Email forwarding is the thing most likely to break.** It is configured at
+   Namecheap and routed by the MX records above. Move the nameservers without
+   carrying those across and mail stops arriving, with nothing visibly wrong
+   with the website. The stack now manages them (`mx_records`, `txt_records` in
+   `stacks/nosy-neighbors/variables.tf`) — but read the warning in step 3.
+
+---
+
+# Attaching the domain: what to do at Namecheap
+
+The short version: **change the nameservers to Route53's**. Everything else
+follows from that. But do it in this order, or the certificate will hang and
+your mail will drop.
+
+## Step 1 — create the apex zone and mail records first
+
+You need Route53 to be ready *before* Namecheap points at it. Apply only the
+DNS pieces:
 
 ```bash
 cd aws/stacks/nosy-neighbors
-cp terraform.tfvars.example terraform.tfvars   # edit if the defaults are wrong
-```
-
-For the Santa Barbara builder, `domain_name` has **no default** — nobody has
-said which domain it ships on. Set it before the first apply:
-
-```bash
-cd aws/stacks/sb-builder
-cp terraform.tfvars.example terraform.tfvars
-# then edit: domain_name = "the-real-domain.com"
-```
-
-## Step 3 — apply
-
-```bash
 terraform init
-terraform plan      # read this before saying yes
-terraform apply
+terraform apply \
+  -target=module.site.aws_route53_zone.this \
+  -target=module.site.aws_route53_record.mx \
+  -target=module.site.aws_route53_record.txt
 ```
 
-The first apply waits on DNS validation of the certificate. Five to ten minutes
-is normal. CloudFront then takes another ten or so to finish deploying.
-
-## Step 4 — only if you are adopting existing resources
-
-Run these *instead of* letting Terraform create fresh ones, from inside the
-stack directory, before `apply`:
-
-```bash
-# S3 bucket
-terraform import module.site.aws_s3_bucket.site nosyneighborscoffeeco-com-site
-
-# CloudFront distribution
-terraform import module.site.aws_cloudfront_distribution.site E1234567890ABC
-
-# Certificate (ARN from the us-east-1 list above)
-terraform import module.site.aws_acm_certificate.site \
-  arn:aws:acm:us-east-1:111122223333:certificate/xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
-
-# Origin Access Control
-terraform import module.site.aws_cloudfront_origin_access_control.site E2ABCDEF12345
-
-# DNS records, one per name and type: ZONEID_name_TYPE
-terraform import 'module.site.aws_route53_record.site["apex-A"]' \
-  Z0123456789ABC_nosyneighborscoffeeco.com_A
-```
-
-Then run `terraform plan` and read it carefully. The plan shows how the live
-resource differs from this config — that diff is the point of the exercise.
-
-A hosted zone needs no import while `create_hosted_zone = false`, because the
-module reads it as a data source rather than owning it.
-
-## Step 5 — point the domain
+Then read off the nameservers:
 
 ```bash
 terraform output name_servers
 ```
 
-Set those four at whoever the domain is registered with. If it is registered in
-Route53 and the zone above is the one Route53 created, this is already done.
+Four values, like `ns-123.awsdns-15.com`. Keep them to hand.
 
-**This is the step that gets skipped.** Right now `nosyneighborscoffeeco.com`
-has no DNS records at all, so until the registrar serves these nameservers, the
-site is invisible no matter how healthy the AWS side looks.
+Do **not** run a full `apply` yet. The certificate validates over DNS, and DNS
+does not point at Route53 until step 2, so it would sit and eventually time out.
 
-Watch it land:
+## Step 2 — switch the nameservers
 
-```bash
-dig +short NS nosyneighborscoffeeco.com
-dig +short nosyneighborscoffeeco.com
-```
+In Namecheap:
 
-Propagation is usually minutes, but give it up to 48 hours before worrying.
+1. Sign in, go to **Domain List**
+2. Click **Manage** next to `nosyneighbors.coffee`
+3. Find the **NAMESERVERS** section on the Domain tab
+4. Change the dropdown from **Namecheap BasicDNS** to **Custom DNS**
+5. Paste the four Route53 nameservers, one per row (use **ADD NAMESERVER** for
+   rows three and four). Trailing dots are fine either way.
+6. Click the green checkmark to save
 
-## Step 6 — publish the site
+Namecheap says up to 48 hours. In practice `.coffee` usually updates within an
+hour or two.
 
-```bash
-./aws/scripts/deploy.sh nosy-neighbors --dry-run   # see what would change
-./aws/scripts/deploy.sh nosy-neighbors             # do it
-```
-
-The script reads the bucket and distribution from Terraform state, uploads HTML
-and assets with different cache lifetimes, invalidates CloudFront, and waits for
-the invalidation to finish.
-
-Test before DNS resolves by hitting the distribution directly:
+Watch it flip:
 
 ```bash
-curl -I "https://$(terraform -chdir=aws/stacks/nosy-neighbors output -raw distribution_domain_name)"
+dig +short NS nosyneighbors.coffee
 ```
 
-## Everyday changes
+When that returns the `awsdns` names instead of `registrar-servers.com`, you are
+through.
+
+## Step 3 — check your email still works
+
+**Read this before step 2 if email matters to you.**
+
+Namecheap documents its free email forwarding as requiring their own
+nameservers. Copying the MX records into Route53 is necessary, and it may be
+sufficient — but it is not something Namecheap supports, so treat it as
+unverified until you have tested it.
+
+Decide up front which you want:
+
+- **Test and hope.** Do the switch, then send a message to your forwarded
+  address from an outside account. If it arrives, you are fine.
+- **Move email somewhere that expects external DNS.** Cloudflare Email Routing
+  is free and works with any nameservers; a paid mailbox (Fastmail, Google
+  Workspace) is the sturdier answer if the address matters commercially. Either
+  way you replace `mx_records` and `txt_records` with the new provider's values.
+
+Do not skip this because the website looks fine. Mail failures are silent.
+
+## Step 4 — the rest of the stack
+
+Once DNS resolves through Route53:
+
+```bash
+terraform apply
+```
+
+The certificate validates in a few minutes now that Route53 answers for the
+domain. CloudFront then takes ten or so to deploy.
+
+## Step 5 — publish the site
+
+```bash
+./aws/scripts/deploy.sh nosy-neighbors --dry-run
+./aws/scripts/deploy.sh nosy-neighbors
+```
+
+## Step 6 — clean up the leftover zone
+
+Once `nosyneighbors.coffee` and `www.nosyneighbors.coffee` both serve from the
+new stack, the old `www.nosyneighbors.coffee` hosted zone is dead weight at
+$0.50/month. Delete it **after** confirming the new setup works — not before,
+or you break `www` in the gap.
+
+```bash
+aws route53 list-hosted-zones-by-name --dns-name www.nosyneighbors.coffee
+aws route53 delete-hosted-zone --id <that zone id>
+```
+
+A zone must be empty of everything but its own NS and SOA records before it will
+delete.
+
+---
+
+# Adopting what exists
+
+The `www` CloudFront distribution already holds an alias this stack wants. Pick
+one:
+
+**Import it** — keeps the distribution, its URL, and any warm cache:
+
+```bash
+cd aws/stacks/nosy-neighbors
+terraform import module.site.aws_cloudfront_distribution.site <distribution-id>
+terraform plan   # read carefully: this shows how the live one differs
+```
+
+Find the id with:
+
+```bash
+aws cloudfront list-distributions \
+  --query "DistributionList.Items[?contains(Aliases.Items || \`[]\`, 'www.nosyneighbors.coffee')].{Id:Id,Domain:DomainName}" \
+  --output table
+```
+
+**Or release the alias** — simpler if that distribution was a first attempt you
+do not care about. Edit it in the CloudFront console, remove
+`www.nosyneighbors.coffee` from its alternate domain names, save, wait for it to
+finish deploying, then apply this stack normally.
+
+Other resources import the same way if they already exist:
+
+```bash
+terraform import module.site.aws_s3_bucket.site nosyneighbors-coffee-site
+terraform import module.site.aws_acm_certificate.site arn:aws:acm:us-east-1:<acct>:certificate/<id>
+terraform import module.site.aws_cloudfront_origin_access_control.site <oac-id>
+terraform import 'module.site.aws_route53_record.site["apex-A"]' <zone-id>_nosyneighbors.coffee_A
+```
+
+---
+
+# The other stack
+
+`sb-builder` has **no default domain** — nobody has said which one it ships on.
+Set it before its first apply:
+
+```bash
+cd aws/stacks/sb-builder
+cp terraform.tfvars.example terraform.tfvars
+# edit: domain_name = "the-real-domain.com"
+```
+
+Its `create_hosted_zone` defaults to `false`, so check whether a zone exists
+first:
+
+```bash
+aws route53 list-hosted-zones-by-name --dns-name <domain>
+```
+
+---
+
+# Everyday changes
 
 Edit files under `sites/<stack>/`, then:
 
@@ -176,59 +260,44 @@ Edit files under `sites/<stack>/`, then:
 
 No Terraform needed unless the infrastructure itself changes.
 
-## What it costs
+# What it costs
 
-Roughly **$1–3 per month per site** at small-cafe traffic:
+Roughly **$1–3 per month per site**:
 
 - Route53 hosted zone — $0.50/month, the only guaranteed charge
 - S3 storage and requests — cents
-- CloudFront — generous perpetual free tier; a marketing site rarely exceeds it
+- CloudFront — generous perpetual free tier
 - ACM certificate — free
-- Domain registration — about $13/year if Route53 is the registrar
 
-## Things worth knowing
+# Things worth knowing
 
 **The certificate must live in us-east-1.** CloudFront reads certificates from
 nowhere else. The module handles this with a second provider alias; the bucket
-can still live wherever you like.
+can live wherever you like.
 
 **Missing files come back as 403, not 404.** A private bucket behind OAC grants
 `s3:GetObject` only, so S3 cannot distinguish "no such key" from "not allowed".
-The distribution maps both onto `/404.html`, which is why that file has to exist
+The distribution maps both onto `/404.html`, which is why that file must exist
 in every site directory.
 
 **Nothing is content-hashed.** `deploy.sh` caches assets for a day rather than a
-year for exactly this reason. Add a build step that fingerprints filenames and
+year for exactly that reason. Add a build step that fingerprints filenames and
 you can safely raise it.
-
-**Two hosted zones for one domain is the classic failure.** The registrar points
-at one set of nameservers; your records live in the other. If the site will not
-resolve, check that `terraform output name_servers` matches
-`dig +short NS <domain>` before looking anywhere else.
 
 **State is local by default.** Fine for one person. The moment anyone else
 deploys, uncomment the S3 backend in `versions.tf` and run
 `terraform init -migrate-state`.
 
-## Verifying a stack without applying it
+# Checking your work without applying
 
 ```bash
 terraform fmt -recursive -check
 terraform validate
-```
-
-Both run without AWS credentials. `terraform plan` does not — it reads live
-account state.
-
-The CloudFront router function has its own tests — URL rewriting is the one
-piece of real logic here, and a mistake in it breaks every request:
-
-```bash
 node aws/modules/static-site/cloudfront-router.test.js
 ```
 
-CI runs all of this on every pull request — formatting, `validate` on both
-stacks, the router tests, shellcheck on `deploy.sh`, and a check that every site
-directory has its `404.html`. None of it needs AWS credentials, so it runs on
-forks and on branches without touching the account. See
+None of those need AWS credentials. CI runs all of them, plus shellcheck on
+`deploy.sh` and a check that every site directory has its `404.html` — see
 `.github/workflows/checks.yml`.
+
+`terraform plan` does need credentials; it reads live account state.

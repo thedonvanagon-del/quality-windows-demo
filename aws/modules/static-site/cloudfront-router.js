@@ -1,4 +1,4 @@
-// CloudFront Function (viewer-request) for nosyneighborscoffeeco.com.
+// CloudFront Function (viewer-request) for nosyneighbors.coffee.
 //
 // Two jobs:
 //   1. Redirect www.<domain> to the bare apex so the site has one canonical URL.
