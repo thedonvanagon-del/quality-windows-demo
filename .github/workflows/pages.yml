@@ -1,0 +1,50 @@
+name: deploy site
+
+# Publishes sites/nosy-neighbors/ to GitHub Pages, which serves it on
+# nosyneighbors.coffee with a certificate GitHub renews itself.
+#
+# This is the no-AWS path. The Terraform under aws/ still stands and is the
+# better long-term home; this exists so the site can be live while the AWS
+# account access is sorted out. Moving later is a DNS change, nothing more.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'sites/nosy-neighbors/**'
+      - '.github/workflows/pages.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Never run two deploys at once, and never cancel one halfway: a cancelled
+# deploy can leave the site serving a partial upload.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      # Written at deploy time rather than kept in the tree, so the same
+      # directory can still sync to S3 without a stray file going along.
+      - name: Claim the custom domain
+        run: echo "nosyneighbors.coffee" > sites/nosy-neighbors/CNAME
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: sites/nosy-neighbors
+
+      - id: deploy
+        uses: actions/deploy-pages@v4
