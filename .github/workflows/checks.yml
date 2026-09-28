@@ -53,7 +53,7 @@ jobs:
         run: node aws/modules/static-site/cloudfront-router.test.js
 
       - name: shellcheck
-        run: shellcheck aws/scripts/deploy.sh
+        run: shellcheck aws/scripts/*.sh
 
       # CloudFront maps 403 and 404 onto /404.html. If that file is missing the
       # error page itself errors, and nothing else here would catch it.

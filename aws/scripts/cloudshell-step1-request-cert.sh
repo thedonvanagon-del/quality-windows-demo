@@ -42,7 +42,7 @@ aws acm describe-certificate --region us-east-1 --certificate-arn "${ARN}" \
   --query 'Certificate.DomainValidationOptions[].[ResourceRecord.Name,ResourceRecord.Value]' \
   --output text | while read -r NAME VALUE; do
     # Namecheap's Host field takes only the part before the domain.
-    HOST="${NAME%.${DOMAIN}.}"
+    HOST="${NAME%."${DOMAIN}".}"
     echo
     echo "  Host  : ${HOST}"
     echo "  Value : ${VALUE}"
