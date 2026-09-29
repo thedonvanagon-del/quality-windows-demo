@@ -3,6 +3,10 @@ name: deploy site
 # Publishes sites/nosy-neighbors/ to GitHub Pages, which serves it on
 # nosyneighbors.coffee with a certificate GitHub renews itself.
 #
+# The custom domain is set in Settings > Pages > Custom domain, not here.
+# Pages ignores a CNAME file when it deploys from an Actions workflow, so
+# the repository setting is the only thing that attaches the domain.
+#
 # This is the no-AWS path. The Terraform under aws/ still stands and is the
 # better long-term home; this exists so the site can be live while the AWS
 # account access is sorted out. Moving later is a DNS change, nothing more.
@@ -34,11 +38,6 @@ jobs:
       url: ${{ steps.deploy.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
-
-      # Written at deploy time rather than kept in the tree, so the same
-      # directory can still sync to S3 without a stray file going along.
-      - name: Claim the custom domain
-        run: echo "nosyneighbors.coffee" > sites/nosy-neighbors/CNAME
 
       - uses: actions/configure-pages@v5
 
