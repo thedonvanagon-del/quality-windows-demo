@@ -25,25 +25,34 @@ variable "create_hosted_zone" {
 
 variable "mx_records" {
   description = <<-DESC
-    Copied from the live Namecheap zone on 2026-09-28. These are Namecheap's
-    email forwarding servers. They must exist in Route53 before the domain's
-    nameservers are switched, or forwarded mail stops arriving with nothing
-    visibly broken on the website.
+    Mail for this domain is handled by the Buddha Beans Google Workspace, with
+    nosyneighbors.coffee added there as a secondary domain (2026-09-29).
+    hello@ is an alias on an existing Workspace user, so this adds no license.
 
-    Re-check them against Namecheap before the switch; keep them in sync after.
+    smtp.google.com at priority 1 is what the Admin console gives new domains;
+    buddhabeanscoffee.com uses aspmx.l.google.com, and either is valid.
+
+    These must exist in Route53 before the nameservers ever move there, or
+    mail stops arriving with nothing visibly wrong on the website. Check them
+    against the live zone first.
   DESC
   type        = list(string)
-  default = [
-    "10 eforward1.registrar-servers.com",
-    "10 eforward2.registrar-servers.com",
-    "10 eforward3.registrar-servers.com",
-    "15 eforward4.registrar-servers.com",
-    "20 eforward5.registrar-servers.com",
-  ]
+  default     = ["1 smtp.google.com"]
 }
 
 variable "txt_records" {
-  description = "Apex TXT records. The SPF entry below is Namecheap's, copied from the live zone on 2026-09-28."
+  description = <<-DESC
+    Apex TXT records: SPF authorising Google to send for the domain.
+
+    Add the google-site-verification value from the Admin console here too
+    before any move to Route53 -- Google re-checks it, and losing it can
+    unverify the domain.
+
+    This module only manages apex MX and TXT. The DKIM record
+    (google._domainkey) and DMARC record (_dmarc) live at other names and must
+    be recreated by hand in Route53 before a nameserver switch. Without DKIM,
+    mail sent as hello@ loses its signature and starts landing in spam.
+  DESC
   type        = list(string)
-  default     = ["v=spf1 include:spf.efwd.registrar-servers.com ~all"]
+  default     = ["v=spf1 include:_spf.google.com ~all"]
 }

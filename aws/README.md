@@ -75,11 +75,13 @@ creation.
    either import that distribution or take the alias off it. See
    *Adopting what exists* below.
 
-3. **Email forwarding is the thing most likely to break.** It is configured at
-   Namecheap and routed by the MX records above. Move the nameservers without
-   carrying those across and mail stops arriving, with nothing visibly wrong
-   with the website. The stack now manages them (`mx_records`, `txt_records` in
-   `stacks/nosy-neighbors/variables.tf`) — but read the warning in step 3.
+3. **Email is the thing most likely to break.** Since 2026-09-29 the domain's
+   mail runs on the Buddha Beans Google Workspace (secondary domain; `hello@`
+   is an alias), not Namecheap forwarding. Move the nameservers without
+   carrying the mail records across and mail stops arriving, with nothing
+   visibly wrong with the website. The stack manages MX and SPF
+   (`mx_records`, `txt_records` in `stacks/nosy-neighbors/variables.tf`) — but
+   read step 3 for the records it does not manage.
 
 ---
 
@@ -138,25 +140,28 @@ dig +short NS nosyneighbors.coffee
 When that returns the `awsdns` names instead of `registrar-servers.com`, you are
 through.
 
-## Step 3 — check your email still works
+## Step 3 — carry the mail records across
 
-**Read this before step 2 if email matters to you.**
+**Read this before step 2.**
 
-Namecheap documents its free email forwarding as requiring their own
-nameservers. Copying the MX records into Route53 is necessary, and it may be
-sufficient — but it is not something Namecheap supports, so treat it as
-unverified until you have tested it.
+Mail is on Google Workspace, which works with any nameservers, so the move
+itself is safe. The risk is records going missing on the way. The stack
+creates MX and SPF. Three others it does not manage, because they live at names
+other than the apex or hold values only the Admin console knows:
 
-Decide up front which you want:
+| Record | Name | Where the value comes from |
+|---|---|---|
+| TXT | `@` | `google-site-verification=…` — Admin console > Domains |
+| TXT | `google._domainkey` | Admin console > Gmail > Authenticate email |
+| TXT | `_dmarc` | `v=DMARC1; p=none` (or whatever is live) |
 
-- **Test and hope.** Do the switch, then send a message to your forwarded
-  address from an outside account. If it arrives, you are fine.
-- **Move email somewhere that expects external DNS.** Cloudflare Email Routing
-  is free and works with any nameservers; a paid mailbox (Fastmail, Google
-  Workspace) is the sturdier answer if the address matters commercially. Either
-  way you replace `mx_records` and `txt_records` with the new provider's values.
+Copy all three from Namecheap into the Route53 zone before switching. Losing
+the verification record can unverify the domain in Workspace; losing DKIM
+sends mail from `hello@` to spam.
 
-Do not skip this because the website looks fine. Mail failures are silent.
+Then send a message to `hello@nosyneighbors.coffee` from an outside account and
+reply to it. Mail failures are silent, so do not skip this because the website
+looks fine.
 
 ## Step 4 — the rest of the stack
 

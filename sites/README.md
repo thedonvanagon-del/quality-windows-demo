@@ -35,10 +35,10 @@ detail customers act on:
       if the shop opens weekends, the hero chip, the hours entry and the `180`
       stat block all need updating.
 - [ ] **Instagram** — @nosyneighborscoffee
-- [ ] **Franchise email** — `hello@nosyneighbors.coffee` is a placeholder.
-      It must exist, or point it at the real address. Note the domain currently
-      uses Namecheap email forwarding, which may not survive the nameserver
-      move to Route53 — see the email warning in `aws/README.md`.
+- [ ] **Franchise email** — `hello@nosyneighbors.coffee` is an alias in the
+      Buddha Beans Google Workspace, filtered to its own label. Send it a test
+      message from an outside account before launch and confirm the reply goes
+      out from `hello@`.
 - [ ] **Menu items** — names are listed, prices deliberately are not. The page
       says prices are on the board in the shop, so no number can go stale.
 - [ ] **The 180 square feet story** — repeated from the brand's own telling.

@@ -82,7 +82,7 @@ variable "content_security_policy" {
 variable "mx_records" {
   description = <<-DESC
     Apex MX records, each "<priority> <host>" — for example
-    "10 eforward1.registrar-servers.com".
+    "1 smtp.google.com".
 
     Set these when moving a domain's nameservers to Route53. Mail routing lives
     in DNS, so a zone that omits MX silently stops delivering the moment the
