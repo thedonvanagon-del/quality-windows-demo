@@ -19,7 +19,9 @@ fi
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 STACK_DIR="${REPO_ROOT}/aws/stacks/${STACK}"
-SITE_DIR="${REPO_ROOT}/sites/${STACK}"
+# Override when the site source lives elsewhere -- the Nosy Neighbors site is
+# kept in its own repo:  SITE_DIR=../nosyneighbors-coffee/site ./aws/scripts/deploy.sh nosy-neighbors
+SITE_DIR="${SITE_DIR:-${REPO_ROOT}/sites/${STACK}}"
 
 die() {
   echo "error: $*" >&2
@@ -34,7 +36,7 @@ command -v aws >/dev/null 2>&1 || die "the AWS CLI is not installed. https://doc
 command -v terraform >/dev/null 2>&1 || die "terraform is not installed."
 
 # Refuse to sync an empty directory: with --delete that would wipe the live site.
-if [[ -z "$(find "$SITE_DIR" -type f -print -quit)" ]]; then
+if [[ -z "$(find -L "$SITE_DIR" -type f -print -quit)" ]]; then
   die "${SITE_DIR} has no files in it. Refusing to sync, because --delete would empty the bucket."
 fi
 

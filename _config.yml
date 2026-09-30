@@ -1,0 +1,5 @@
+# GitHub Pages builds this repo from main in branch mode, and that site is the
+# Quality Windows demo (index.html). Everything else here is tooling, not pages.
+exclude:
+  - aws
+  - sites

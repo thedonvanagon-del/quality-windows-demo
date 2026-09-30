@@ -4,7 +4,7 @@ Two sites, one shared module:
 
 | Stack | Site source | Domain |
 |---|---|---|
-| `nosy-neighbors` | `sites/nosy-neighbors/` | `nosyneighbors.coffee` |
+| `nosy-neighbors` | `site/` in [`nosyneighbors-coffee`](https://github.com/thedonvanagon-del/nosyneighbors-coffee) | `nosyneighbors.coffee` |
 | `sb-builder` | `sites/sb-builder/` | not set yet — you fill it in |
 
 Both get the same architecture: a private S3 bucket, CloudFront in front of it
@@ -176,10 +176,18 @@ domain. CloudFront then takes ten or so to deploy.
 
 ## Step 5 — publish the site
 
+The site's source lives in its own repo. Clone it next to this one, then point
+the deploy at it:
+
 ```bash
-./aws/scripts/deploy.sh nosy-neighbors --dry-run
-./aws/scripts/deploy.sh nosy-neighbors
+git clone https://github.com/thedonvanagon-del/nosyneighbors-coffee.git ../nosyneighbors-coffee
+SITE_DIR=../nosyneighbors-coffee/site ./aws/scripts/deploy.sh nosy-neighbors --dry-run
+SITE_DIR=../nosyneighbors-coffee/site ./aws/scripts/deploy.sh nosy-neighbors
 ```
+
+That repo also publishes the same files through GitHub Pages on every push. Once
+the domain points here, turn Pages off in its settings so two hosts aren't
+serving one site.
 
 ## Step 6 — clean up the leftover zone
 
@@ -257,11 +265,16 @@ aws route53 list-hosted-zones-by-name --dns-name <domain>
 
 # Everyday changes
 
-Edit files under `sites/<stack>/`, then:
+Today the Nosy Neighbors site publishes through GitHub Pages: pushing to `main`
+in `nosyneighbors-coffee` is all it takes. Once it runs from AWS, edit there and
+deploy with:
 
 ```bash
-./aws/scripts/deploy.sh nosy-neighbors
+SITE_DIR=../nosyneighbors-coffee/site ./aws/scripts/deploy.sh nosy-neighbors
 ```
+
+For the demo, edit the repo-root `index.html` and run
+`./aws/scripts/deploy.sh sb-builder`.
 
 No Terraform needed unless the infrastructure itself changes.
 

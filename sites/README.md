@@ -1,15 +1,26 @@
 # Site sources
 
-Each directory here is the document root for one stack in `aws/stacks/`. The
-names match on purpose — `deploy.sh nosy-neighbors` syncs `sites/nosy-neighbors/`.
+Document roots for the stacks in `aws/stacks/`. `deploy.sh <stack>` syncs
+`sites/<stack>/` unless `SITE_DIR` points somewhere else.
 
 | Directory | Stack | What it is |
 |---|---|---|
-| `nosy-neighbors/` | `nosy-neighbors` | Nosy Neighbors Coffee Co. — single page, no build step |
-| `sb-builder/` | `sb-builder` | Santa Barbara small business site (Quality Windows & Doors) |
+| `sb-builder/` | `sb-builder` | Quality Windows & Doors demo |
 
-Both are hand-written HTML with the CSS inline. There is no bundler, no
-framework, and nothing to compile — edit the file, run `deploy.sh`, done.
+`sb-builder/index.html` is a symlink to the repo-root `index.html`, which
+GitHub Pages serves at `thedonvanagon-del.github.io/quality-windows-demo/`.
+One file feeds both, so the demo and its AWS copy can't drift apart.
+`_config.yml` keeps the Pages build from publishing `aws/` and `sites/`.
+
+**The Nosy Neighbors site lives in its own repo,
+[`thedonvanagon-del/nosyneighbors-coffee`](https://github.com/thedonvanagon-del/nosyneighbors-coffee),**
+which publishes it to `nosyneighbors.coffee` through GitHub Pages. A repo gets
+one Pages site, and this one's belongs to the demo. Its launch checklist is in
+that repo's README. To serve it from AWS instead, point the deploy at it:
+
+```bash
+SITE_DIR=../nosyneighbors-coffee/site ./aws/scripts/deploy.sh nosy-neighbors
+```
 
 CSS is inline rather than in a separate stylesheet because nothing here is
 content-hashed. An external `styles.css` would either be cached stale in
@@ -20,39 +31,3 @@ Inline CSS rides along with the HTML, which is always revalidated.
 
 CloudFront maps both 403 and 404 responses onto `/404.html`. If that file is
 missing, the error page itself errors.
-
----
-
-## Verify before launch
-
-The copy on the Nosy Neighbors page is written from publicly listed information.
-**Check these against reality before the site goes live** — they are the kind of
-detail customers act on:
-
-- [ ] **Address** — 133 N Yale Ave, Claremont, CA 91711
-- [ ] **Phone** — (909) 901-9141
-- [ ] **Hours** — Monday to Friday, 7:00am–6:00pm. No weekend hours are listed;
-      if the shop opens weekends, the hero chip, the hours entry and the `180`
-      stat block all need updating.
-- [ ] **Instagram** — @nosyneighborscoffee
-- [ ] **Franchise email** — `hello@nosyneighbors.coffee` is an alias in the
-      Buddha Beans Google Workspace, filtered to its own label. Send it a test
-      message from an outside account before launch and confirm the reply goes
-      out from `hello@`.
-- [ ] **Menu items** — names are listed, prices deliberately are not. The page
-      says prices are on the board in the shop, so no number can go stale.
-- [ ] **The 180 square feet story** — repeated from the brand's own telling.
-
-### Also worth deciding
-
-There is an existing live site at **nosyneighborscoffee.com** (no "co") running
-on Squarespace, separate from **nosyneighbors.coffee** which this stack serves.
-Two sites for one business splits search traffic and confuses customers. Pick
-one as canonical and redirect the other.
-
-### Nice to add later
-
-- A real Open Graph image. `og:image` is unset, so shared links show no preview.
-- `LocalBusiness` structured data, so hours and address show up in search.
-- Ordering. The page has no order link; the brand currently takes orders through
-  a third party.
