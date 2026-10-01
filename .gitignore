@@ -1,0 +1,28 @@
+# Terraform
+**/.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+crash.log
+crash.*.log
+
+# Real variable values often carry account-specific detail; only the
+# .example files belong in git.
+terraform.tfvars
+*.auto.tfvars
+
+# Not committed here on purpose. The lock file records a checksum per platform,
+# and one generated on a single machine will fail `terraform init` on any other
+# OS. Let your first `terraform init` write it, then either commit it from a
+# machine everyone matches or run:
+#   terraform providers lock -platform=darwin_arm64 -platform=linux_amd64
+.terraform.lock.hcl
+
+# OS / editor noise
+.DS_Store
+Thumbs.db
+*.swp
+.idea/
+.vscode/
+
+node_modules/

@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Page not found</title>
+<meta name="robots" content="noindex" />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600&family=Hanken+Grotesk:wght@400;600&display=swap" rel="stylesheet">
+<style>
+  :root{color-scheme:light}
+  *{box-sizing:border-box}
+  body{
+    margin:0;min-height:100vh;display:grid;place-items:center;padding:32px;
+    background:#F6F1E8;color:#211B14;
+    font-family:"Hanken Grotesk",system-ui,sans-serif;line-height:1.6;text-align:center;
+  }
+  .box{max-width:46ch}
+  h1{
+    font-family:"Fraunces",Georgia,serif;font-weight:600;
+    font-size:clamp(32px,6vw,52px);letter-spacing:-.01em;line-height:1.05;margin:0 0 16px;
+  }
+  p{color:#3A3127;margin:0 0 30px;font-size:17px}
+  .rule{width:48px;height:2px;background:#B07636;margin:0 auto 28px;border-radius:2px}
+  a{
+    display:inline-flex;align-items:center;justify-content:center;
+    background:#211B14;color:#F6F1E8;text-decoration:none;font-weight:600;font-size:15px;
+    padding:14px 28px;border-radius:999px;transition:background .2s;
+  }
+  a:hover{background:#8F5C25}
+  a:focus-visible{outline:3px solid #8F5C25;outline-offset:3px}
+</style>
+</head>
+<body>
+  <div class="box">
+    <div class="rule"></div>
+    <h1>Page not found</h1>
+    <p>That link either moved or never existed. Head back to the homepage and start again.</p>
+    <a href="/">Back to the homepage</a>
+  </div>
+</body>
+</html>
