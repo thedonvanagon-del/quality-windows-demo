@@ -19,8 +19,8 @@ fi
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 STACK_DIR="${REPO_ROOT}/aws/stacks/${STACK}"
-# Override when the site source lives elsewhere -- the Nosy Neighbors site is
-# kept in its own repo:  SITE_DIR=../nosyneighbors-coffee/site ./aws/scripts/deploy.sh nosy-neighbors
+# Override when the site source lives somewhere other than sites/<stack>:
+#   SITE_DIR=path/to/site ./aws/scripts/deploy.sh <stack>
 SITE_DIR="${SITE_DIR:-${REPO_ROOT}/sites/${STACK}}"
 
 die() {
