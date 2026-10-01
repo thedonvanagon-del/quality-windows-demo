@@ -1,6 +1,7 @@
 # GitHub Pages builds this repo from main in branch mode. The published site
-# is Nosy Neighbors: index.html, 404.html, and CNAME (which sets the custom
-# domain nosyneighbors.coffee). Everything else here is tooling, not pages.
+# is Not A Nosy Neighbor (Buddha Beans Coffee Co): the root pages, assets/,
+# robots.txt, llms.txt, sitemap.xml, and CNAME (which sets the custom domain
+# nosyneighbors.coffee). Everything else here is tooling, not pages.
 exclude:
   - aws
   - sites

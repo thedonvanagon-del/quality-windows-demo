@@ -5,56 +5,50 @@ Document roots for the stacks in `aws/stacks/`. `deploy.sh <stack>` syncs
 
 | Directory | Stack | What it is |
 |---|---|---|
-| `nosy-neighbors/` | `nosy-neighbors` | Nosy Neighbors Coffee Co. — live at nosyneighbors.coffee |
+| `nosy-neighbors/` | `nosy-neighbors` | Not A Nosy Neighbor, by Buddha Beans Coffee Co — live at nosyneighbors.coffee |
 | `sb-builder/` | `sb-builder` | Quality Windows & Doors demo — not published |
 
 **The coffee site is the repo root.** GitHub Pages builds `main` in branch mode
-and publishes `index.html` and `404.html`; the `CNAME` file sets the custom
-domain to `nosyneighbors.coffee`. `nosy-neighbors/` holds symlinks to those two
-root files, so the AWS stack deploys exactly what Pages serves. To change the
-site, edit the root `index.html` and merge to `main`.
+and publishes the root pages (`index.html`, `coffee.html`, `secret.html`,
+`404.html`), `assets/`, `robots.txt`, `llms.txt` and `sitemap.xml`. The `CNAME`
+file sets the custom domain to `nosyneighbors.coffee`. `nosy-neighbors/` holds
+symlinks to all of those, so the AWS stack deploys exactly what Pages serves.
+To change the site, edit the root files and merge to `main`. A new page or
+top-level file needs a symlink in `nosy-neighbors/` as well.
 
 `_config.yml` keeps the Pages build from publishing `aws/` and `sites/`. That
 is also why the Quality Windows demo in `sb-builder/` is no longer served
 anywhere: a repo gets one Pages site, and this one now belongs to the coffee
 site.
 
-CSS is inline rather than in a separate stylesheet because nothing here is
-content-hashed. An external `styles.css` would either be cached stale in
-browsers or need a cache lifetime short enough to lose most of the benefit.
-Inline CSS rides along with the HTML, which is always revalidated.
+Every page links the stylesheet as `assets/site.css?v=1`. GitHub Pages lets
+browsers cache files for ten minutes, so when the stylesheet changes, bump the
+`?v=` number on every page. Otherwise visitors can get the new HTML with the
+old styles.
 
 ## Every site directory needs a 404.html
 
 CloudFront maps both 403 and 404 responses onto `/404.html`. If that file is
-missing, the error page itself errors.
+missing, the error page itself errors. The root `404.html` uses root-relative
+paths (`/assets/...`) because it is served at whatever URL was missing.
 
 ---
 
-## Verify before launch
+## Open items
 
-The coffee site's copy was written from publicly listed information. Check these
-against reality — they're the details customers act on:
-
-- [ ] **Address** — 133 N Yale Ave, Claremont, CA 91711
-- [ ] **Phone** — (909) 901-9141
-- [ ] **Hours** — Monday to Friday, 7:00am–6:00pm. If the shop opens
-      weekends, update the hero chip, the hours entry and the `7am` stat.
-- [ ] **Instagram** — @nosyneighborscoffee
-- [ ] **Franchise email** — `hello@nosyneighbors.coffee`, an alias in the Buddha
-      Beans Google Workspace. Send it a test from an outside account and
-      confirm the reply goes out from `hello@`.
-- [ ] **Menu** — item names are listed, prices deliberately aren't.
-- [ ] **The 180 square feet story** — repeated from the brand's own telling.
-
-### Worth deciding
-
-There's an existing live site at **nosyneighborscoffee.com** (no "co") on
-Squarespace. Two sites for one business splits search traffic and confuses
-customers. Pick one as canonical and redirect the other.
-
-### Nice to add later
-
-- A real Open Graph image. `og:image` is unset, so shared links show no preview.
-- `LocalBusiness` structured data, so hours and address show up in search.
-- An order link. The page has none; orders currently go through a third party.
+- [ ] **Bag silhouettes** — `assets/bag-silhouette.svg` is a stand-in drawn to
+      match the Costa Rica bag. The original didn't come over with the rest of
+      the site. Drop it in at the same path to replace the stand-in.
+- [ ] **Costa Rica link** — goes to the store's full product list,
+      `buddhabeanscoffee.com/collections/all`. Point it at the Costa Rica
+      product itself if you'd rather land people on the bag.
+- [ ] **Claremont page** — `claremont.html` was planned but never built, so its
+      line came out of `llms.txt`. Put it back, and add the page to
+      `sitemap.xml`, once it exists.
+- [ ] **Drop-list signup** — not connected to a list yet. The form on the home
+      page opens a pre-filled email to hello@buddhabeanscoffee.com instead.
+      Point its `action` at the BayEngage list to collect signups directly.
+- [ ] **Secret page** — the passcode-locked menu is encrypted inside
+      `secret.html`. Changing the menu or the passcode means re-running the
+      encryption script from the chat that built the site
+      (`scripts/encrypt-secret.py`, which isn't in this repo).
