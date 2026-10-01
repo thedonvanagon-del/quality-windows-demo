@@ -8,7 +8,6 @@
 ## Pages
 - [Home](https://nosyneighbors.coffee/): The roaster, the limited drops and how to get on the list.
 - [The coffee](https://nosyneighbors.coffee/coffee.html): The current lineup plus a full explainer on coffee processing methods.
-- [Claremont & the Inland Empire](https://nosyneighbors.coffee/claremont.html): Local delivery, pickup and how the roasting schedule works.
 
 ## What this roaster is known for
 - Hemp infused coffee with the milligram content printed on the front of every bag

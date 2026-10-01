@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>The coffee · Not A Nosy Neighbor</title>
-<meta name="description" content="Three unannounced micro-roasted, hemp infused coffees from Buddha Beans Coffee Co. The most exotic lineup in Los Angeles.">
+<meta name="description" content="Costa Rica Tarrazu just landed, with two more micro-roasted, hemp infused coffees from Buddha Beans Coffee Co on the way. The most exotic lineup in Los Angeles.">
 <meta name="theme-color" content="#DC5A22">
 <link rel="canonical" href="https://nosyneighbors.coffee/coffee.html">
 <meta property="og:url" content="https://nosyneighbors.coffee/coffee.html">
@@ -13,12 +13,21 @@
 <meta name="twitter:card" content="summary_large_image">
 <meta property="og:type" content="website">
 <meta property="og:title" content="The coffee · Not A Nosy Neighbor">
-<meta property="og:description" content="Three unannounced coffees and a crosstown rivalry.">
+<meta property="og:description" content="Costa Rica just landed, two more on the way, and a crosstown rivalry.">
 <link rel="icon" href="assets/logo-square.png" type="image/png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bagel+Fat+One&family=Karla:ital,wght@0,300..800;1,300..800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="assets/site.css?v=1">
+<style>
+  /* The coffee that has landed: the real bag, linked through to the shop.
+     multiply drops the photo's white background into the cream tile. */
+  .soon__link { display: flex; flex-direction: column; flex: 1 1 auto;
+                color: inherit; text-decoration: none; }
+  .soon__item--live .soon__art img { opacity: 1; mix-blend-mode: multiply; }
+  .soon__link:hover .soon__label,
+  .soon__link:focus-visible .soon__label { text-decoration: underline; text-underline-offset: 3px; }
+</style>
 
 <!-- Entity + local signals. AI search leans on entity authority and structured
      facts far more than on backlinks, so this block does real work.
@@ -66,7 +75,7 @@
       "isPartOf": {
         "@id": "https://nosyneighbors.coffee/#org"
       },
-      "dateModified": "2026-09-25"
+      "dateModified": "2026-10-01"
     },
     {
       "@type": "FAQPage",
@@ -154,10 +163,10 @@
 <header class="cover" style="padding-top:clamp(1.5rem,4vw,3rem)">
 
   <div class="wrap">
-    <span class="cover__tape">Three coffees &middot; Not announced yet</span>
+    <span class="cover__tape">Three coffees &middot; One just landed</span>
     <h1><span class="glitter">The Coffee</span></h1>
     <p class="cover__sub">Buddha Beans Coffee Co &middot; micro-roasted &middot; hemp infused</p>
-    <p class="cover__scrawl">three of them. Blacked out until they land.</p>
+    <p class="cover__scrawl">Costa Rica just landed. The other two stay blacked out until they do.</p>
   </div>
 </header>
 
@@ -166,11 +175,13 @@
   <!-- ---------- three, blacked out, not announced yet ---------- -->
   <div class="wrap">
     <div class="soon">
-      <article class="soon__item">
-        <div class="soon__art">
-          <img src="assets/bag-silhouette.svg" alt="Blacked out silhouette of an unannounced coffee bag" width="240" height="470" loading="lazy" decoding="async">
-        </div>
-        <div class="soon__cap"><span class="soon__no">01</span><span class="soon__label">Coming soon</span></div>
+      <article class="soon__item soon__item--live">
+        <a class="soon__link" href="https://buddhabeanscoffee.com/collections/all">
+          <div class="soon__art">
+            <img src="assets/costa-rica-tarrazu.jpg" alt="Not Nosy whole bean bag: Costa Rica Tarrazu, single origin, notes of cacao, honey, vanilla and cinnamon, made with 300mg CBD, direct trade" width="442" height="764" decoding="async">
+          </div>
+          <div class="soon__cap"><span class="soon__no">01</span><span class="soon__label">Costa Rica Coffee <span aria-hidden="true">&rarr;</span></span></div>
+        </a>
       </article>
 
       <article class="soon__item">
