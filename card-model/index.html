@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>@juno.pulls — profile preview</title>
+<meta name="robots" content="noindex" />
+<style>
+  :root{
+    --bg:#fafafa; --card:#fff; --ink:#1c1c1e; --muted:#737378; --line:#e4e4e7;
+    --accent:#e1306c;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{ --bg:#0b0b0d; --card:#141417; --ink:#f4f4f5; --muted:#9a9aa2; --line:#27272b; }
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+    font:15px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+  .phone{max-width:470px;margin:0 auto;background:var(--card);min-height:100vh;
+    border-left:1px solid var(--line);border-right:1px solid var(--line)}
+  header{padding:20px 16px 12px}
+  .top{display:flex;align-items:center;gap:20px}
+  .avatar{width:84px;height:84px;border-radius:50%;flex:none;padding:3px;
+    background:conic-gradient(#f9ce34,#ee2a7b,#6228d7,#f9ce34)}
+  .avatar span{display:grid;place-items:center;width:100%;height:100%;border-radius:50%;
+    background:linear-gradient(135deg,#2b2b33,#52525e);color:#fff;font-weight:700;
+    font-size:28px;border:3px solid var(--card)}
+  .stats{display:flex;gap:22px;text-align:center;flex:1;justify-content:space-around}
+  .stats b{display:block;font-size:17px}
+  .stats small{color:var(--muted);font-size:13px}
+  h1{font-size:15px;margin:14px 0 2px}
+  .tag{display:inline-block;font-size:11px;color:var(--muted);border:1px solid var(--line);
+    border-radius:4px;padding:1px 6px;margin-left:6px;vertical-align:middle;font-weight:400}
+  .bio{margin:2px 0 0;white-space:pre-line}
+  .btns{display:flex;gap:8px;margin-top:14px}
+  .btns button{flex:1;border:0;border-radius:8px;padding:8px;font:inherit;font-weight:600;
+    background:var(--line);color:var(--ink);cursor:pointer}
+  .btns .follow{background:var(--accent);color:#fff}
+  .hl{display:flex;gap:16px;padding:6px 16px 14px;overflow-x:auto}
+  .hl div{text-align:center;font-size:12px;flex:none}
+  .hl i{display:block;width:62px;height:62px;border-radius:50%;border:1px solid var(--line);
+    margin:0 auto 4px;display:grid;place-items:center;font-style:normal;font-size:22px;background:var(--bg)}
+  nav{display:flex;border-top:1px solid var(--line)}
+  nav a{flex:1;text-align:center;padding:10px;font-size:12px;letter-spacing:.08em;
+    color:var(--muted);text-decoration:none}
+  nav a.on{color:var(--ink);border-top:1px solid var(--ink);margin-top:-1px}
+  .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:2px}
+  .tile{aspect-ratio:4/5;position:relative;overflow:hidden;display:grid;place-items:center;
+    background:var(--c)}
+  /* placeholder card — swap for a photo of a real card you own */
+  .pcard{width:46%;aspect-ratio:63/88;border-radius:6%;position:relative;
+    background:linear-gradient(135deg,#ffffff55,#ffffff11),var(--c2);
+    box-shadow:0 10px 24px -8px #0008;transform:rotate(var(--r,-4deg));
+    border:3px solid #f3d36b;display:grid;place-items:center;overflow:hidden}
+  .pcard::after{content:"";position:absolute;inset:0;
+    background:linear-gradient(115deg,transparent 30%,#fff7 45%,#ff7ad955 52%,#7ae7ff55 58%,transparent 70%);
+    background-size:200% 200%;animation:holo 4s ease-in-out infinite}
+  @keyframes holo{0%,100%{background-position:0% 0}50%{background-position:100% 100%}}
+  @media (prefers-reduced-motion: reduce){ .pcard::after{animation:none} }
+  .pcard b{font-size:11px;color:#fff;text-shadow:0 1px 2px #0008;text-align:center;padding:0 6px}
+  .badge{position:absolute;top:6px;right:6px;font-size:10px;background:#000a;color:#fff;
+    border-radius:4px;padding:2px 5px}
+  .price{position:absolute;left:6px;bottom:6px;font-size:11px;color:#fff;background:#000a;
+    border-radius:4px;padding:1px 5px}
+  footer{padding:18px 16px;color:var(--muted);font-size:12px;text-align:center}
+</style>
+</head>
+<body>
+<main class="phone">
+  <header>
+    <div class="top">
+      <div class="avatar"><span>JP</span></div>
+      <div class="stats">
+        <div><b>148</b><small>posts</small></div>
+        <div><b>12.4K</b><small>followers</small></div>
+        <div><b>311</b><small>following</small></div>
+      </div>
+    </div>
+    <h1>Juno Park <span class="tag">AI info</span></h1>
+    <p class="bio">pulls + pickups 🃏
+sleeved, never stressed. LA.
+dm for trades</p>
+    <div class="btns"><button class="follow">Follow</button><button>Message</button></div>
+  </header>
+
+  <section class="hl" aria-label="Highlights">
+    <div><i>🃏</i>Pulls</div>
+    <div><i>🛒</i>Pickups</div>
+    <div><i>📚</i>Binder</div>
+    <div><i>🏆</i>Graded</div>
+    <div><i>☕</i>Desk</div>
+  </section>
+
+  <nav><a class="on">GRID</a><a>REELS</a><a>TAGGED</a></nav>
+
+  <section class="grid" id="grid" aria-label="Posts"></section>
+
+  <footer>Preview only. Placeholder card art. Swap in photos of real cards you own.</footer>
+</main>
+
+<script>
+  // [bg, card color, label, badge, price, rotation]
+  const posts = [
+    ['#2a2d4a','#6a5acd','The Pull','▶','', '-5deg'],
+    ['#4a2a2a','#d9534f','Pickup','','$38','4deg'],
+    ['#2a4a3d','#3fa37a','Card of the Day','','','-3deg'],
+    ['#4a432a','#e0a82e','Grade Day','PSA','', '5deg'],
+    ['#2a3d4a','#3b8fc7','The Pull','▶','', '-6deg'],
+    ['#3d2a4a','#a35fc9','Pickup','','$120','3deg'],
+    ['#4a2a3d','#d9558f','The Shelf','⧉','', '-4deg'],
+    ['#2f2f33','#8a8a94','Card of the Day','','','6deg'],
+    ['#2a4a4a','#2fb5b0','The Pull','▶','', '-2deg'],
+  ];
+  const grid = document.getElementById('grid');
+  grid.innerHTML = posts.map(([bg,c,label,badge,price,r]) => `
+    <div class="tile" style="--c:${bg}">
+      <div class="pcard" style="--c2:${c};--r:${r}"><b>${label}</b></div>
+      ${badge ? `<span class="badge">${badge}</span>` : ''}
+      ${price ? `<span class="price">${price}</span>` : ''}
+    </div>`).join('');
+</script>
+</body>
+</html>
