@@ -53,7 +53,7 @@ jobs:
         run: node aws/modules/static-site/cloudfront-router.test.js
 
       - name: shellcheck
-        run: shellcheck aws/scripts/*.sh
+        run: shellcheck aws/scripts/*.sh "apps/buddha-station/Start Buddha Station.command"
 
       # CloudFront maps 403 and 404 onto /404.html. If that file is missing the
       # error page itself errors, and nothing else here would catch it.
@@ -70,3 +70,23 @@ jobs:
             fi
           done
           exit "${missing}"
+
+  buddha-station:
+    name: buddha station
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/buddha-station
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      # --ignore-scripts: the same way the Mac launcher installs it.
+      - name: install
+        run: npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: tests
+        run: npm test

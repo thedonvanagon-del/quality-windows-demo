@@ -1,0 +1,17 @@
+{
+  "name": "buddha-station",
+  "version": "1.0.0",
+  "private": true,
+  "description": "A private pixel-art station where AI crew members do real work on your own computer, inside safe limits.",
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "start": "node src/main.js",
+    "test": "node --test test/*.test.js"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "0.131.0"
+  }
+}

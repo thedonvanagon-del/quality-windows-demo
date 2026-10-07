@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Buddha Station</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="/style.css">
+  <script type="module" src="/app.js"></script>
+</head>
+<body>
+  <header class="bar">
+    <div class="brand">Buddha Station</div>
+    <div class="meter" id="meter"></div>
+    <label class="toggle" title="Keeps your Mac awake and sends finished work to your phone. Writes a shift report when you switch it off.">
+      <input type="checkbox" id="nightshift"> Night Shift
+    </label>
+    <button id="stopall" class="danger">Stop everything</button>
+  </header>
+  <div id="offline" class="banner" hidden>Lost touch with the station. Is the launcher window still open?</div>
+  <main>
+    <section class="deck">
+      <canvas id="station" width="1024" height="640" aria-label="The station: rooms, gear and crew"></canvas>
+      <p class="hint" id="hint"></p>
+    </section>
+    <aside class="panel">
+      <nav class="tabs" id="tabs"></nav>
+      <div id="view"><p class="muted">Connecting…</p></div>
+    </aside>
+  </main>
+  <div id="locked" class="locked" hidden>
+    <div>
+      <h2>Open the station from its launcher</h2>
+      <p>For safety, this page only works when opened by the Buddha Station launcher on this computer. Double-click <strong>Start Buddha Station</strong> to open it.</p>
+    </div>
+  </div>
+  <div id="toast" role="status" aria-live="polite"></div>
+</body>
+</html>
