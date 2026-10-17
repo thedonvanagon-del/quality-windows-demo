@@ -85,7 +85,7 @@ class FindPicks(unittest.TestCase):
         self.assertEqual(model.find_picks(self.uga, self.lines, -7.5, 52.5, 3.5, 5.0), [])
 
     def test_no_picks_late_or_in_overtime(self):
-        late = replace(self.uga, period=4, clock_seconds=200)
+        late = replace(self.uga, period=4, clock_seconds=9 * 60)  # 9:00 left
         overtime = replace(self.uga, period=5, clock_seconds=0)
         self.assertEqual(model.find_picks(late, self.lines, -7.5, 52.5, 0, 0), [])
         self.assertEqual(model.find_picks(overtime, self.lines, -7.5, 52.5, 0, 0), [])

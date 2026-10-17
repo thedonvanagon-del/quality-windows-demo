@@ -95,8 +95,9 @@ spots where the live number has drifted too far.
 Yards come from ESPN's box score, checked every scan. A college yard is worth
 about 0.07 points (roughly 28 points per 400 yards).
 
-It skips games in the last 4 minutes and in overtime. Clock management
-decides those, and the model doesn't see it.
+It skips the last 10 minutes of every game and overtime. A one-score game can
+go to OT, the trailing team hurries, and whoever has the ball matters more than
+anything the model sees.
 
 It doesn't know about injuries, weather, or a backup QB coming in. When the
 market and the model disagree by a lot, that's often why. Look before you
