@@ -26,7 +26,10 @@ class Scan(unittest.TestCase):
         message = result.messages[0]
         self.assertIn("<b>Georgia +11.5</b>  -105 at FanDuel", message)
         self.assertIn("<b>Under 76.5 · TEX @ UGA</b>", message)
-        self.assertEqual(state.pregame("401700005"), {"home_spread": -6.5, "total": 59.0, "updated": SAMPLE_NOW.isoformat()})
+        # ESPN said MISS -6 / 58.5; the books' consensus replaced it.
+        self.assertEqual(state.pregame("401700005"),
+                         {"home_spread": -6.5, "total": 59.0, "updated": SAMPLE_NOW.isoformat(), "source": "odds"})
+        self.assertEqual(state.pregame("401700006")["home_spread"], -9.5)  # not soon: ESPN's line, saved for later
         self.assertIn("odds credits left: 450", result.summary)
 
     def test_second_scan_does_not_repeat_itself(self):
@@ -65,6 +68,41 @@ class Scan(unittest.TestCase):
         message = run(state).messages[0]
         self.assertIn("Closed UGA -10.5", message)
         self.assertIn("Closed 52.5", message)  # no total saved, so ESPN's
+
+    def test_espn_never_overwrites_the_books(self):
+        state = State()
+        run(state)
+        run(state)
+        self.assertEqual(state.pregame("401700005")["source"], "odds")
+        self.assertEqual(state.pregame("401700005")["home_spread"], -6.5)
+
+    def test_live_game_with_no_line_asks_espn_once(self):
+        games = sample_games()
+        games["401700001"] = replace(games["401700001"], espn_home_spread=None, espn_total=None)
+        asked = []
+
+        def fetch_pregame(game):
+            asked.append(game.id)
+            return -7.5, 52.5
+
+        state = State()
+        for _ in range(2):
+            scan.run(CFG, state, SAMPLE_NOW, lambda day: list(games.values()), lambda: (sample_events(), None), fetch_pregame)
+        self.assertEqual(asked, ["401700001"])
+        self.assertEqual(state.pregame("401700001")["home_spread"], -7.5)
+        self.assertIn("4 live (4 with a pregame line)", scan.run(
+            CFG, state, SAMPLE_NOW, lambda day: list(games.values()), lambda: (sample_events(), None), fetch_pregame).summary)
+
+    def test_espn_game_page_failure_is_not_fatal(self):
+        games = sample_games()
+        games["401700001"] = replace(games["401700001"], espn_home_spread=None, espn_total=None)
+
+        def broken(game):
+            raise OSError("timed out")
+
+        result = scan.run(Config(), State(), SAMPLE_NOW, lambda day: list(games.values()), None, broken)
+        self.assertIn("3 with a pregame line", result.summary)
+        self.assertIn("Fair: no pregame line to work from", result.messages[0])
 
     def test_no_odds_call_when_nothing_is_live_or_close(self):
         games = {gid: g for gid, g in sample_games().items() if g.state == "post"}

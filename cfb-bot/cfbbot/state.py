@@ -38,8 +38,17 @@ class State:
     def pregame(self, game_id):
         return self.data["pregame"].get(game_id, {})
 
-    def set_pregame(self, game_id, home_spread, total, now):
+    def has_pregame(self, game_id):
+        return game_id in self.data["pregame"]
+
+    def set_pregame(self, game_id, home_spread, total, now, source="odds"):
+        """Remember a game's pregame line. `source` is "odds" for a consensus
+        from the books, "espn" for ESPN's number. Book consensus wins: ESPN
+        never overwrites it."""
         entry = self.data["pregame"].setdefault(game_id, {})
+        if source != "odds" and entry.get("source") == "odds":
+            return
+        entry["source"] = source
         if home_spread is not None:
             entry["home_spread"] = home_spread
         if total is not None:

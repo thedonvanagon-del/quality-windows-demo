@@ -1,6 +1,9 @@
 import unittest
+from unittest import mock
 
 from helpers import sample_games
+
+from cfbbot import espn
 
 
 class ParseScoreboard(unittest.TestCase):
@@ -42,6 +45,22 @@ class ParseScoreboard(unittest.TestCase):
         self.assertEqual((pre.state, pre.elapsed_minutes), ("pre", 0))
         self.assertTrue(post.completed)
         self.assertEqual(post.remaining_minutes, 0)
+
+
+class GamePageLines(unittest.TestCase):
+    def test_reads_the_pick_center(self):
+        game = sample_games()["401700004"]  # TA&M @ AUB
+        page = {"pickcenter": [
+            {"provider": {"name": "no numbers"}},
+            {"provider": {"name": "ESPN BET"}, "details": "TA&M -3.5", "overUnder": 47.5, "spread": 3.5},
+        ]}
+        with mock.patch.object(espn, "get_json", return_value=(page, {})) as get:
+            self.assertEqual(espn.fetch_pregame_lines(game), (3.5, 47.5))
+        self.assertIn("event=401700004", get.call_args[0][0])
+
+    def test_no_pick_center(self):
+        with mock.patch.object(espn, "get_json", return_value=({}, {})):
+            self.assertEqual(espn.fetch_pregame_lines(sample_games()["401700001"]), (None, None))
 
 
 if __name__ == "__main__":

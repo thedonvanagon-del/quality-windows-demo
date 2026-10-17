@@ -21,12 +21,30 @@ def slate_day(now):
     return (now.astimezone(ET) - timedelta(hours=6)).date()
 
 
-def run(cfg, state, now, fetch_games, fetch_odds):
+def run(cfg, state, now, fetch_games, fetch_odds, fetch_pregame=None):
     day = slate_day(now)
     now_et = now.astimezone(ET)
     games = fetch_games(day)
     live = [g for g in games if g.state == "in"]
     soon = [g for g in games if g.state == "pre" and g.start - now <= SOON]
+
+    # ESPN's scoreboard has pregame lines only until kickoff, so save them
+    # while they're there. A line from the books (below) replaces these.
+    for game in games:
+        if game.state == "pre" and (game.espn_home_spread is not None or game.espn_total is not None):
+            state.set_pregame(game.id, game.espn_home_spread, game.espn_total, now, source="espn")
+    # Games already going when the bot first saw them: ask ESPN's game page,
+    # once per game.
+    if fetch_pregame:
+        for game in live:
+            if state.has_pregame(game.id) or game.espn_home_spread is not None or game.espn_total is not None:
+                continue
+            try:
+                spread, total = fetch_pregame(game)
+            except OSError as err:
+                print(f"warning: no pregame line for {game.away.abbr} @ {game.home.abbr}: {err}")
+                continue
+            state.set_pregame(game.id, spread, total, now, source="espn")
 
     notes, lines, credits, odds_ok = [], {}, None, bool(cfg.odds_api_key)
     if cfg.odds_api_key and (live or soon):
@@ -74,8 +92,9 @@ def run(cfg, state, now, fetch_games, fetch_odds):
         result.messages.append(report.recap_message(day, list(alerts.values())))
         state.mark_recap_sent(day)
 
+    with_lines = sum(1 for g in live if any(x is not None for x in pregame[g.id]))
     result.summary = (
-        f"{day}: {len(games)} games, {len(live)} live, {len(soon)} kicking off soon, "
+        f"{day}: {len(games)} games, {len(live)} live ({with_lines} with a pregame line), {len(soon)} kicking off soon, "
         f"{len(picks)} picks ({len(fresh)} new), {len(result.messages)} messages"
         + (f", odds credits left: {credits}" if credits is not None else "")
     )
