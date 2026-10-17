@@ -100,6 +100,15 @@ def run(cfg, state, now, fetch_games, fetch_odds, fetch_pregame=None):
         f"{len(picks)} picks ({len(fresh)} new), {len(result.messages)} messages"
         + (f", odds credits left: {credits}" if credits is not None else "")
     )
+    # One line per pick, so the run log shows the model's reasoning without
+    # anyone having to read Telegram.
+    for p in picks:
+        g = p.game
+        result.summary += (
+            f"\n  {'new  ' if p in fresh else 'still'} {p.label} {p.quote.price:+d} {p.quote.book}"
+            f" | {g.away.abbr} {g.away.score}, {g.home.abbr} {g.home.score}, {g.detail}"
+            f" | pregame {p.pregame:g}, fair {p.fair:.1f}, edge {p.edge:.1f}, {p.prob:.0%}"
+        )
     return result
 
 
