@@ -90,22 +90,30 @@ class Scan(unittest.TestCase):
         self.assertEqual(state.pregame("401700005")["source"], "odds")
         self.assertEqual(state.pregame("401700005")["home_spread"], -6.5)
 
-    def test_live_game_with_no_line_asks_espn_once(self):
+    def test_game_page_fills_a_missing_line_once_and_brings_yards(self):
         games = sample_games()
         games["401700001"] = replace(games["401700001"], espn_home_spread=None, espn_total=None)
+        box = {"teams": [
+            {"team": {"id": "61"}, "statistics": [{"name": "totalYards", "displayValue": "150"}]},
+            {"team": {"id": "251"}, "statistics": [{"name": "totalYards", "displayValue": "210"}]},
+        ]}
+        pages = {"401700001": {"pickcenter": [{"details": "UGA -7.5", "overUnder": 52.5}], "boxscore": box}}
         asked = []
 
-        def fetch_pregame(game):
+        def fetch_page(game):
             asked.append(game.id)
-            return -7.5, 52.5
+            return pages.get(game.id, {})
 
         state = State()
-        for _ in range(2):
-            scan.run(CFG, state, SAMPLE_NOW, lambda day: list(games.values()), lambda: (sample_events(), None), fetch_pregame)
-        self.assertEqual(asked, ["401700001"])
-        self.assertEqual(state.pregame("401700001")["home_spread"], -7.5)
-        self.assertIn("4 live (4 with a pregame line)", scan.run(
-            CFG, state, SAMPLE_NOW, lambda day: list(games.values()), lambda: (sample_events(), None), fetch_pregame).summary)
+        first = scan.run(CFG, state, SAMPLE_NOW, lambda day: list(games.values()), lambda: (sample_events(), None), fetch_page)
+        pages["401700001"]["pickcenter"] = [{"details": "UGA -3.5", "overUnder": 49.5}]
+        second = scan.run(CFG, state, SAMPLE_NOW, lambda day: list(games.values()), lambda: (sample_events(), None), fetch_page)
+        self.assertEqual(state.pregame("401700001")["home_spread"], -7.5)  # saved once, not overwritten
+        self.assertEqual(asked.count("401700001"), 2)  # yards every scan
+        self.assertNotIn("401700003", asked)           # 2:30 left: can't be priced, so no page
+        self.assertIn("4 live (4 with a pregame line, 1 with yards)", second.summary)
+        self.assertIn("yards TEX 210, UGA 150", first.summary)
+        self.assertIn("Yards: TEX 210, UGA 150", first.messages[0])
 
     def test_espn_game_page_failure_is_not_fatal(self):
         games = sample_games()
@@ -114,9 +122,13 @@ class Scan(unittest.TestCase):
         def broken(game):
             raise OSError("timed out")
 
-        result = scan.run(Config(), State(), SAMPLE_NOW, lambda day: list(games.values()), None, broken)
-        self.assertIn("3 with a pregame line", result.summary)
-        self.assertIn("Fair: no pregame line to work from", result.messages[0])
+        def garbled(game):
+            raise ValueError("Expecting value: line 1 column 1")
+
+        for fetch_page in (broken, garbled):
+            result = scan.run(Config(), State(), SAMPLE_NOW, lambda day: list(games.values()), None, fetch_page)
+            self.assertIn("3 with a pregame line, 0 with yards", result.summary)
+            self.assertIn("Fair: no pregame line to work from", result.messages[0])
 
     def test_no_odds_call_when_nothing_is_live_or_close(self):
         games = {gid: g for gid, g in sample_games().items() if g.state == "post"}

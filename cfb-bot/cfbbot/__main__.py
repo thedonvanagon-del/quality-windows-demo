@@ -39,7 +39,7 @@ def main(argv=None):
     now = datetime.now(timezone.utc)
     state = State.load(cfg.state_path)
     result = scan.run(cfg, state, now, espn.fetch_scoreboard, lambda: odds.fetch(cfg.odds_api_key, cfg.bookmakers),
-                      espn.fetch_pregame_lines)
+                      espn.fetch_game_page)
     print(result.summary)
     for message in result.messages:
         if args.dry_run:

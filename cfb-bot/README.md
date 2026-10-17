@@ -79,13 +79,21 @@ prices tend to lean too hard on the scoreboard. So the bot prices the rest
 of the game off the pregame line, adds what's already happened, and flags
 spots where the live number has drifted too far.
 
-- **Sides.** Expected final margin = current margin + the pregame spread
-  scaled by how much game is left + the value of the current possession.
-  Uncertainty shrinks as the clock runs.
+- **Sides.** Expected final margin = current margin + how much better one
+  team is x how much game is left + the value of the current possession.
+  "How much better" starts at the pregame spread and moves toward what the
+  yardage says as the game goes. By halftime the yards carry a fifth of the
+  weight. A side also has to clear the threshold with the current possession
+  left out, because the odds feed can trail the play-by-play by a few
+  minutes. Uncertainty shrinks as the clock runs.
 - **Totals.** Points so far + minutes left x a scoring rate. That rate leans
   hard on the pregame total all game, because a hot or cold start says less
-  than it looks like. It flags a total when the book chases the early pace
-  further than that.
+  than it looks like. Yards count for half of what "so far" means, so a 3–0
+  game where both offenses are moving the ball doesn't read as a dead one.
+  It flags a total when the book chases the pace further than that.
+
+Yards come from ESPN's box score, checked every scan. A college yard is worth
+about 0.07 points (roughly 28 points per 400 yards).
 
 It skips games in the last 4 minutes and in overtime. Clock management
 decides those, and the model doesn't see it.

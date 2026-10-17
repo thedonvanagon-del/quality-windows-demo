@@ -156,17 +156,38 @@ def _yards_from_own_goal(situation, possessor):
     return None
 
 
-def fetch_pregame_lines(game):
-    """ESPN's pregame spread and total for one game, from the game page's pick
-    center. The scoreboard carries odds only until kickoff, so this is how the
-    bot gets a starting number for a game that was already going when it first
-    looked."""
+def fetch_game_page(game):
+    """ESPN's game page as JSON: the pick center and the box score."""
     data, _ = get_json(f"{SUMMARY_URL}?{urlencode({'event': game.id})}")
-    for entry in data.get("pickcenter") or []:
+    return data
+
+
+def pregame_lines(page, game):
+    """Pregame spread and total from the game page's pick center. The
+    scoreboard carries odds only until kickoff, so this is how the bot gets a
+    starting number for a game that was already going when it first looked."""
+    for entry in page.get("pickcenter") or []:
         spread, total = _espn_lines(entry, game.home, game.away)
         if spread is not None or total is not None:
             return spread, total
     return None, None
+
+
+def team_yards(page, game):
+    """(home yards, away yards) from the game page's box score, or None."""
+    found = {}
+    for side in (page.get("boxscore") or {}).get("teams") or []:
+        stats = {s.get("name"): s.get("displayValue") for s in side.get("statistics") or []}
+        yards = _whole(stats.get("totalYards"))
+        if yards is None:
+            passing, rushing = _whole(stats.get("netPassingYards")), _whole(stats.get("rushingYards"))
+            if passing is not None and rushing is not None:
+                yards = passing + rushing
+        if yards is not None:
+            found[str((side.get("team") or {}).get("id") or "")] = yards
+    if game.home.id in found and game.away.id in found:
+        return found[game.home.id], found[game.away.id]
+    return None
 
 
 def _espn_lines(odds, home, away):
@@ -190,6 +211,13 @@ def _espn_lines(odds, home, away):
         if (odds.get("awayTeamOdds") or {}).get("favorite"):
             return abs(spread), total
     return None, total
+
+
+def _whole(value):
+    try:
+        return int(str(value).replace(",", ""))
+    except (TypeError, ValueError):
+        return None
 
 
 def _float(value):

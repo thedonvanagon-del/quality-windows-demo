@@ -38,18 +38,21 @@ def heartbeat_message(now_et, live_count, priced_count, still, notes=()):
 def fair_lines_message(now_et, live_count, priced, notes=()):
     """For when there are no live odds to compare against: the model's own
     numbers, so you can hold them up to your book. `priced` is a list of
-    (game, pregame home spread, pregame total)."""
+    (game, pregame home spread, pregame total, (home, away) yards or None)."""
     parts = [header(now_et, live_count), *(f"<i>{escape(n)}</i>" for n in notes)]
     parts.append("No live odds to check, so here are the model's fair lines. Hold them up to your book.")
-    for game, spread, total in priced:
+    for game, spread, total, yards in priced:
         fair = []
         if spread is not None:
-            margin = fair_home_margin(game, spread)
+            margin = fair_home_margin(game, spread, yards)
             fav = game.home if margin >= 0 else game.away
             fair.append(f"{escape(fav.abbr)} -{abs(margin):.1f}" if round(abs(margin), 1) else "PK")
         if total is not None:
-            fair.append(f"total {fair_total(game, total):.1f}")
-        parts.append(f"{_scoreline(game)}\nFair: {' · '.join(fair) or 'no pregame line to work from'}")
+            fair.append(f"total {fair_total(game, total, yards):.1f}")
+        text = f"{_scoreline(game)}\nFair: {' · '.join(fair) or 'no pregame line to work from'}"
+        if yards:
+            text += "\n" + _yards_line(game, yards)
+        parts.append(text)
     return "\n\n".join(parts)
 
 
@@ -68,6 +71,8 @@ def recap_message(day, alerts):
 def _pick_block(p):
     g = p.game
     lines = [f"<b>{escape(p.label)}</b>  {p.quote.price:+d} at {escape(p.quote.book)}", _scoreline(g)]
+    if p.yards:
+        lines.append(_yards_line(g, p.yards))
     if p.market == "spread":
         abbr = escape(p.team.abbr)
         lines.append(f"Model has {abbr} {fmt_spread(round(p.fair, 1))}. {p.edge:.1f} pts of value, {p.prob:.0%} to cover.")
@@ -93,6 +98,10 @@ def _scoreline(g):
         if g.ball_on:
             text += f" at {escape(g.ball_on)}"
     return text
+
+
+def _yards_line(g, yards):
+    return f"Yards: {escape(g.away.abbr)} {yards[1]}, {escape(g.home.abbr)} {yards[0]}"
 
 
 def _spread_context(p):
