@@ -19,6 +19,13 @@ are playing, not just the score, and on the first live Saturday most of the
 model's "edges" were spots where it couldn't see that. Yards are a steadier
 read than points: on sides they shift how good the model thinks each team is,
 and on totals they stand in for half the points when judging the pace.
+A quarter or two of yards is still noisy, so by halftime they carry a fifth
+of the weight on sides.
+
+A side pick has to clear the threshold with the current possession left out
+too. The odds feed can trail the play-by-play by a few minutes, and an edge
+that only exists because of where the ball is right now is usually the
+book's number not having caught up yet.
 
 None of this knows about injuries, weather or a QB change. When the market
 disagrees with the model by a lot, that's often why.
@@ -38,7 +45,7 @@ MIN_REMAINING = 4.0   # inside this, clock and timeouts matter more than the mod
 MIN_BOOKS = 2         # one book's odd number is not a market
 ML_MAX_PRICE = 500    # past this a moneyline is a lottery ticket, not a bet
 PTS_PER_YARD = 0.07   # what a college yard is worth on the scoreboard, about 28 points per 400 yards
-STRENGTH_PRIOR_MINUTES = 60.0  # minutes of evidence the pregame spread is worth against yardage
+STRENGTH_PRIOR_MINUTES = 120.0  # minutes of evidence the pregame spread is worth against yardage
 
 
 @dataclass
@@ -76,14 +83,15 @@ def expected_points(yards_from_own_goal):
     return max(-0.5, min(6.0, 0.067 * yards_from_own_goal - 0.85))
 
 
-def fair_home_margin(game, pregame_home_spread, yards=None):
-    """Expected final home margin. `yards` is (home, away) total yards so far."""
+def fair_home_margin(game, pregame_home_spread, yards=None, possession=True):
+    """Expected final home margin. `yards` is (home, away) total yards so far.
+    `possession=False` leaves out the value of whoever has the ball."""
     rate = -pregame_home_spread / GAME_MINUTES
     if yards and game.elapsed_minutes > 0:
         played = (yards[0] - yards[1]) * PTS_PER_YARD
         rate = (rate * STRENGTH_PRIOR_MINUTES + played) / (STRENGTH_PRIOR_MINUTES + game.elapsed_minutes)
     margin = game.home_margin + rate * game.remaining_minutes
-    if game.possession and game.yards_from_own_goal is not None:
+    if possession and game.possession and game.yards_from_own_goal is not None:
         value = expected_points(game.yards_from_own_goal)
         margin += value if game.possession == game.home.id else -value
     return margin
@@ -118,13 +126,14 @@ def find_picks(game: Game, lines: Lines | None, pregame_spread, pregame_total, s
 
 
 def _side_pick(game, lines, pregame_spread, threshold, yards):
-    margin = fair_home_margin(game, pregame_spread, yards)
+    margins = (fair_home_margin(game, pregame_spread, yards), fair_home_margin(game, pregame_spread, yards, possession=False))
     sd = sigma(SIGMA_MARGIN, game)
     for side, sign in (("home", 1), ("away", -1)):
         quote = lines.best.get(side)
         if not quote:
             continue
-        side_margin = sign * margin
+        # Judge on whichever margin is less kind to this side.
+        side_margin = min(sign * m for m in margins)
         edge = side_margin + quote.point
         if edge < threshold:
             continue

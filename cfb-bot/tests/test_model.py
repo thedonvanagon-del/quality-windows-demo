@@ -23,8 +23,8 @@ class FairLines(unittest.TestCase):
         base = model.fair_home_margin(g, -10.5)
         self.assertGreater(model.fair_home_margin(g, -10.5, (350, 150)), base)
         self.assertLess(model.fair_home_margin(g, -10.5, (150, 350)), base)
-        # Even yards at the half: the pregame edge shrinks to two thirds.
-        self.assertAlmostEqual(model.fair_home_margin(g, -10.5, (250, 250)), 1 + 10.5 * 60 / 90 * 30 / 60)
+        # Even yards at the half: the pregame edge shrinks to four fifths.
+        self.assertAlmostEqual(model.fair_home_margin(g, -10.5, (250, 250)), 1 + 10.5 * 120 / 150 * 30 / 60)
 
     def test_yards_count_for_half_the_pace(self):
         g = self.games["401700002"]  # 27 points at the half
@@ -71,6 +71,14 @@ class FindPicks(unittest.TestCase):
         self.lines.best["ml_home"].price = 3500
         side = next(p for p in model.find_picks(self.uga, self.lines, -7.5, 52.5, 3.5, 5.0) if p.market == "spread")
         self.assertIsNone(side.ml)
+
+    def test_possession_alone_cannot_make_a_side_pick(self):
+        # Georgia ball at the Texas 10 is worth about 5 points to the model.
+        # Without it, Georgia +11.5 is about 5.1 points of value.
+        uga_ball = replace(self.uga, possession=self.uga.home.id, yards_from_own_goal=90)
+        self.assertEqual(model.find_picks(uga_ball, self.lines, -7.5, None, 6.0, 99), [])
+        (side,) = model.find_picks(uga_ball, self.lines, -7.5, None, 5.0, 99)
+        self.assertAlmostEqual(side.edge, 11.5 - 11 + 7.5 * (self.uga.remaining_minutes / 60), places=6)
 
     def test_one_book_is_not_enough(self):
         self.lines.books = 1

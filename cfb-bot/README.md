@@ -82,8 +82,10 @@ spots where the live number has drifted too far.
 - **Sides.** Expected final margin = current margin + how much better one
   team is x how much game is left + the value of the current possession.
   "How much better" starts at the pregame spread and moves toward what the
-  yardage says as the game goes. By halftime the yards carry a third of the
-  weight. Uncertainty shrinks as the clock runs.
+  yardage says as the game goes. By halftime the yards carry a fifth of the
+  weight. A side also has to clear the threshold with the current possession
+  left out, because the odds feed can trail the play-by-play by a few
+  minutes. Uncertainty shrinks as the clock runs.
 - **Totals.** Points so far + minutes left x a scoring rate. That rate leans
   hard on the pregame total all game, because a hot or cold start says less
   than it looks like. Yards count for half of what "so far" means, so a 3–0
