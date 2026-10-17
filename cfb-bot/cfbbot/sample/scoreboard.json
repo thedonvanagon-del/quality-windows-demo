@@ -1,0 +1,163 @@
+{
+  "events": [
+    {
+      "id": "401700001",
+      "date": "2026-10-17T18:00Z",
+      "name": "Texas Longhorns at Georgia Bulldogs",
+      "shortName": "TEX @ UGA",
+      "competitions": [
+        {
+          "id": "401700001",
+          "date": "2026-10-17T18:00Z",
+          "neutralSite": false,
+          "competitors": [
+            {"id": "61", "homeAway": "home", "score": "10", "curatedRank": {"current": 4},
+             "team": {"id": "61", "abbreviation": "UGA", "displayName": "Georgia Bulldogs", "shortDisplayName": "Georgia", "location": "Georgia", "name": "Bulldogs"}},
+            {"id": "251", "homeAway": "away", "score": "21", "curatedRank": {"current": 7},
+             "team": {"id": "251", "abbreviation": "TEX", "displayName": "Texas Longhorns", "shortDisplayName": "Texas", "location": "Texas", "name": "Longhorns"}}
+          ],
+          "status": {"clock": 425.0, "displayClock": "7:05", "period": 2,
+                     "type": {"id": "2", "name": "STATUS_IN_PROGRESS", "state": "in", "completed": false, "detail": "7:05 - 2nd Quarter", "shortDetail": "7:05 - 2nd"}},
+          "situation": {"down": 2, "distance": 7, "yardLine": 35, "downDistanceText": "2nd & 7 at TEX 35", "shortDownDistanceText": "2nd & 7",
+                        "possessionText": "TEX 35", "isRedZone": false, "possession": "251"},
+          "odds": [{"provider": {"name": "DraftKings"}, "details": "UGA -7.5", "overUnder": 52.5, "spread": -7.5,
+                    "homeTeamOdds": {"favorite": true}, "awayTeamOdds": {"favorite": false}}]
+        }
+      ]
+    },
+    {
+      "id": "401700002",
+      "date": "2026-10-17T17:30Z",
+      "name": "LSU Tigers at Alabama Crimson Tide",
+      "shortName": "LSU @ ALA",
+      "competitions": [
+        {
+          "id": "401700002",
+          "date": "2026-10-17T17:30Z",
+          "neutralSite": false,
+          "competitors": [
+            {"id": "333", "homeAway": "home", "score": "14", "curatedRank": {"current": 9},
+             "team": {"id": "333", "abbreviation": "ALA", "displayName": "Alabama Crimson Tide", "shortDisplayName": "Alabama", "location": "Alabama", "name": "Crimson Tide"}},
+            {"id": "99", "homeAway": "away", "score": "13", "curatedRank": {"current": 99},
+             "team": {"id": "99", "abbreviation": "LSU", "displayName": "LSU Tigers", "shortDisplayName": "LSU", "location": "LSU", "name": "Tigers"}}
+          ],
+          "status": {"clock": 0.0, "displayClock": "0:00", "period": 2,
+                     "type": {"id": "23", "name": "STATUS_HALFTIME", "state": "in", "completed": false, "detail": "Halftime", "shortDetail": "Halftime"}},
+          "odds": [{"provider": {"name": "DraftKings"}, "details": "ALA -10.5", "overUnder": 55.5, "spread": -10.5}]
+        }
+      ]
+    },
+    {
+      "id": "401700003",
+      "date": "2026-10-17T16:00Z",
+      "name": "Iowa Hawkeyes at Wisconsin Badgers",
+      "shortName": "IOWA @ WIS",
+      "competitions": [
+        {
+          "id": "401700003",
+          "date": "2026-10-17T16:00Z",
+          "neutralSite": false,
+          "competitors": [
+            {"id": "275", "homeAway": "home", "score": "17",
+             "team": {"id": "275", "abbreviation": "WIS", "displayName": "Wisconsin Badgers", "shortDisplayName": "Wisconsin", "location": "Wisconsin", "name": "Badgers"}},
+            {"id": "2294", "homeAway": "away", "score": "13",
+             "team": {"id": "2294", "abbreviation": "IOWA", "displayName": "Iowa Hawkeyes", "shortDisplayName": "Iowa", "location": "Iowa", "name": "Hawkeyes"}}
+          ],
+          "status": {"clock": 150.0, "displayClock": "2:30", "period": 4,
+                     "type": {"id": "2", "name": "STATUS_IN_PROGRESS", "state": "in", "completed": false, "detail": "2:30 - 4th Quarter", "shortDetail": "2:30 - 4th"}},
+          "situation": {"downDistanceText": "3rd & 4 at WIS 40", "shortDownDistanceText": "3rd & 4", "possessionText": "WIS 40", "possession": "2294"},
+          "odds": [{"provider": {"name": "DraftKings"}, "details": "WIS -2.5", "overUnder": 38.5}]
+        }
+      ]
+    },
+    {
+      "id": "401700004",
+      "date": "2026-10-17T17:00Z",
+      "name": "Texas A&M Aggies at Auburn Tigers",
+      "shortName": "TA&M @ AUB",
+      "competitions": [
+        {
+          "id": "401700004",
+          "date": "2026-10-17T17:00Z",
+          "neutralSite": false,
+          "competitors": [
+            {"id": "2", "homeAway": "home", "score": "6",
+             "team": {"id": "2", "abbreviation": "AUB", "displayName": "Auburn Tigers", "shortDisplayName": "Auburn", "location": "Auburn", "name": "Tigers"}},
+            {"id": "245", "homeAway": "away", "score": "10", "curatedRank": {"current": 15},
+             "team": {"id": "245", "abbreviation": "TA&M", "displayName": "Texas A&M Aggies", "shortDisplayName": "Texas A&M", "location": "Texas A&M", "name": "Aggies"}}
+          ],
+          "status": {"clock": 600.0, "displayClock": "10:00", "period": 3,
+                     "type": {"id": "2", "name": "STATUS_IN_PROGRESS", "state": "in", "completed": false, "detail": "10:00 - 3rd Quarter", "shortDetail": "10:00 - 3rd"}},
+          "situation": {"downDistanceText": "1st & 10 at TA&M 22", "shortDownDistanceText": "1st & 10", "possessionText": "TA&M 22", "isRedZone": false, "possession": "2"},
+          "odds": [{"provider": {"name": "DraftKings"}, "details": "TA&M -3", "overUnder": 48.5}]
+        }
+      ]
+    },
+    {
+      "id": "401700005",
+      "date": "2026-10-17T20:00Z",
+      "name": "Oklahoma Sooners at Ole Miss Rebels",
+      "shortName": "OU @ MISS",
+      "competitions": [
+        {
+          "id": "401700005",
+          "date": "2026-10-17T20:00Z",
+          "neutralSite": false,
+          "competitors": [
+            {"id": "145", "homeAway": "home", "score": "0", "curatedRank": {"current": 12},
+             "team": {"id": "145", "abbreviation": "MISS", "displayName": "Ole Miss Rebels", "shortDisplayName": "Ole Miss", "location": "Ole Miss", "name": "Rebels"}},
+            {"id": "201", "homeAway": "away", "score": "0",
+             "team": {"id": "201", "abbreviation": "OU", "displayName": "Oklahoma Sooners", "shortDisplayName": "Oklahoma", "location": "Oklahoma", "name": "Sooners"}}
+          ],
+          "status": {"clock": 0.0, "displayClock": "0:00", "period": 0,
+                     "type": {"id": "1", "name": "STATUS_SCHEDULED", "state": "pre", "completed": false, "detail": "Sat, October 17th at 4:00 PM EDT", "shortDetail": "10/17 - 4:00 PM EDT"}},
+          "odds": [{"provider": {"name": "DraftKings"}, "details": "MISS -6", "overUnder": 58.5}]
+        }
+      ]
+    },
+    {
+      "id": "401700006",
+      "date": "2026-10-17T23:30Z",
+      "name": "USC Trojans at Oregon Ducks",
+      "shortName": "USC @ ORE",
+      "competitions": [
+        {
+          "id": "401700006",
+          "date": "2026-10-17T23:30Z",
+          "neutralSite": false,
+          "competitors": [
+            {"id": "2483", "homeAway": "home", "score": "0", "curatedRank": {"current": 3},
+             "team": {"id": "2483", "abbreviation": "ORE", "displayName": "Oregon Ducks", "shortDisplayName": "Oregon", "location": "Oregon", "name": "Ducks"}},
+            {"id": "30", "homeAway": "away", "score": "0",
+             "team": {"id": "30", "abbreviation": "USC", "displayName": "USC Trojans", "shortDisplayName": "USC", "location": "USC", "name": "Trojans"}}
+          ],
+          "status": {"clock": 0.0, "displayClock": "0:00", "period": 0,
+                     "type": {"id": "1", "name": "STATUS_SCHEDULED", "state": "pre", "completed": false, "detail": "Sat, October 17th at 7:30 PM EDT", "shortDetail": "10/17 - 7:30 PM EDT"}},
+          "odds": [{"provider": {"name": "DraftKings"}, "details": "ORE -9.5", "overUnder": 61.5}]
+        }
+      ]
+    },
+    {
+      "id": "401700007",
+      "date": "2026-10-17T16:00Z",
+      "name": "Purdue Boilermakers at Ohio State Buckeyes",
+      "shortName": "PUR @ OSU",
+      "competitions": [
+        {
+          "id": "401700007",
+          "date": "2026-10-17T16:00Z",
+          "neutralSite": false,
+          "competitors": [
+            {"id": "194", "homeAway": "home", "score": "38", "curatedRank": {"current": 2},
+             "team": {"id": "194", "abbreviation": "OSU", "displayName": "Ohio State Buckeyes", "shortDisplayName": "Ohio State", "location": "Ohio State", "name": "Buckeyes"}},
+            {"id": "2509", "homeAway": "away", "score": "3",
+             "team": {"id": "2509", "abbreviation": "PUR", "displayName": "Purdue Boilermakers", "shortDisplayName": "Purdue", "location": "Purdue", "name": "Boilermakers"}}
+          ],
+          "status": {"clock": 0.0, "displayClock": "0:00", "period": 4,
+                     "type": {"id": "3", "name": "STATUS_FINAL", "state": "post", "completed": true, "detail": "Final", "shortDetail": "Final"}},
+          "odds": [{"provider": {"name": "DraftKings"}, "details": "OSU -31.5", "overUnder": 51.5}]
+        }
+      ]
+    }
+  ]
+}

@@ -26,3 +26,7 @@ Thumbs.db
 .vscode/
 
 node_modules/
+
+# cfb-bot keeps its state in the Actions cache, never in git.
+cfb-bot/state/
+__pycache__/
