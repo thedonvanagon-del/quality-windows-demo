@@ -30,6 +30,7 @@ SIGMA_TOTAL = 14.0    # SD of a CFB final total around the closing total
 PRIOR_MINUTES = 120.0  # minutes of evidence the pregame total is worth
 MIN_REMAINING = 4.0   # inside this, clock and timeouts matter more than the model
 MIN_BOOKS = 2         # one book's odd number is not a market
+ML_MAX_PRICE = 500    # past this a moneyline is a lottery ticket, not a bet
 
 
 @dataclass
@@ -114,7 +115,7 @@ def _side_pick(game, lines, pregame_spread, threshold):
         # Mention the moneyline when the side is a dog and the price is better
         # than the model's win chance. Favorites' ML is just a worse spread bet.
         ml, ml_prob = lines.best.get("ml_" + side), norm_cdf(side_margin / sd)
-        if not (ml and ml.price > 0 and ml_prob > implied(ml.price)):
+        if not (ml and 0 < ml.price <= ML_MAX_PRICE and ml_prob > implied(ml.price)):
             ml, ml_prob = None, None
         return Pick(game, "spread", side, quote, -side_margin, edge, norm_cdf(edge / sd), pregame_spread, ml, ml_prob)
     return None
