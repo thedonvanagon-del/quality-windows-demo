@@ -15,6 +15,22 @@ class FairLines(unittest.TestCase):
         g.home, g.away = replace(g.home, score=0), replace(g.away, score=0)
         self.assertAlmostEqual(model.fair_total(g, 55.5), 55.5)
         self.assertAlmostEqual(model.fair_home_margin(g, -10.5), 10.5)
+        self.assertAlmostEqual(model.fair_total(g, 55.5, (0, 0)), 55.5)
+        self.assertAlmostEqual(model.fair_home_margin(g, -10.5, (0, 0)), 10.5)
+
+    def test_yards_move_the_margin_toward_the_team_moving_the_ball(self):
+        g = self.games["401700002"]  # halftime, ALA 14 LSU 13, closed ALA -10.5
+        base = model.fair_home_margin(g, -10.5)
+        self.assertGreater(model.fair_home_margin(g, -10.5, (350, 150)), base)
+        self.assertLess(model.fair_home_margin(g, -10.5, (150, 350)), base)
+        # Even yards at the half: the pregame edge shrinks to two thirds.
+        self.assertAlmostEqual(model.fair_home_margin(g, -10.5, (250, 250)), 1 + 10.5 * 60 / 90 * 30 / 60)
+
+    def test_yards_count_for_half_the_pace(self):
+        g = self.games["401700002"]  # 27 points at the half
+        observed = (27 + 600 * model.PTS_PER_YARD) / 2
+        expected = 27 + (55.5 / 60 * model.PRIOR_MINUTES + observed) / (model.PRIOR_MINUTES + 30) * 30
+        self.assertAlmostEqual(model.fair_total(g, 55.5, (300, 300)), expected)
 
     def test_halftime_total_leans_on_the_pregame_pace(self):
         # 38 points at the half against a 52 total: pregame rate says 26 more,

@@ -47,20 +47,38 @@ class ParseScoreboard(unittest.TestCase):
         self.assertEqual(post.remaining_minutes, 0)
 
 
-class GamePageLines(unittest.TestCase):
+class GamePage(unittest.TestCase):
+    def setUp(self):
+        self.game = sample_games()["401700004"]  # TA&M (245) @ AUB (2)
+
+    def test_fetched_by_event_id(self):
+        with mock.patch.object(espn, "get_json", return_value=({"ok": 1}, {})) as get:
+            self.assertEqual(espn.fetch_game_page(self.game), {"ok": 1})
+        self.assertIn("event=401700004", get.call_args[0][0])
+
     def test_reads_the_pick_center(self):
-        game = sample_games()["401700004"]  # TA&M @ AUB
         page = {"pickcenter": [
             {"provider": {"name": "no numbers"}},
             {"provider": {"name": "ESPN BET"}, "details": "TA&M -3.5", "overUnder": 47.5, "spread": 3.5},
         ]}
-        with mock.patch.object(espn, "get_json", return_value=(page, {})) as get:
-            self.assertEqual(espn.fetch_pregame_lines(game), (3.5, 47.5))
-        self.assertIn("event=401700004", get.call_args[0][0])
+        self.assertEqual(espn.pregame_lines(page, self.game), (3.5, 47.5))
 
     def test_no_pick_center(self):
-        with mock.patch.object(espn, "get_json", return_value=({}, {})):
-            self.assertEqual(espn.fetch_pregame_lines(sample_games()["401700001"]), (None, None))
+        self.assertEqual(espn.pregame_lines({}, self.game), (None, None))
+
+    def test_team_yards(self):
+        page = {"boxscore": {"teams": [
+            {"team": {"id": "245"}, "statistics": [{"name": "totalYards", "displayValue": "1,012"}]},
+            # no totalYards: passing plus rushing
+            {"team": {"id": "2"}, "statistics": [{"name": "netPassingYards", "displayValue": "104"},
+                                                 {"name": "rushingYards", "displayValue": "41"}]},
+        ]}}
+        self.assertEqual(espn.team_yards(page, self.game), (145, 1012))  # (home AUB, away TA&M)
+
+    def test_team_yards_missing(self):
+        one_side = {"boxscore": {"teams": [{"team": {"id": "245"}, "statistics": [{"name": "totalYards", "displayValue": "90"}]}]}}
+        self.assertIsNone(espn.team_yards({}, self.game))
+        self.assertIsNone(espn.team_yards(one_side, self.game))
 
 
 if __name__ == "__main__":
