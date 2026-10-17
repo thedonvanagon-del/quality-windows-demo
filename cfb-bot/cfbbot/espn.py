@@ -8,6 +8,7 @@ from .http import get_json
 from .util import parse_time
 
 SCOREBOARD_URL = "https://site.api.espn.com/apis/site/v2/sports/football/college-football/scoreboard"
+SUMMARY_URL = "https://site.api.espn.com/apis/site/v2/sports/football/college-football/summary"
 FBS = "80"
 QUARTER_MINUTES = 15.0
 GAME_MINUTES = 60.0
@@ -95,7 +96,7 @@ def parse_scoreboard(data):
         kind = status.get("type") or {}
         situation = comp.get("situation") or {}
         possessor = {home.id: home, away.id: away}.get(str(situation.get("possession") or ""))
-        spread, total = _espn_lines(comp, home, away)
+        spread, total = _espn_lines((comp.get("odds") or [None])[0], home, away)
         games.append(Game(
             id=str(event.get("id")),
             start=start,
@@ -155,10 +156,22 @@ def _yards_from_own_goal(situation, possessor):
     return None
 
 
-def _espn_lines(comp, home, away):
-    """ESPN's pregame spread (home team's number) and total, as a fallback
-    for games the bot didn't see before kickoff."""
-    odds = (comp.get("odds") or [None])[0] or {}
+def fetch_pregame_lines(game):
+    """ESPN's pregame spread and total for one game, from the game page's pick
+    center. The scoreboard carries odds only until kickoff, so this is how the
+    bot gets a starting number for a game that was already going when it first
+    looked."""
+    data, _ = get_json(f"{SUMMARY_URL}?{urlencode({'event': game.id})}")
+    for entry in data.get("pickcenter") or []:
+        spread, total = _espn_lines(entry, game.home, game.away)
+        if spread is not None or total is not None:
+            return spread, total
+    return None, None
+
+
+def _espn_lines(odds, home, away):
+    """Spread (home team's number) and total from one ESPN odds entry."""
+    odds = odds or {}
     total = _float(odds.get("overUnder"))
     details = (odds.get("details") or "").strip()
     match = _DETAILS.match(details)
