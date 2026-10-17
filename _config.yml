@@ -4,3 +4,4 @@
 exclude:
   - aws
   - sites
+  - cfb-bot

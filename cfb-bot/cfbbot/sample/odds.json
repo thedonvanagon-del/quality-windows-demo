@@ -1,0 +1,111 @@
+[
+  {
+    "id": "evt-uga-tex",
+    "sport_key": "americanfootball_ncaaf",
+    "commence_time": "2026-10-17T18:00:00Z",
+    "home_team": "Georgia Bulldogs",
+    "away_team": "Texas Longhorns",
+    "bookmakers": [
+      {"key": "draftkings", "title": "DraftKings", "last_update": "2026-10-17T19:03:00Z", "markets": [
+        {"key": "h2h", "last_update": "2026-10-17T19:03:00Z", "outcomes": [{"name": "Georgia Bulldogs", "price": 330}, {"name": "Texas Longhorns", "price": -450}]},
+        {"key": "spreads", "last_update": "2026-10-17T19:03:00Z", "outcomes": [{"name": "Georgia Bulldogs", "price": -110, "point": 11.5}, {"name": "Texas Longhorns", "price": -110, "point": -11.5}]},
+        {"key": "totals", "last_update": "2026-10-17T19:03:00Z", "outcomes": [{"name": "Over", "price": -110, "point": 76.5}, {"name": "Under", "price": -110, "point": 76.5}]}
+      ]},
+      {"key": "fanduel", "title": "FanDuel", "last_update": "2026-10-17T19:04:00Z", "markets": [
+        {"key": "h2h", "last_update": "2026-10-17T19:04:00Z", "outcomes": [{"name": "Georgia Bulldogs", "price": 340}, {"name": "Texas Longhorns", "price": -480}]},
+        {"key": "spreads", "last_update": "2026-10-17T19:04:00Z", "outcomes": [{"name": "Georgia Bulldogs", "price": -105, "point": 11.5}, {"name": "Texas Longhorns", "price": -115, "point": -11.5}]},
+        {"key": "totals", "last_update": "2026-10-17T19:04:00Z", "outcomes": [{"name": "Over", "price": -112, "point": 76.5}, {"name": "Under", "price": -108, "point": 76.5}]}
+      ]},
+      {"key": "betmgm", "title": "BetMGM", "last_update": "2026-10-17T18:40:00Z", "markets": [
+        {"key": "spreads", "last_update": "2026-10-17T18:40:00Z", "outcomes": [{"name": "Georgia Bulldogs", "price": -110, "point": 14.5}, {"name": "Texas Longhorns", "price": -110, "point": -14.5}]},
+        {"key": "totals", "last_update": "2026-10-17T18:40:00Z", "outcomes": [{"name": "Over", "price": -110, "point": 80.5}, {"name": "Under", "price": -110, "point": 80.5}]}
+      ]}
+    ]
+  },
+  {
+    "id": "evt-ala-lsu",
+    "sport_key": "americanfootball_ncaaf",
+    "commence_time": "2026-10-17T17:30:00Z",
+    "home_team": "Alabama Crimson Tide",
+    "away_team": "LSU Tigers",
+    "bookmakers": [
+      {"key": "draftkings", "title": "DraftKings", "last_update": "2026-10-17T19:02:00Z", "markets": [
+        {"key": "h2h", "last_update": "2026-10-17T19:02:00Z", "outcomes": [{"name": "Alabama Crimson Tide", "price": -320}, {"name": "LSU Tigers", "price": 250}]},
+        {"key": "spreads", "last_update": "2026-10-17T19:02:00Z", "outcomes": [{"name": "Alabama Crimson Tide", "price": -110, "point": -7.5}, {"name": "LSU Tigers", "price": -110, "point": 7.5}]},
+        {"key": "totals", "last_update": "2026-10-17T19:02:00Z", "outcomes": [{"name": "Over", "price": -110, "point": 50.5}, {"name": "Under", "price": -110, "point": 50.5}]}
+      ]},
+      {"key": "williamhill_us", "title": "Caesars", "last_update": "2026-10-17T19:01:00Z", "markets": [
+        {"key": "spreads", "last_update": "2026-10-17T19:01:00Z", "outcomes": [{"name": "Alabama Crimson Tide", "price": -115, "point": -7.0}, {"name": "LSU Tigers", "price": -105, "point": 7.0}]},
+        {"key": "totals", "last_update": "2026-10-17T19:01:00Z", "outcomes": [{"name": "Over", "price": -110, "point": 51.0}, {"name": "Under", "price": -110, "point": 51.0}]}
+      ]}
+    ]
+  },
+  {
+    "id": "evt-wis-iowa",
+    "sport_key": "americanfootball_ncaaf",
+    "commence_time": "2026-10-17T16:00:00Z",
+    "home_team": "Wisconsin Badgers",
+    "away_team": "Iowa Hawkeyes",
+    "bookmakers": [
+      {"key": "draftkings", "title": "DraftKings", "last_update": "2026-10-17T19:04:00Z", "markets": [
+        {"key": "spreads", "last_update": "2026-10-17T19:04:00Z", "outcomes": [{"name": "Wisconsin Badgers", "price": -110, "point": -9.5}, {"name": "Iowa Hawkeyes", "price": -110, "point": 9.5}]},
+        {"key": "totals", "last_update": "2026-10-17T19:04:00Z", "outcomes": [{"name": "Over", "price": -110, "point": 44.5}, {"name": "Under", "price": -110, "point": 44.5}]}
+      ]}
+    ]
+  },
+  {
+    "id": "evt-aub-tamu",
+    "sport_key": "americanfootball_ncaaf",
+    "commence_time": "2026-10-17T17:00:00Z",
+    "home_team": "Auburn Tigers",
+    "away_team": "Texas A&M Aggies",
+    "bookmakers": [
+      {"key": "draftkings", "title": "DraftKings", "last_update": "2026-10-17T19:04:00Z", "markets": [
+        {"key": "h2h", "last_update": "2026-10-17T19:04:00Z", "outcomes": [{"name": "Auburn Tigers", "price": 140}, {"name": "Texas A&M Aggies", "price": -165}]},
+        {"key": "spreads", "last_update": "2026-10-17T19:04:00Z", "outcomes": [{"name": "Auburn Tigers", "price": -110, "point": 3.5}, {"name": "Texas A&M Aggies", "price": -110, "point": -3.5}]},
+        {"key": "totals", "last_update": "2026-10-17T19:04:00Z", "outcomes": [{"name": "Over", "price": -110, "point": 34.5}, {"name": "Under", "price": -110, "point": 34.5}]}
+      ]}
+    ]
+  },
+  {
+    "id": "evt-memphis-tulane",
+    "sport_key": "americanfootball_ncaaf",
+    "commence_time": "2026-10-17T17:00:00Z",
+    "home_team": "Tulane Green Wave",
+    "away_team": "Memphis Tigers",
+    "bookmakers": [
+      {"key": "draftkings", "title": "DraftKings", "last_update": "2026-10-17T19:04:00Z", "markets": [
+        {"key": "spreads", "last_update": "2026-10-17T19:04:00Z", "outcomes": [{"name": "Tulane Green Wave", "price": -110, "point": -2.5}, {"name": "Memphis Tigers", "price": -110, "point": 2.5}]}
+      ]}
+    ]
+  },
+  {
+    "id": "evt-miss-ou",
+    "sport_key": "americanfootball_ncaaf",
+    "commence_time": "2026-10-17T20:00:00Z",
+    "home_team": "Mississippi Rebels",
+    "away_team": "Oklahoma Sooners",
+    "bookmakers": [
+      {"key": "draftkings", "title": "DraftKings", "last_update": "2026-10-17T18:10:00Z", "markets": [
+        {"key": "spreads", "last_update": "2026-10-17T18:10:00Z", "outcomes": [{"name": "Mississippi Rebels", "price": -110, "point": -6.5}, {"name": "Oklahoma Sooners", "price": -110, "point": 6.5}]},
+        {"key": "totals", "last_update": "2026-10-17T18:10:00Z", "outcomes": [{"name": "Over", "price": -110, "point": 58.5}, {"name": "Under", "price": -110, "point": 58.5}]}
+      ]},
+      {"key": "fanduel", "title": "FanDuel", "last_update": "2026-10-17T18:30:00Z", "markets": [
+        {"key": "spreads", "last_update": "2026-10-17T18:30:00Z", "outcomes": [{"name": "Mississippi Rebels", "price": -112, "point": -6.5}, {"name": "Oklahoma Sooners", "price": -108, "point": 6.5}]},
+        {"key": "totals", "last_update": "2026-10-17T18:30:00Z", "outcomes": [{"name": "Over", "price": -110, "point": 59.5}, {"name": "Under", "price": -110, "point": 59.5}]}
+      ]}
+    ]
+  },
+  {
+    "id": "evt-ore-usc",
+    "sport_key": "americanfootball_ncaaf",
+    "commence_time": "2026-10-17T23:30:00Z",
+    "home_team": "Oregon Ducks",
+    "away_team": "USC Trojans",
+    "bookmakers": [
+      {"key": "draftkings", "title": "DraftKings", "last_update": "2026-10-17T18:00:00Z", "markets": [
+        {"key": "spreads", "last_update": "2026-10-17T18:00:00Z", "outcomes": [{"name": "Oregon Ducks", "price": -110, "point": -9.5}, {"name": "USC Trojans", "price": -110, "point": 9.5}]}
+      ]}
+    ]
+  }
+]

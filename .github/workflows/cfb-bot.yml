@@ -1,0 +1,72 @@
+name: cfb-bot
+
+# Scans live college football every 30 minutes on Saturdays and posts in-play
+# bets to Telegram. Setup and tuning live in cfb-bot/README.md.
+
+on:
+  schedule:
+    # GitHub cron is UTC. This covers 11am ET Saturday to about 4:30am ET
+    # Sunday, so Hawaii night games get graded too. :07 and :37 dodge the
+    # top-of-the-hour crowd that makes GitHub run schedules late.
+    - cron: "7,37 15-23 * * 6"
+    - cron: "7,37 0-8 * * 0"
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: What to run
+        type: choice
+        options: [scan, dry-run, test-telegram]
+        default: scan
+
+permissions:
+  contents: read
+
+# One scan at a time, so two runs never fight over the state file.
+concurrency:
+  group: cfb-bot
+  cancel-in-progress: false
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      # Pregame lines and picks already sent carry over between runs in the
+      # Actions cache. Each run saves under a new key; restore takes the newest.
+      - name: restore state
+        uses: actions/cache/restore@v4
+        with:
+          path: cfb-bot/state
+          key: cfb-bot-state-${{ github.run_id }}
+          restore-keys: cfb-bot-state-
+
+      - name: scan
+        working-directory: cfb-bot
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          ODDS_API_KEY: ${{ secrets.ODDS_API_KEY }}
+          CFB_BOOKMAKERS: ${{ vars.CFB_BOOKMAKERS }}
+          CFB_SPREAD_EDGE: ${{ vars.CFB_SPREAD_EDGE }}
+          CFB_TOTAL_EDGE: ${{ vars.CFB_TOTAL_EDGE }}
+          CFB_HEARTBEAT: ${{ vars.CFB_HEARTBEAT }}
+          MODE: ${{ inputs.mode || 'scan' }}
+        run: |
+          case "$MODE" in
+            dry-run) python -m cfbbot --dry-run ;;
+            test-telegram) python -m cfbbot --test-telegram ;;
+            *) python -m cfbbot ;;
+          esac
+
+      - name: save state
+        if: always() && hashFiles('cfb-bot/state/state.json') != ''
+        uses: actions/cache/save@v4
+        with:
+          path: cfb-bot/state
+          key: cfb-bot-state-${{ github.run_id }}-${{ github.run_attempt }}
