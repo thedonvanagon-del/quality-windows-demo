@@ -41,7 +41,11 @@ from .util import fmt_spread, implied, norm_cdf
 SIGMA_MARGIN = 16.0   # SD of a CFB final margin around the closing spread
 SIGMA_TOTAL = 14.0    # SD of a CFB final total around the closing total
 PRIOR_MINUTES = 120.0  # minutes of evidence the pregame total is worth
-MIN_REMAINING = 4.0   # inside this, clock and timeouts matter more than the model
+# Inside the last 10 minutes the game stops looking like the model. A one-score
+# game can go to overtime (college OT piles on points), the trailing team
+# hurries, and whoever has the ball matters more than anything here. On the
+# first live Saturday this flagged an Auburn/Georgia under at 4:46 left as "95%".
+MIN_REMAINING = 10.0
 MIN_BOOKS = 2         # one book's odd number is not a market
 ML_MAX_PRICE = 500    # past this a moneyline is a lottery ticket, not a bet
 PTS_PER_YARD = 0.07   # what a college yard is worth on the scoreboard, about 28 points per 400 yards
