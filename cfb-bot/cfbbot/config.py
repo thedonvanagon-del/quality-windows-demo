@@ -13,8 +13,11 @@ class Config:
     telegram_chat_id: str = ""
     odds_api_key: str = ""
     bookmakers: tuple = DEFAULT_BOOKMAKERS  # () means every book in the "us" region
-    spread_edge: float = 3.5  # points of value before a side gets flagged
-    total_edge: float = 5.0   # points of value before a total gets flagged
+    # Points of value before a pick gets sent. Set high on purpose: on the first
+    # live Saturday, smaller gaps against DraftKings and FanDuel were mostly the
+    # books knowing more than the model.
+    spread_edge: float = 6.0
+    total_edge: float = 6.0
     heartbeat: bool = True    # say so when games are live but nothing's worth a bet
     state_path: str = "state/state.json"
 
