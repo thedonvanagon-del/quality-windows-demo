@@ -9,16 +9,16 @@
       {"key": "draftkings", "title": "DraftKings", "last_update": "2026-10-17T19:03:00Z", "markets": [
         {"key": "h2h", "last_update": "2026-10-17T19:03:00Z", "outcomes": [{"name": "Georgia Bulldogs", "price": 330}, {"name": "Texas Longhorns", "price": -450}]},
         {"key": "spreads", "last_update": "2026-10-17T19:03:00Z", "outcomes": [{"name": "Georgia Bulldogs", "price": -110, "point": 11.5}, {"name": "Texas Longhorns", "price": -110, "point": -11.5}]},
-        {"key": "totals", "last_update": "2026-10-17T19:03:00Z", "outcomes": [{"name": "Over", "price": -110, "point": 76.5}, {"name": "Under", "price": -110, "point": 76.5}]}
+        {"key": "totals", "last_update": "2026-10-17T19:03:00Z", "outcomes": [{"name": "Over", "price": -110, "point": 72.5}, {"name": "Under", "price": -110, "point": 72.5}]}
       ]},
       {"key": "fanduel", "title": "FanDuel", "last_update": "2026-10-17T19:04:00Z", "markets": [
         {"key": "h2h", "last_update": "2026-10-17T19:04:00Z", "outcomes": [{"name": "Georgia Bulldogs", "price": 340}, {"name": "Texas Longhorns", "price": -480}]},
         {"key": "spreads", "last_update": "2026-10-17T19:04:00Z", "outcomes": [{"name": "Georgia Bulldogs", "price": -105, "point": 11.5}, {"name": "Texas Longhorns", "price": -115, "point": -11.5}]},
-        {"key": "totals", "last_update": "2026-10-17T19:04:00Z", "outcomes": [{"name": "Over", "price": -112, "point": 76.5}, {"name": "Under", "price": -108, "point": 76.5}]}
+        {"key": "totals", "last_update": "2026-10-17T19:04:00Z", "outcomes": [{"name": "Over", "price": -112, "point": 72.5}, {"name": "Under", "price": -108, "point": 72.5}]}
       ]},
       {"key": "betmgm", "title": "BetMGM", "last_update": "2026-10-17T18:40:00Z", "markets": [
         {"key": "spreads", "last_update": "2026-10-17T18:40:00Z", "outcomes": [{"name": "Georgia Bulldogs", "price": -110, "point": 14.5}, {"name": "Texas Longhorns", "price": -110, "point": -14.5}]},
-        {"key": "totals", "last_update": "2026-10-17T18:40:00Z", "outcomes": [{"name": "Over", "price": -110, "point": 80.5}, {"name": "Under", "price": -110, "point": 80.5}]}
+        {"key": "totals", "last_update": "2026-10-17T18:40:00Z", "outcomes": [{"name": "Over", "price": -110, "point": 76.5}, {"name": "Under", "price": -110, "point": 76.5}]}
       ]}
     ]
   },

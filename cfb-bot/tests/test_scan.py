@@ -25,7 +25,7 @@ class Scan(unittest.TestCase):
         self.assertEqual(len(result.messages), 1)
         message = result.messages[0]
         self.assertIn("<b>Georgia +11.5</b>  -105 at FanDuel", message)
-        self.assertIn("<b>Under 76.5 · TEX @ UGA</b>", message)
+        self.assertIn("<b>Under 72.5 · TEX @ UGA</b>", message)
         # ESPN said MISS -6 / 58.5; the books' consensus replaced it.
         self.assertEqual(state.pregame("401700005"),
                          {"home_spread": -6.5, "total": 59.0, "updated": SAMPLE_NOW.isoformat(), "source": "odds"})
@@ -37,7 +37,7 @@ class Scan(unittest.TestCase):
         run(state)
         message = run(state).messages[0]
         self.assertIn("Nothing new worth a bet", message)
-        self.assertIn("Still good from earlier: Under 76.5", message)
+        self.assertIn("Still good from earlier: Under 72.5", message)
         self.assertNotIn("<b>Georgia", message)
 
     def test_quiet_when_heartbeat_is_off(self):
@@ -54,7 +54,7 @@ class Scan(unittest.TestCase):
         message = run(State(), cfg=Config()).messages[0]
         self.assertIn("No ODDS_API_KEY set.", message)
         self.assertIn("· 4 live", message)
-        self.assertIn("Fair: TEX -7.9 · total 71.1", message)
+        self.assertIn("Fair: TEX -7.9 · total 66.3", message)
         self.assertNotIn("IOWA 13, WIS 17", message)  # 2:30 left: too late to price
 
     def test_no_fair_lines_when_nothing_is_priceable(self):
@@ -132,7 +132,7 @@ class Recap(unittest.TestCase):
         state = State()
         run(state)
         later = SAMPLE_NOW + timedelta(hours=8)
-        # Texas by 11: Georgia +11.5 wins by half a point. 59 total: under 76.5 cashes.
+        # Texas by 11: Georgia +11.5 wins by half a point. 59 total: under 72.5 cashes.
         result = run(state, games=self.finals(24, 35), now=later)
         self.assertEqual(len(result.messages), 1)
         recap = result.messages[0]
@@ -146,7 +146,7 @@ class Recap(unittest.TestCase):
         later = SAMPLE_NOW + timedelta(hours=8)
         recap = run(state, games=self.finals(40, 37), now=later).messages[0]  # 77 total, UGA by 3
         self.assertIn("1-1", recap)
-        self.assertIn("❌ Under 76.5", recap)
+        self.assertIn("❌ Under 72.5", recap)
 
     def test_no_recap_while_night_games_are_coming(self):
         state = State()
@@ -180,7 +180,12 @@ class StateFile(unittest.TestCase):
 class ConfigFromEnv(unittest.TestCase):
     def test_empty_strings_mean_defaults(self):
         cfg = Config.from_env({"CFB_SPREAD_EDGE": "", "CFB_TOTAL_EDGE": "", "CFB_HEARTBEAT": "", "CFB_BOOKMAKERS": ""})
-        self.assertEqual((cfg.spread_edge, cfg.total_edge, cfg.heartbeat, cfg.bookmakers), (3.5, 5.0, True, ()))
+        self.assertEqual((cfg.spread_edge, cfg.total_edge, cfg.heartbeat), (3.5, 5.0, True))
+        self.assertIn("draftkings", cfg.bookmakers)
+        self.assertNotIn("mybookieag", cfg.bookmakers)
+
+    def test_all_books(self):
+        self.assertEqual(Config.from_env({"CFB_BOOKMAKERS": "all"}).bookmakers, ())
 
     def test_overrides(self):
         cfg = Config.from_env({"CFB_SPREAD_EDGE": "4", "CFB_HEARTBEAT": "false", "CFB_BOOKMAKERS": "DraftKings, fanduel"})
