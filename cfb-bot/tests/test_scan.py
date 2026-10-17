@@ -10,7 +10,9 @@ from cfbbot import odds, scan
 from cfbbot.config import Config
 from cfbbot.state import State
 
-CFG = Config(odds_api_key="test")
+# The original thresholds, so these tests keep exercising both a side and a
+# total from the sample game. ConfigFromEnv checks the real defaults.
+CFG = Config(odds_api_key="test", spread_edge=3.5, total_edge=5.0)
 
 
 def run(state, games=None, fetch_odds=None, cfg=CFG, now=SAMPLE_NOW):
@@ -39,6 +41,11 @@ class Scan(unittest.TestCase):
         self.assertIn("Nothing new worth a bet", message)
         self.assertIn("Still good from earlier: Under 72.5", message)
         self.assertNotIn("<b>Georgia", message)
+
+    def test_default_thresholds_are_strict(self):
+        message = run(State(), cfg=Config(odds_api_key="test")).messages[0]
+        self.assertIn("<b>Under 72.5 · TEX @ UGA</b>", message)  # 6.2 pts clears 6
+        self.assertNotIn("<b>Georgia +11.5</b>", message)        # 3.6 pts doesn't
 
     def test_quiet_when_heartbeat_is_off(self):
         state = State()
@@ -180,7 +187,7 @@ class StateFile(unittest.TestCase):
 class ConfigFromEnv(unittest.TestCase):
     def test_empty_strings_mean_defaults(self):
         cfg = Config.from_env({"CFB_SPREAD_EDGE": "", "CFB_TOTAL_EDGE": "", "CFB_HEARTBEAT": "", "CFB_BOOKMAKERS": ""})
-        self.assertEqual((cfg.spread_edge, cfg.total_edge, cfg.heartbeat), (3.5, 5.0, True))
+        self.assertEqual((cfg.spread_edge, cfg.total_edge, cfg.heartbeat), (6.0, 6.0, True))
         self.assertIn("draftkings", cfg.bookmakers)
         self.assertNotIn("mybookieag", cfg.bookmakers)
 

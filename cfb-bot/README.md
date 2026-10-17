@@ -14,12 +14,6 @@ TEX 21, UGA 10 · 7:05 - 2nd · TEX ball, 2nd & 7 at TEX 35
 Model total 66.3. 6.2 pts of value, 71% to hit.
 31 pts in 23 min, on pace for 81. Closed 52.5. Model expects it to cool off.
 
-Georgia +11.5  -105 at FanDuel
-TEX 21, UGA 10 · 7:05 - 2nd · TEX ball, 2nd & 7 at TEX 35
-Model has UGA +7.9. 3.6 pts of value, 61% to cover.
-Closed UGA -7.5. The live number has moved 19 pts since kickoff.
-UGA ML +340 at FanDuel too: model 27%, price says 23%.
-
 Big gaps usually mean the book knows something: injury, weather, a QB change. Check before you bet.
 ```
 
@@ -67,13 +61,16 @@ Leave any of them unset to keep the default.
 | Variable | Default | What it does |
 |---|---|---|
 | `CFB_BOOKMAKERS` | DraftKings, FanDuel, BetMGM, Caesars, BetRivers, Fanatics | Only shop these books, e.g. `draftkings,fanduel`. Set it to the books you actually have. Keys: `draftkings`, `fanduel`, `betmgm`, `williamhill_us` (Caesars), `betrivers`, `fanatics`. `all` brings in offshore books too, but they often post pregame lines during games, and those read as fake edges. |
-| `CFB_SPREAD_EDGE` | `3.5` | Points of value a side needs before it gets sent. |
-| `CFB_TOTAL_EDGE` | `5.0` | Same for totals. |
+| `CFB_SPREAD_EDGE` | `6.0` | Points of value a side needs before it gets sent. |
+| `CFB_TOTAL_EDGE` | `6.0` | Same for totals. |
 | `CFB_HEARTBEAT` | `true` | `false` stays quiet unless there's a new pick. |
 
-The defaults are on the picky side. They're a starting point, not a
-backtested result. Watch the Saturday recaps for a few weeks before you move
-them.
+The defaults are strict on purpose. On the first live Saturday, gaps of 3 to 5
+points against DraftKings and FanDuel were mostly the books knowing more than
+the model, because they watch yards, drives and injuries and the model only
+sees the score. A pick also needs at least two of your books posting a live
+line. Expect quiet Saturdays. Watch the recaps for a few weeks before you
+loosen anything.
 
 ## How the model thinks
 

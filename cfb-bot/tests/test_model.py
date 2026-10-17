@@ -51,6 +51,10 @@ class FindPicks(unittest.TestCase):
     def test_thresholds_hold_picks_back(self):
         self.assertEqual(model.find_picks(self.uga, self.lines, -7.5, 52.5, 4.0, 7.0), [])
 
+    def test_one_book_is_not_enough(self):
+        self.lines.books = 1
+        self.assertEqual(model.find_picks(self.uga, self.lines, -7.5, 52.5, 3.5, 5.0), [])
+
     def test_no_picks_late_or_in_overtime(self):
         late = replace(self.uga, period=4, clock_seconds=200)
         overtime = replace(self.uga, period=5, clock_seconds=0)

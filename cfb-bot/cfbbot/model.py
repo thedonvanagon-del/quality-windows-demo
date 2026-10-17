@@ -29,6 +29,7 @@ SIGMA_MARGIN = 16.0   # SD of a CFB final margin around the closing spread
 SIGMA_TOTAL = 14.0    # SD of a CFB final total around the closing total
 PRIOR_MINUTES = 120.0  # minutes of evidence the pregame total is worth
 MIN_REMAINING = 4.0   # inside this, clock and timeouts matter more than the model
+MIN_BOOKS = 2         # one book's odd number is not a market
 
 
 @dataclass
@@ -89,7 +90,7 @@ def priceable(game):
 
 
 def find_picks(game: Game, lines: Lines | None, pregame_spread, pregame_total, spread_edge, total_edge):
-    if not priceable(game) or lines is None:
+    if not priceable(game) or lines is None or lines.books < MIN_BOOKS:
         return []
     picks = []
     if pregame_spread is not None and lines.home_spread is not None:
