@@ -53,7 +53,14 @@ class Scan(unittest.TestCase):
     def test_no_key_sends_fair_lines(self):
         message = run(State(), cfg=Config()).messages[0]
         self.assertIn("No ODDS_API_KEY set.", message)
+        self.assertIn("· 4 live", message)
         self.assertIn("Fair: TEX -7.9 · total 71.1", message)
+        self.assertNotIn("IOWA 13, WIS 17", message)  # 2:30 left: too late to price
+
+    def test_no_fair_lines_when_nothing_is_priceable(self):
+        games = {gid: g for gid, g in sample_games().items() if gid in ("401700003", "401700005")}
+        games["401700005"] = replace(games["401700005"], state="in", period=5, clock_seconds=0)  # overtime
+        self.assertEqual(run(State(), games=games, cfg=Config()).messages, [])
 
     def test_odds_outage_falls_back_to_fair_lines(self):
         def broken():

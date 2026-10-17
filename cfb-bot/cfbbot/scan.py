@@ -77,7 +77,9 @@ def run(cfg, state, now, fetch_games, fetch_odds, fetch_pregame=None):
         if not odds_ok or not priced:
             if not odds_ok and not cfg.odds_api_key:
                 notes.append("No ODDS_API_KEY set.")
-            result.messages.append(report.fair_lines_message(now_et, [(g, *pregame[g.id]) for g in live], notes))
+            priceable = [(g, *pregame[g.id]) for g in live if model.priceable(g)]
+            if priceable:
+                result.messages.append(report.fair_lines_message(now_et, len(live), priceable, notes))
         elif fresh:
             result.messages.append(report.picks_message(now_et, len(live), fresh, still, notes))
         elif cfg.heartbeat:

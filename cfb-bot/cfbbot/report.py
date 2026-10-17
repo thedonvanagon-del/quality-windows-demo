@@ -35,18 +35,18 @@ def heartbeat_message(now_et, live_count, priced_count, still, notes=()):
     return "\n\n".join(parts)
 
 
-def fair_lines_message(now_et, priced, notes=()):
+def fair_lines_message(now_et, live_count, priced, notes=()):
     """For when there are no live odds to compare against: the model's own
     numbers, so you can hold them up to your book. `priced` is a list of
     (game, pregame home spread, pregame total)."""
-    parts = [header(now_et, len(priced)), *(f"<i>{escape(n)}</i>" for n in notes)]
+    parts = [header(now_et, live_count), *(f"<i>{escape(n)}</i>" for n in notes)]
     parts.append("No live odds to check, so here are the model's fair lines. Hold them up to your book.")
     for game, spread, total in priced:
         fair = []
         if spread is not None:
             margin = fair_home_margin(game, spread)
             fav = game.home if margin >= 0 else game.away
-            fair.append(f"{escape(fav.abbr)} -{abs(margin):.1f}")
+            fair.append(f"{escape(fav.abbr)} -{abs(margin):.1f}" if round(abs(margin), 1) else "PK")
         if total is not None:
             fair.append(f"total {fair_total(game, total):.1f}")
         parts.append(f"{_scoreline(game)}\nFair: {' · '.join(fair) or 'no pregame line to work from'}")

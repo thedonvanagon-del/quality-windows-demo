@@ -83,8 +83,13 @@ def sigma(full_game, game):
     return full_game * math.sqrt(max(game.remaining_minutes / GAME_MINUTES, 0.04))
 
 
+def priceable(game):
+    """Live, in regulation, and with enough clock left for the model to mean something."""
+    return game.state == "in" and not game.overtime and game.remaining_minutes >= MIN_REMAINING
+
+
 def find_picks(game: Game, lines: Lines | None, pregame_spread, pregame_total, spread_edge, total_edge):
-    if game.state != "in" or game.overtime or game.remaining_minutes < MIN_REMAINING or lines is None:
+    if not priceable(game) or lines is None:
         return []
     picks = []
     if pregame_spread is not None and lines.home_spread is not None:
