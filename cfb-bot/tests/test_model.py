@@ -16,12 +16,12 @@ class FairLines(unittest.TestCase):
         self.assertAlmostEqual(model.fair_total(g, 55.5), 55.5)
         self.assertAlmostEqual(model.fair_home_margin(g, -10.5), 10.5)
 
-    def test_halftime_total_splits_the_difference(self):
+    def test_halftime_total_leans_on_the_pregame_pace(self):
         # 38 points at the half against a 52 total: pregame rate says 26 more,
-        # observed rate says 38 more, the model says 32.
+        # observed rate says 38 more, the model says 28.4.
         g = self.games["401700002"]
         g.home, g.away = replace(g.home, score=20), replace(g.away, score=18)
-        self.assertAlmostEqual(model.fair_total(g, 52.0), 70.0)
+        self.assertAlmostEqual(model.fair_total(g, 52.0), 66.4)
 
     def test_possession_counts(self):
         g = self.games["401700004"]  # Auburn (home) ball at the A&M 22
@@ -45,11 +45,11 @@ class FindPicks(unittest.TestCase):
         self.assertEqual((side.label, side.quote.book, side.quote.price), ("Georgia +11.5", "FanDuel", -105))
         self.assertAlmostEqual(side.edge, 3.64, places=2)
         self.assertEqual(side.ml.price, 340)
-        self.assertEqual(total.quote.point, 76.5)
-        self.assertAlmostEqual(total.edge, 5.4, places=1)
+        self.assertEqual(total.quote.point, 72.5)
+        self.assertAlmostEqual(total.edge, 6.2, places=1)
 
     def test_thresholds_hold_picks_back(self):
-        self.assertEqual(model.find_picks(self.uga, self.lines, -7.5, 52.5, 4.0, 6.0), [])
+        self.assertEqual(model.find_picks(self.uga, self.lines, -7.5, 52.5, 4.0, 7.0), [])
 
     def test_no_picks_late_or_in_overtime(self):
         late = replace(self.uga, period=4, clock_seconds=200)

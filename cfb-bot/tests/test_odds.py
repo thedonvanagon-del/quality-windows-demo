@@ -12,7 +12,7 @@ class Summarize(unittest.TestCase):
         lines = odds.summarize(sample_event("evt-uga-tex"), "Georgia Bulldogs", "Texas Longhorns", SAMPLE_NOW, live=True)
         self.assertEqual(lines.books, 2)  # BetMGM's quotes are 25 minutes old
         self.assertEqual(lines.home_spread, 11.5)
-        self.assertEqual(lines.total, 76.5)
+        self.assertEqual(lines.total, 72.5)
         self.assertEqual((lines.best["home"].book, lines.best["home"].price), ("FanDuel", -105))
         self.assertEqual((lines.best["under"].book, lines.best["under"].price), ("FanDuel", -108))
         self.assertEqual(lines.best["ml_home"].price, 340)
@@ -36,7 +36,7 @@ class Summarize(unittest.TestCase):
             market["last_update"] = "2026-10-17T19:04:00Z"
         lines = odds.summarize(event, "Georgia Bulldogs", "Texas Longhorns", SAMPLE_NOW, live=True)
         self.assertEqual(lines.best["home"].point, 11.5)  # BetMGM's +14.5 is 3 off the pack
-        self.assertEqual(lines.best["under"].point, 76.5)
+        self.assertEqual(lines.best["under"].point, 72.5)  # BetMGM's 76.5 is 4 off
 
     def test_implied(self):
         self.assertAlmostEqual(implied(-110), 0.5238, places=4)

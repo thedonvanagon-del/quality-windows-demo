@@ -9,9 +9,9 @@ A message looks like this:
 ```
 🏈 CFB live · 3:05 PM ET · 4 live
 
-Under 76.5 · TEX @ UGA  -108 at FanDuel
+Under 72.5 · TEX @ UGA  -108 at FanDuel
 TEX 21, UGA 10 · 7:05 - 2nd · TEX ball, 2nd & 7 at TEX 35
-Model total 71.1. 5.4 pts of value, 69% to hit.
+Model total 66.3. 6.2 pts of value, 71% to hit.
 31 pts in 23 min, on pace for 81. Closed 52.5. Model expects it to cool off.
 
 Georgia +11.5  -105 at FanDuel
@@ -66,7 +66,7 @@ Leave any of them unset to keep the default.
 
 | Variable | Default | What it does |
 |---|---|---|
-| `CFB_BOOKMAKERS` | all US books | Only shop these books, e.g. `draftkings,fanduel`. Set it to the books you actually have. Other keys: `betmgm`, `williamhill_us` (Caesars), `betrivers`. |
+| `CFB_BOOKMAKERS` | DraftKings, FanDuel, BetMGM, Caesars, BetRivers, Fanatics | Only shop these books, e.g. `draftkings,fanduel`. Set it to the books you actually have. Keys: `draftkings`, `fanduel`, `betmgm`, `williamhill_us` (Caesars), `betrivers`, `fanatics`. `all` brings in offshore books too, but they often post pregame lines during games, and those read as fake edges. |
 | `CFB_SPREAD_EDGE` | `3.5` | Points of value a side needs before it gets sent. |
 | `CFB_TOTAL_EDGE` | `5.0` | Same for totals. |
 | `CFB_HEARTBEAT` | `true` | `false` stays quiet unless there's a new pick. |
@@ -86,8 +86,9 @@ spots where the live number has drifted too far.
   scaled by how much game is left + the value of the current possession.
   Uncertainty shrinks as the clock runs.
 - **Totals.** Points so far + minutes left x a scoring rate. That rate leans
-  on the pregame total early and splits the difference with the observed
-  pace by halftime. A 31-point first quarter usually doesn't keep going.
+  hard on the pregame total all game, because a hot or cold start says less
+  than it looks like. It flags a total when the book chases the early pace
+  further than that.
 
 It skips games in the last 4 minutes and in overtime. Clock management
 decides those, and the model doesn't see it.

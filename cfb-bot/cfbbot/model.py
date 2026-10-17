@@ -27,7 +27,7 @@ from .util import fmt_spread, implied, norm_cdf
 
 SIGMA_MARGIN = 16.0   # SD of a CFB final margin around the closing spread
 SIGMA_TOTAL = 14.0    # SD of a CFB final total around the closing total
-PRIOR_MINUTES = 30.0  # minutes of evidence the pregame total is worth
+PRIOR_MINUTES = 120.0  # minutes of evidence the pregame total is worth
 MIN_REMAINING = 4.0   # inside this, clock and timeouts matter more than the model
 
 
