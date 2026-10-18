@@ -94,14 +94,17 @@ Pinnacle takes the sharpest money in the world and moves on it, so its line
 with the vig stripped out is the closest thing to a true price. When FanDuel
 has Ole Miss -6 and Pinnacle has -7.5, that point and a half is worth real
 money over time. The board prices each of your books' spreads against
-Pinnacle's no-vig line, turns the gap into expected value (about 2.5% a point
-in college and 3% in the NFL, where games bunch on 3 and 7), and sends the
-best five that clear +1.5%.
+Pinnacle's no-vig line and sends the best five that clear +1.5% expected value.
 
-The juice matters more than people think: one point better at -110 is only
-about +0.2% in college, so most single-point gaps don't make it. When Pinnacle
-has no line on a game, the bar is the median of your books instead, and it
-takes +3%.
+Not every point is worth the same. A gap only matters if the game can land
+in it: -7.5 to -6.5 picks up every game decided by exactly 7, which happens a
+lot, while -10.5 to -9.5 crosses a number games rarely end on. In the NFL,
+half a point through 3 is worth about 7.5% cover chance, and -1 to +0.5 is
+worth almost nothing because NFL games almost never tie. The board values
+each half point by how often games end on that margin. At -110 a bet needs
+52.4% to break even, so most one-point gaps off a dead number don't make it.
+When Pinnacle has no line on a game, the bar is the median of your books
+instead, and it takes +3%.
 
 These are small edges. They pay off over hundreds of bets, not on any one
 Saturday.

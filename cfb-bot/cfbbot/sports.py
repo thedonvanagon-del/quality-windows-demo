@@ -27,7 +27,12 @@ class Sport:
     sigma_margin: float  # SD of a final margin around the closing spread
     sigma_total: float   # SD of a final total around the closing total
     pts_per_yard: float
-    board_slope: float   # cover chance gained per point of spread near the number
+    # How often a game ends on exactly this many points apart (either team),
+    # index = margin, roughly from the last couple of decades. Past the end of
+    # the table, margin_tail. This is what a half point is worth: crossing 3
+    # matters, crossing 0 in a sport with almost no ties doesn't.
+    margins: tuple
+    margin_tail: float
     windows: tuple
     state_file: str
 
@@ -41,7 +46,9 @@ NCAAF = Sport(
     sigma_margin=16.0,
     sigma_total=14.0,
     pts_per_yard=0.07,   # about 28 points per 400 yards
-    board_slope=0.025,
+    #        0    1     2     3     4     5     6     7     8     9     10    11    12    13    14
+    margins=(0, .035, .03, .09, .045, .03, .04, .07, .035, .025, .045, .025, .02, .02, .045),  # overtime: no ties
+    margin_tail=.015,
     windows=(Window(5, 10 * 60, 18 * 60 + 30),),  # Saturday 10am to Sunday 4:30am
     state_file="state.json",
 )
@@ -55,7 +62,9 @@ NFL = Sport(
     sigma_margin=13.5,
     sigma_total=13.0,
     pts_per_yard=0.067,  # about 22 points per 330 yards
-    board_slope=0.03,    # NFL margins bunch on 3 and 7, so a point is worth more
+    #         0     1     2     3    4     5     6    7     8     9    10    11    12    13    14
+    margins=(.003, .035, .035, .15, .05, .035, .06, .09, .035, .02, .06, .025, .015, .02, .05),
+    margin_tail=.012,
     windows=(
         Window(6, 9 * 60, 16 * 60),   # Sunday 9am (London games) to Monday 1am
         Window(0, 17 * 60, 8 * 60),   # Monday night
