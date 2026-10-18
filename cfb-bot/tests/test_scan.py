@@ -175,6 +175,63 @@ class Recap(unittest.TestCase):
         self.assertEqual(run(state, games=games, now=SAMPLE_NOW + timedelta(hours=1)).messages, [])
 
 
+class FakeClock:
+    def __init__(self, start):
+        self.now = start
+        self.scans = 0
+
+    def __call__(self):
+        return self.now
+
+    def sleep(self, seconds):
+        self.now += timedelta(seconds=seconds)
+
+    def scan(self):
+        self.scans += 1
+        self.now += timedelta(seconds=20)
+
+
+class KeepScanning(unittest.TestCase):
+    def test_window(self):
+        et = scan.ET
+        self.assertFalse(scan.in_saturday_window(datetime(2026, 10, 17, 10, 59, tzinfo=et)))
+        self.assertTrue(scan.in_saturday_window(datetime(2026, 10, 17, 11, 0, tzinfo=et)))
+        self.assertTrue(scan.in_saturday_window(datetime(2026, 10, 18, 4, 29, tzinfo=et)))
+        self.assertFalse(scan.in_saturday_window(datetime(2026, 10, 18, 4, 30, tzinfo=et)))
+        self.assertFalse(scan.in_saturday_window(datetime(2026, 10, 16, 20, 0, tzinfo=et)))  # Friday
+
+    def test_runs_until_the_window_closes(self):
+        clock = FakeClock(datetime(2026, 10, 18, 1, 0, tzinfo=scan.ET))  # 1am Sunday
+        self.assertFalse(scan.keep_scanning(clock.scan, now=clock, sleep=clock.sleep))
+        self.assertEqual(clock.scans, 7)  # 1:00, 1:30 ... 4:00
+        self.assertLess(clock.now, datetime(2026, 10, 18, 4, 30, tzinfo=scan.ET))
+
+    def test_hands_off_before_the_six_hour_limit(self):
+        clock = FakeClock(datetime(2026, 10, 17, 12, 0, tzinfo=scan.ET))  # noon Saturday
+        self.assertTrue(scan.keep_scanning(clock.scan, now=clock, sleep=clock.sleep))
+        self.assertEqual(clock.scans, 12)
+        self.assertLess(clock.now - datetime(2026, 10, 17, 12, 0, tzinfo=scan.ET), timedelta(hours=6))
+
+    def test_outside_the_window_scans_once_and_stops(self):
+        clock = FakeClock(datetime(2026, 10, 17, 10, 7, tzinfo=scan.ET))  # 10:07am, early cron slot
+        clock_scans_before = clock.scans
+        self.assertFalse(scan.keep_scanning(clock.scan, now=clock, sleep=clock.sleep))
+        self.assertEqual(clock.scans - clock_scans_before, 1)
+
+    def test_a_failed_scan_does_not_end_the_night(self):
+        clock = FakeClock(datetime(2026, 10, 18, 3, 0, tzinfo=scan.ET))
+        calls = []
+
+        def flaky():
+            calls.append(1)
+            clock.now += timedelta(seconds=20)
+            if len(calls) == 1:
+                raise OSError("ESPN timed out")
+
+        self.assertFalse(scan.keep_scanning(flaky, now=clock, sleep=clock.sleep))
+        self.assertEqual(len(calls), 3)  # 3:00 (failed), 3:30, 4:00
+
+
 class SlateDay(unittest.TestCase):
     def test_late_games_belong_to_saturday(self):
         sunday_2am_et = datetime(2026, 10, 18, 6, 0, tzinfo=timezone.utc)

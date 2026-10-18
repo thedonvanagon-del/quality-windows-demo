@@ -1,13 +1,17 @@
 """One pass: pull the board, price every live game, decide what to send."""
 
+import time
 from dataclasses import dataclass, field
-from datetime import timedelta
+from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
 from . import espn, model, odds, report
 
 ET = ZoneInfo("America/New_York")
 SOON = timedelta(minutes=75)  # grab a pregame line for anything kicking off within this
+LOOP_EVERY = timedelta(minutes=30)
+# GitHub stops a job at 6 hours. Hand off to a fresh run well before that.
+LOOP_BUDGET = timedelta(hours=5, minutes=40)
 
 
 @dataclass
@@ -19,6 +23,35 @@ class Result:
 def slate_day(now):
     """Saturday's late games run past midnight Eastern. They're still Saturday."""
     return (now.astimezone(ET) - timedelta(hours=6)).date()
+
+
+def in_saturday_window(now):
+    """11am Saturday to 4:30am Sunday, Eastern, daylight saving and all."""
+    et = now.astimezone(ET)
+    minutes = et.hour * 60 + et.minute
+    return (et.weekday() == 5 and minutes >= 11 * 60) or (et.weekday() == 6 and minutes < 4 * 60 + 30)
+
+
+def keep_scanning(scan_once, now=lambda: datetime.now(timezone.utc), sleep=time.sleep):
+    """Scan every 30 minutes until Saturday's window closes.
+
+    GitHub's scheduler skipped 16 of the first night's 20 half-hour slots, so a
+    scheduled run no longer scans once and quits: it keeps going itself.
+    Returns True when the time budget ran out with the window still open,
+    meaning a fresh run should pick up where this one stopped.
+    """
+    started = now()
+    while True:
+        try:
+            scan_once()
+        except Exception as err:  # one bad scan shouldn't end the night
+            print(f"scan failed, trying again next round: {err}")
+        next_at = now() + LOOP_EVERY
+        if not in_saturday_window(next_at):
+            return False
+        if next_at - started > LOOP_BUDGET:
+            return True
+        sleep(max(0.0, (next_at - now()).total_seconds()))
 
 
 def run(cfg, state, now, fetch_games, fetch_odds, fetch_page=None):

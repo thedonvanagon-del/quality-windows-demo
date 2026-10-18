@@ -50,8 +50,9 @@ The same pick never gets sent twice in a day.
    `TELEGRAM_CHAT_ID` and `ODDS_API_KEY`.
 5. **Merge to `main`.** GitHub only runs schedules from the default branch.
 6. **Test it.** Actions tab → cfb-bot → Run workflow → `test-telegram`. You
-   should get a hello within a minute. `dry-run` prints a real scan to the
-   run log without sending anything.
+   should get a hello within a minute. The message and the run log both name
+   the bot that sent it, so if nothing shows up, open your chat with that bot.
+   `dry-run` prints a real scan to the run log without sending anything.
 
 ## Tuning
 
@@ -118,7 +119,13 @@ python -m cfbbot                       # real scan, sent to Telegram
 
 - Live scores come from ESPN's public scoreboard feed. It's free and
   needs no key, but ESPN doesn't document it and could change it.
-- GitHub can start scheduled runs 5 to 15 minutes late when it's busy.
+- GitHub's scheduler is best effort. On the first Saturday it ran 4 of about
+  20 half-hour slots. So a run doesn't scan once and quit: it keeps scanning
+  every 30 minutes until 4:30am Eastern and starts the next run before
+  GitHub's 6-hour job limit. Only one slot has to fire to cover the night.
+  To start a night by hand: Actions → cfb-bot → Run workflow → `loop`.
+- That costs nothing on a public repo. On a private one, a full Saturday would
+  use about 18 hours of GitHub Actions minutes.
 - On a public repo, GitHub pauses schedules after 60 days with no commits.
   If the bot goes quiet after a long offseason, re-enable it from the
   Actions tab.
