@@ -1,6 +1,7 @@
 import argparse
 import html
 import json
+import os
 import re
 import sys
 from datetime import datetime, timezone
@@ -19,6 +20,8 @@ def main(argv=None):
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument("--dry-run", action="store_true", help="print messages instead of sending them, and leave state alone")
     mode.add_argument("--test-telegram", action="store_true", help="send one test message and exit")
+    mode.add_argument("--loop", action="store_true",
+                      help="scan every 30 minutes until Saturday's games are done (how GitHub runs it)")
     mode.add_argument("--demo", action="store_true", help="run on the bundled sample Saturday, no network or keys needed")
     args = parser.parse_args(argv)
     cfg = Config.from_env()
@@ -31,26 +34,44 @@ def main(argv=None):
         return 2
 
     if args.test_telegram:
+        bot, chat = telegram.whoami(cfg.telegram_token, cfg.telegram_chat_id)
         telegram.send(cfg.telegram_token, cfg.telegram_chat_id,
-                      "🏈 CFB bot is hooked up. You'll hear from me on Saturdays while games are live.")
-        print("Test message sent.")
+                      f"🏈 CFB bot is hooked up. This is {bot}. You'll hear from me on Saturdays while games are live.")
+        print(f"Test message sent from {bot} to {chat}. Open your chat with {bot} in Telegram to see it.")
         return 0
 
+    if args.loop:
+        again = scan.keep_scanning(lambda: scan_once(cfg, dry_run=False))
+        _set_output("again", "true" if again else "false")
+        return 0
+
+    scan_once(cfg, args.dry_run)
+    return 0
+
+
+def scan_once(cfg, dry_run):
     now = datetime.now(timezone.utc)
     state = State.load(cfg.state_path)
     result = scan.run(cfg, state, now, espn.fetch_scoreboard, lambda: odds.fetch(cfg.odds_api_key, cfg.bookmakers),
                       espn.fetch_game_page)
     print(result.summary)
     for message in result.messages:
-        if args.dry_run:
+        if dry_run:
             print("\n" + message)
         else:
             telegram.send(cfg.telegram_token, cfg.telegram_chat_id, message)
     # Save only after everything sent, so a failed send gets retried next scan.
-    if not args.dry_run:
+    if not dry_run:
         state.prune(now)
         state.save()
-    return 0
+
+
+def _set_output(name, value):
+    """Hand a value to later workflow steps (GitHub Actions step outputs)."""
+    path = os.environ.get("GITHUB_OUTPUT")
+    if path:
+        with open(path, "a") as f:
+            f.write(f"{name}={value}\n")
 
 
 def demo():

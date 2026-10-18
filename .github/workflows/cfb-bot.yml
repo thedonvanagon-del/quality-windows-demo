@@ -5,9 +5,11 @@ name: cfb-bot
 
 on:
   schedule:
-    # GitHub cron is UTC. This covers 11am ET Saturday to about 4:30am ET
-    # Sunday, so Hawaii night games get graded too. :07 and :37 dodge the
-    # top-of-the-hour crowd that makes GitHub run schedules late.
+    # GitHub cron is UTC and best effort: on the first Saturday it ran 4 of
+    # about 20 slots. So these only need to start a run. A run keeps scanning
+    # every 30 minutes on its own (11am to 4:30am Eastern) and starts the next
+    # run before GitHub's 6-hour job limit. While one is going, these queue
+    # behind it and exit right away once the window has closed.
     - cron: "7,37 15-23 * * 6"
     - cron: "7,37 0-8 * * 0"
   workflow_dispatch:
@@ -15,13 +17,14 @@ on:
       mode:
         description: What to run
         type: choice
-        options: [scan, dry-run, test-telegram]
-        default: scan
+        options: [loop, scan, dry-run, test-telegram]
+        default: loop
 
 permissions:
   contents: read
+  actions: write  # a run starts the next one before the 6-hour limit
 
-# One scan at a time, so two runs never fight over the state file.
+# One run at a time, so two never fight over the state file.
 concurrency:
   group: cfb-bot
   cancel-in-progress: false
@@ -29,7 +32,7 @@ concurrency:
 jobs:
   scan:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 355
     steps:
       - uses: actions/checkout@v4
 
@@ -47,6 +50,7 @@ jobs:
           restore-keys: cfb-bot-state-
 
       - name: scan
+        id: scan
         working-directory: cfb-bot
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
@@ -56,12 +60,13 @@ jobs:
           CFB_SPREAD_EDGE: ${{ vars.CFB_SPREAD_EDGE }}
           CFB_TOTAL_EDGE: ${{ vars.CFB_TOTAL_EDGE }}
           CFB_HEARTBEAT: ${{ vars.CFB_HEARTBEAT }}
-          MODE: ${{ inputs.mode || 'scan' }}
+          MODE: ${{ inputs.mode || 'loop' }}
         run: |
           case "$MODE" in
             dry-run) python -m cfbbot --dry-run ;;
             test-telegram) python -m cfbbot --test-telegram ;;
-            *) python -m cfbbot ;;
+            scan) python -m cfbbot ;;
+            *) python -m cfbbot --loop ;;
           esac
 
       - name: save state
@@ -70,3 +75,13 @@ jobs:
         with:
           path: cfb-bot/state
           key: cfb-bot-state-${{ github.run_id }}-${{ github.run_attempt }}
+
+      # The loop hit its time budget with games still going: start a fresh
+      # run. It queues behind this one and picks up the saved state.
+      - name: keep going
+        if: steps.scan.outputs.again == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          REF: ${{ github.ref_name }}
+        run: gh workflow run cfb-bot.yml --ref "$REF" -f mode=loop
