@@ -47,6 +47,29 @@ class ParseScoreboard(unittest.TestCase):
         self.assertEqual(post.remaining_minutes, 0)
 
 
+class SportUrls(unittest.TestCase):
+    def test_nfl_scoreboard_and_game_page(self):
+        from datetime import date
+        from cfbbot.sports import NFL
+        with mock.patch.object(espn, "get_json", return_value=({"events": []}, {})) as get:
+            espn.fetch_scoreboard(date(2026, 10, 18), NFL)
+        url = get.call_args[0][0]
+        self.assertIn("/football/nfl/scoreboard?", url)
+        self.assertIn("dates=20261018", url)
+        self.assertNotIn("groups", url)
+        game = sample_games()["401700001"]
+        with mock.patch.object(espn, "get_json", return_value=({}, {})) as get:
+            espn.fetch_game_page(game, NFL)
+        self.assertIn("/football/nfl/summary?event=401700001", get.call_args[0][0])
+
+    def test_college_scoreboard_keeps_fbs(self):
+        from datetime import date
+        with mock.patch.object(espn, "get_json", return_value=({"events": []}, {})) as get:
+            espn.fetch_scoreboard(date(2026, 10, 17))
+        self.assertIn("/football/college-football/scoreboard?", get.call_args[0][0])
+        self.assertIn("groups=80", get.call_args[0][0])
+
+
 class GamePage(unittest.TestCase):
     def setUp(self):
         self.game = sample_games()["401700004"]  # TA&M (245) @ AUB (2)

@@ -23,5 +23,10 @@ def implied(price):
     return 100 / (price + 100) if price > 0 else -price / (-price + 100)
 
 
+def decimal_odds(price):
+    """What a $1 bet returns, stake included, at an American price."""
+    return 1 + (price / 100 if price > 0 else 100 / -price)
+
+
 def fmt_spread(points):
     return "PK" if points == 0 else f"{points:+g}"

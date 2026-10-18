@@ -1,23 +1,30 @@
 name: cfb-bot
 
-# Scans live college football every 30 minutes on Saturdays and posts in-play
-# bets to Telegram. Setup and tuning live in cfb-bot/README.md.
+# College football on Saturdays and the NFL on Sundays, Monday and Thursday
+# nights: a morning board of spreads that beat the sharp line, then in-play
+# picks every 30 minutes, all to Telegram. Setup and tuning live in
+# cfb-bot/README.md.
 
 on:
   schedule:
     # GitHub cron is UTC and best effort: on the first Saturday it ran 4 of
     # about 20 slots. So these only need to start a run. A run keeps scanning
-    # every 30 minutes on its own (11am to 4:30am Eastern) and starts the next
-    # run before GitHub's 6-hour job limit. While one is going, these queue
-    # behind it and exit right away once the window has closed.
-    - cron: "7,37 15-23 * * 6"
-    - cron: "7,37 0-8 * * 0"
+    # every 30 minutes while a window is open (cfbbot/sports.py has them, in
+    # Eastern time) and starts the next run before GitHub's 6-hour job limit.
+    # While one is going, these queue behind it; outside every window they
+    # exit right away. Slots run early enough to cover both EDT and EST.
+    - cron: "7,37 13-23 * * 6"         # Saturday: college board at 10am, games till 4:30am
+    - cron: "7,37 0-8,13-23 * * 0"     # Sunday: college late games, then NFL from 9am
+    - cron: "7,37 0-5,21-23 * * 1"     # Monday: Sunday night game, then Monday night
+    - cron: "7,37 0-5 * * 2"
+    - cron: "7,37 21-23 * * 4"         # Thursday night
+    - cron: "7,37 0-5 * * 5"
   workflow_dispatch:
     inputs:
       mode:
         description: What to run
         type: choice
-        options: [loop, scan, dry-run, test-telegram]
+        options: [loop, scan, board, dry-run, test-telegram]
         default: loop
 
 permissions:
@@ -65,12 +72,13 @@ jobs:
           case "$MODE" in
             dry-run) python -m cfbbot --dry-run ;;
             test-telegram) python -m cfbbot --test-telegram ;;
+            board) python -m cfbbot --board ;;
             scan) python -m cfbbot ;;
             *) python -m cfbbot --loop ;;
           esac
 
       - name: save state
-        if: always() && hashFiles('cfb-bot/state/state.json') != ''
+        if: always() && hashFiles('cfb-bot/state/*.json') != ''
         uses: actions/cache/save@v4
         with:
           path: cfb-bot/state

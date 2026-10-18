@@ -1,15 +1,14 @@
-"""Live state of every FBS game from ESPN's public scoreboard feed. No key needed."""
+"""Live state of every game from ESPN's public scoreboard feeds. No key needed."""
 
 import re
 from dataclasses import dataclass
 from urllib.parse import urlencode
 
 from .http import get_json
+from .sports import NCAAF
 from .util import parse_time
 
-SCOREBOARD_URL = "https://site.api.espn.com/apis/site/v2/sports/football/college-football/scoreboard"
-SUMMARY_URL = "https://site.api.espn.com/apis/site/v2/sports/football/college-football/summary"
-FBS = "80"
+ESPN_URL = "https://site.api.espn.com/apis/site/v2/sports/football/{path}/{page}"
 QUARTER_MINUTES = 15.0
 GAME_MINUTES = 60.0
 
@@ -77,9 +76,9 @@ class Game:
         return {self.home.id: self.home, self.away.id: self.away}.get(team_id)
 
 
-def fetch_scoreboard(day):
-    query = urlencode({"dates": day.strftime("%Y%m%d"), "groups": FBS, "limit": 400})
-    data, _ = get_json(f"{SCOREBOARD_URL}?{query}")
+def fetch_scoreboard(day, sport=NCAAF):
+    query = urlencode({"dates": day.strftime("%Y%m%d"), **dict(sport.espn_params), "limit": 400})
+    data, _ = get_json(f"{ESPN_URL.format(path=sport.espn_path, page='scoreboard')}?{query}")
     return parse_scoreboard(data)
 
 
@@ -156,9 +155,9 @@ def _yards_from_own_goal(situation, possessor):
     return None
 
 
-def fetch_game_page(game):
+def fetch_game_page(game, sport=NCAAF):
     """ESPN's game page as JSON: the pick center and the box score."""
-    data, _ = get_json(f"{SUMMARY_URL}?{urlencode({'event': game.id})}")
+    data, _ = get_json(f"{ESPN_URL.format(path=sport.espn_path, page='summary')}?{urlencode({'event': game.id})}")
     return data
 
 

@@ -4,9 +4,11 @@ Texas A&M would otherwise break the markup."""
 from html import escape
 
 from .model import fair_home_margin, fair_total
+from .sports import NCAAF
 from .util import fmt_spread, implied
 
 FOOTER = "Big gaps usually mean the book knows something: injury, weather, a QB change. Check before you bet."
+BOARD_FOOTER = "No such thing as a real lock. These are better numbers than the sharp market, not sure things."
 RESULT_ICONS = {"win": "✅", "loss": "❌", "push": "➖", "void": "⚪"}
 
 
@@ -14,12 +16,12 @@ def clock(now_et):
     return now_et.strftime("%I:%M %p").lstrip("0")
 
 
-def header(now_et, live_count):
-    return f"🏈 <b>CFB live</b> · {clock(now_et)} ET · {live_count} live"
+def header(now_et, live_count, sport=NCAAF):
+    return f"🏈 <b>{sport.name} live</b> · {clock(now_et)} ET · {live_count} live"
 
 
-def picks_message(now_et, live_count, fresh, still, notes=()):
-    parts = [header(now_et, live_count), *(f"<i>{escape(n)}</i>" for n in notes)]
+def picks_message(now_et, live_count, fresh, still, notes=(), sport=NCAAF):
+    parts = [header(now_et, live_count, sport), *(f"<i>{escape(n)}</i>" for n in notes)]
     parts += [_pick_block(p) for p in fresh]
     if still:
         parts.append(_still_line(still))
@@ -27,28 +29,28 @@ def picks_message(now_et, live_count, fresh, still, notes=()):
     return "\n\n".join(parts)
 
 
-def heartbeat_message(now_et, live_count, priced_count, still, notes=()):
-    parts = [header(now_et, live_count), *(f"<i>{escape(n)}</i>" for n in notes)]
+def heartbeat_message(now_et, live_count, priced_count, still, notes=(), sport=NCAAF):
+    parts = [header(now_et, live_count, sport), *(f"<i>{escape(n)}</i>" for n in notes)]
     parts.append(f"Nothing new worth a bet. Live odds on {priced_count} of {live_count}.")
     if still:
         parts.append(_still_line(still))
     return "\n\n".join(parts)
 
 
-def fair_lines_message(now_et, live_count, priced, notes=()):
+def fair_lines_message(now_et, live_count, priced, notes=(), sport=NCAAF):
     """For when there are no live odds to compare against: the model's own
     numbers, so you can hold them up to your book. `priced` is a list of
     (game, pregame home spread, pregame total, (home, away) yards or None)."""
-    parts = [header(now_et, live_count), *(f"<i>{escape(n)}</i>" for n in notes)]
+    parts = [header(now_et, live_count, sport), *(f"<i>{escape(n)}</i>" for n in notes)]
     parts.append("No live odds to check, so here are the model's fair lines. Hold them up to your book.")
     for game, spread, total, yards in priced:
         fair = []
         if spread is not None:
-            margin = fair_home_margin(game, spread, yards)
+            margin = fair_home_margin(game, spread, yards, sport=sport)
             fav = game.home if margin >= 0 else game.away
             fair.append(f"{escape(fav.abbr)} -{abs(margin):.1f}" if round(abs(margin), 1) else "PK")
         if total is not None:
-            fair.append(f"total {fair_total(game, total, yards):.1f}")
+            fair.append(f"total {fair_total(game, total, yards, sport):.1f}")
         text = f"{_scoreline(game)}\nFair: {' · '.join(fair) or 'no pregame line to work from'}"
         if yards:
             text += "\n" + _yards_line(game, yards)
@@ -56,16 +58,44 @@ def fair_lines_message(now_et, live_count, priced, notes=()):
     return "\n\n".join(parts)
 
 
-def recap_message(day, alerts):
+def recap_message(day, alerts, sport=NCAAF):
     results = [a.get("result") for a in alerts]
     wins, losses, pushes = (results.count(r) for r in ("win", "loss", "push"))
     record = f"{wins}-{losses}" + (f"-{pushes}" if pushes else "")
-    lines = [f"🏈 <b>{day:%A} recap</b> · {record}"]
+    lines = [f"🏈 <b>{sport.name} {day:%A} recap</b> · {record}"]
     for a in alerts:
         icon = RESULT_ICONS.get(a.get("result"), "❔")
         final = f" · {escape(a['final'])}" if a.get("final") else " · no final score"
         lines.append(f"{icon} {escape(a['label'])} {a['price']:+d}{final}")
     return "\n".join(lines)
+
+
+def board_message(now_et, picks, sport=NCAAF):
+    """The morning board. Each pick says what it was measured against:
+    Pinnacle when it had a line, the median of your books otherwise."""
+    parts = [f"🔒 <b>{sport.name} board</b> · {now_et:%a} {clock(now_et)} ET"]
+    if not picks:
+        parts.append("Nothing on today's board beats the sharp number by enough. Sitting it out is a pick too.")
+        return "\n\n".join(parts)
+    parts.append("Spreads where your books beat the sharp number.")
+    for p in picks:
+        g = p.game
+        abbr = escape(p.team.abbr)
+        kick = g.start.astimezone(now_et.tzinfo)
+        gap = p.quote.point - p.fair
+        if gap > 0:
+            better = f"{gap:g} pt better"
+        elif gap == 0:
+            better = "Same number, better price"
+        else:
+            better = f"{-gap:g} pt worse but a better price"
+        parts.append(
+            f"<b>{escape(p.label)}</b>  {p.quote.price:+d} at {escape(p.quote.book)}\n"
+            f"{escape(g.away.abbr)} @ {escape(g.home.abbr)} · {clock(kick)} ET\n"
+            f"{escape(p.basis).capitalize()} has {abbr} {fmt_spread(p.fair)}. {better}, about {p.edge:+.1%} EV."
+        )
+    parts.append(f"<i>{BOARD_FOOTER}</i>")
+    return "\n\n".join(parts)
 
 
 def _pick_block(p):

@@ -36,10 +36,10 @@ from dataclasses import dataclass
 
 from .espn import GAME_MINUTES, Game
 from .odds import Lines, Quote
+from .sports import NCAAF
 from .util import fmt_spread, implied, norm_cdf
 
-SIGMA_MARGIN = 16.0   # SD of a CFB final margin around the closing spread
-SIGMA_TOTAL = 14.0    # SD of a CFB final total around the closing total
+# How noisy scores are and what a yard is worth differ by sport; see sports.py.
 PRIOR_MINUTES = 120.0  # minutes of evidence the pregame total is worth
 # Inside the last 10 minutes the game stops looking like the model. A one-score
 # game can go to overtime (college OT piles on points), the trailing team
@@ -48,7 +48,6 @@ PRIOR_MINUTES = 120.0  # minutes of evidence the pregame total is worth
 MIN_REMAINING = 10.0
 MIN_BOOKS = 2         # one book's odd number is not a market
 ML_MAX_PRICE = 500    # past this a moneyline is a lottery ticket, not a bet
-PTS_PER_YARD = 0.07   # what a college yard is worth on the scoreboard, about 28 points per 400 yards
 STRENGTH_PRIOR_MINUTES = 120.0  # minutes of evidence the pregame spread is worth against yardage
 
 
@@ -65,10 +64,12 @@ class Pick:
     ml: Quote | None = None
     ml_prob: float | None = None
     yards: tuple | None = None  # (home, away) at the time of the pick
+    tag: str = ""               # "board" for morning-board picks
+    basis: str = ""             # what a board pick was measured against
 
     @property
     def key(self):
-        return f"{self.game.id}:{self.market}:{self.side}"
+        return f"{self.game.id}:{self.market}:{self.side}" + (f":{self.tag}" if self.tag else "")
 
     @property
     def team(self):
@@ -87,12 +88,12 @@ def expected_points(yards_from_own_goal):
     return max(-0.5, min(6.0, 0.067 * yards_from_own_goal - 0.85))
 
 
-def fair_home_margin(game, pregame_home_spread, yards=None, possession=True):
+def fair_home_margin(game, pregame_home_spread, yards=None, possession=True, sport=NCAAF):
     """Expected final home margin. `yards` is (home, away) total yards so far.
     `possession=False` leaves out the value of whoever has the ball."""
     rate = -pregame_home_spread / GAME_MINUTES
     if yards and game.elapsed_minutes > 0:
-        played = (yards[0] - yards[1]) * PTS_PER_YARD
+        played = (yards[0] - yards[1]) * sport.pts_per_yard
         rate = (rate * STRENGTH_PRIOR_MINUTES + played) / (STRENGTH_PRIOR_MINUTES + game.elapsed_minutes)
     margin = game.home_margin + rate * game.remaining_minutes
     if possession and game.possession and game.yards_from_own_goal is not None:
@@ -101,10 +102,10 @@ def fair_home_margin(game, pregame_home_spread, yards=None, possession=True):
     return margin
 
 
-def fair_total(game, pregame_total, yards=None):
+def fair_total(game, pregame_total, yards=None, sport=NCAAF):
     observed = game.total_points
     if yards:
-        observed = (game.total_points + sum(yards) * PTS_PER_YARD) / 2
+        observed = (game.total_points + sum(yards) * sport.pts_per_yard) / 2
     rate = (pregame_total / GAME_MINUTES * PRIOR_MINUTES + observed) / (PRIOR_MINUTES + game.elapsed_minutes)
     return game.total_points + rate * game.remaining_minutes
 
@@ -118,20 +119,22 @@ def priceable(game):
     return game.state == "in" and not game.overtime and game.remaining_minutes >= MIN_REMAINING
 
 
-def find_picks(game: Game, lines: Lines | None, pregame_spread, pregame_total, spread_edge, total_edge, yards=None):
+def find_picks(game: Game, lines: Lines | None, pregame_spread, pregame_total, spread_edge, total_edge, yards=None,
+               sport=NCAAF):
     if not priceable(game) or lines is None or lines.books < MIN_BOOKS:
         return []
     picks = []
     if pregame_spread is not None and lines.home_spread is not None:
-        picks.append(_side_pick(game, lines, pregame_spread, spread_edge, yards))
+        picks.append(_side_pick(game, lines, pregame_spread, spread_edge, yards, sport))
     if pregame_total is not None and lines.total is not None:
-        picks.append(_total_pick(game, lines, pregame_total, total_edge, yards))
+        picks.append(_total_pick(game, lines, pregame_total, total_edge, yards, sport))
     return [p for p in picks if p]
 
 
-def _side_pick(game, lines, pregame_spread, threshold, yards):
-    margins = (fair_home_margin(game, pregame_spread, yards), fair_home_margin(game, pregame_spread, yards, possession=False))
-    sd = sigma(SIGMA_MARGIN, game)
+def _side_pick(game, lines, pregame_spread, threshold, yards, sport):
+    margins = (fair_home_margin(game, pregame_spread, yards, sport=sport),
+               fair_home_margin(game, pregame_spread, yards, possession=False, sport=sport))
+    sd = sigma(sport.sigma_margin, game)
     for side, sign in (("home", 1), ("away", -1)):
         quote = lines.best.get(side)
         if not quote:
@@ -150,9 +153,9 @@ def _side_pick(game, lines, pregame_spread, threshold, yards):
     return None
 
 
-def _total_pick(game, lines, pregame_total, threshold, yards):
-    projected = fair_total(game, pregame_total, yards)
-    sd = sigma(SIGMA_TOTAL, game)
+def _total_pick(game, lines, pregame_total, threshold, yards, sport):
+    projected = fair_total(game, pregame_total, yards, sport)
+    sd = sigma(sport.sigma_total, game)
     over, under = lines.best.get("over"), lines.best.get("under")
     if over and projected - over.point >= threshold:
         edge = projected - over.point
