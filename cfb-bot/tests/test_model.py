@@ -4,6 +4,7 @@ from dataclasses import replace
 from helpers import SAMPLE_NOW, sample_event, sample_games
 
 from cfbbot import model, odds
+from cfbbot.sports import NCAAF
 
 
 class FairLines(unittest.TestCase):
@@ -28,7 +29,7 @@ class FairLines(unittest.TestCase):
 
     def test_yards_count_for_half_the_pace(self):
         g = self.games["401700002"]  # 27 points at the half
-        observed = (27 + 600 * model.PTS_PER_YARD) / 2
+        observed = (27 + 600 * NCAAF.pts_per_yard) / 2
         expected = 27 + (55.5 / 60 * model.PRIOR_MINUTES + observed) / (model.PRIOR_MINUTES + 30) * 30
         self.assertAlmostEqual(model.fair_total(g, 55.5, (300, 300)), expected)
 

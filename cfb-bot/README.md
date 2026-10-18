@@ -1,10 +1,15 @@
 # cfb-bot
 
-Scans live college football every 30 minutes on Saturdays and texts you
-in-play bets on Telegram. It runs on GitHub Actions, so nothing has to stay
-on at your place.
+College football and NFL picks on Telegram: a morning board of spreads that
+beat the sharp line, then in-play picks every 30 minutes while games are on.
+It runs on GitHub Actions, so nothing has to stay on at your place.
 
-A message looks like this:
+| | Morning board | In-play scans |
+|---|---|---|
+| College (FBS) | Saturday 10am ET | Saturday 10am to 4:30am |
+| NFL | Sunday 9am ET, Monday and Thursday 5pm ET | Sunday 9am to 1am, Monday and Thursday 5pm to 1am |
+
+An in-play message looks like this:
 
 ```
 🏈 CFB live · 3:05 PM ET · 4 live
@@ -19,13 +24,17 @@ Big gaps usually mean the book knows something: injury, weather, a QB change. Ch
 
 Run `python -m cfbbot --demo` from this folder to see it on a sample Saturday.
 
-## What you get on a Saturday
+## What you get on a game day
 
-- **Picks** when a live line drifts far enough from the model. Each one comes
-  with the best price it found and which book has it.
+- **The morning board** 🔒: up to five spreads where one of your books hangs
+  a better number than Pinnacle, the sharpest book there is. More on that
+  below.
+- **In-play picks** when a live line drifts far enough from the model. Each
+  one comes with the best price it found and which book has it.
 - **A short check-in** on scans with games live but nothing new. It lists
   earlier picks that still hold up. Turn it off with `CFB_HEARTBEAT=false`.
-- **A recap** once the last game ends, with every pick graded.
+- **A recap** once the last game ends, with every pick graded, board picks
+  (marked 🔒) included.
 - Silence when nothing's on.
 
 The same pick never gets sent twice in a day.
@@ -39,12 +48,13 @@ The same pick never gets sent twice in a day.
    `https://api.telegram.org/bot<TOKEN>/getUpdates` in a browser and copy the
    number after `"chat":{"id":`. For a group, add the bot to the group, post
    something, and use that chat's ID (it starts with a minus sign).
-3. **Get an odds key** at [the-odds-api.com](https://the-odds-api.com). The
-   free plan gives 500 credits a month. Each scan costs 3, and the bot only
-   calls it while games are live or about to kick. A full Saturday runs
-   about 80 credits, so a five-Saturday month gets close to the cap.
-   Without a key the bot still runs and sends the model's fair lines for you
-   to compare against your book by hand.
+3. **Get an odds key** at [the-odds-api.com](https://the-odds-api.com). An
+   in-play scan costs 3 credits and only happens while games are live or
+   about to kick. A board costs 1. A college Saturday runs about 80 credits,
+   an NFL week about 100, so both sports come to roughly 800 a month. The
+   free plan's 500 covers college alone; for both you need the smallest
+   paid plan. When credits run out, boards stop and in-play falls back to
+   the model's fair lines until the month resets.
 4. **Add the secrets.** In this repo on GitHub: Settings → Secrets and
    variables → Actions → New repository secret. Add `TELEGRAM_BOT_TOKEN`,
    `TELEGRAM_CHAT_ID` and `ODDS_API_KEY`.
@@ -52,7 +62,8 @@ The same pick never gets sent twice in a day.
 6. **Test it.** Actions tab → cfb-bot → Run workflow → `test-telegram`. You
    should get a hello within a minute. The message and the run log both name
    the bot that sent it, so if nothing shows up, open your chat with that bot.
-   `dry-run` prints a real scan to the run log without sending anything.
+   `dry-run` prints a real scan to the run log without sending anything, and
+   `board` sends a board right now for any sport with games left today.
 
 ## Tuning
 
@@ -73,7 +84,32 @@ sees the score. A pick also needs at least two of your books posting a live
 line. Expect quiet Saturdays. Watch the recaps for a few weeks before you
 loosen anything.
 
-## How the model thinks
+## The morning board
+
+There's no such thing as a lock, so the board doesn't predict who covers. It
+does what professional bettors do: shop for a better number than the sharp
+market.
+
+Pinnacle takes the sharpest money in the world and moves on it, so its line
+with the vig stripped out is the closest thing to a true price. When FanDuel
+has Ole Miss -6 and Pinnacle has -7.5, that point and a half is worth real
+money over time. The board prices each of your books' spreads against
+Pinnacle's no-vig line and sends the best five that clear +1.5% expected value.
+
+Not every point is worth the same. A gap only matters if the game can land
+in it: -7.5 to -6.5 picks up every game decided by exactly 7, which happens a
+lot, while -10.5 to -9.5 crosses a number games rarely end on. In the NFL,
+half a point through 3 is worth about 7.5% cover chance, and -1 to +0.5 is
+worth almost nothing because NFL games almost never tie. The board values
+each half point by how often games end on that margin. At -110 a bet needs
+52.4% to break even, so most one-point gaps off a dead number don't make it.
+When Pinnacle has no line on a game, the bar is the median of your books
+instead, and it takes +3%.
+
+These are small edges. They pay off over hundreds of bets, not on any one
+Saturday.
+
+## How the in-play model thinks
 
 The closing pregame line is the best read on how good two teams are. Live
 prices tend to lean too hard on the scoreboard. So the bot prices the rest
@@ -94,7 +130,9 @@ spots where the live number has drifted too far.
   It flags a total when the book chases the pace further than that.
 
 Yards come from ESPN's box score, checked every scan. A college yard is worth
-about 0.07 points (roughly 28 points per 400 yards).
+about 0.07 points (roughly 28 points per 400 yards), an NFL yard about 0.067.
+NFL scores are less noisy than college ones, so the NFL model uses tighter
+spreads around its numbers (13.5 points on the margin against college's 16).
 
 It skips the last 10 minutes of every game and overtime. A one-score game can
 go to OT, the trailing team hurries, and whoever has the ball matters more than
@@ -111,23 +149,27 @@ Standard library only, Python 3.10+. From this folder:
 ```
 python -m unittest discover -s tests   # tests
 python -m cfbbot --demo                # sample Saturday, no keys or network
-python -m cfbbot --dry-run             # real scan, printed instead of sent
-python -m cfbbot                       # real scan, sent to Telegram
+python -m cfbbot --dry-run             # real scan of both sports, printed instead of sent
+python -m cfbbot                       # real scan of both sports, sent to Telegram
+python -m cfbbot --board               # morning board now, for any sport with games left today
+python -m cfbbot --loop                # what GitHub runs: scan every 30 minutes while a window is open
 ```
 
 ## Things worth knowing
 
-- Live scores come from ESPN's public scoreboard feed. It's free and
-  needs no key, but ESPN doesn't document it and could change it.
+- Live scores come from ESPN's public scoreboard feeds. They're free and
+  need no key, but ESPN doesn't document them and could change them.
 - GitHub's scheduler is best effort. On the first Saturday it ran 4 of about
   20 half-hour slots. So a run doesn't scan once and quit: it keeps scanning
-  every 30 minutes until 4:30am Eastern and starts the next run before
-  GitHub's 6-hour job limit. Only one slot has to fire to cover the night.
-  To start a night by hand: Actions → cfb-bot → Run workflow → `loop`.
-- That costs nothing on a public repo. On a private one, a full Saturday would
-  use about 18 hours of GitHub Actions minutes.
+  every 30 minutes while a window is open and starts the next run before
+  GitHub's 6-hour job limit. Only one slot has to fire to cover a day.
+  To start one by hand: Actions → cfb-bot → Run workflow → `loop`.
+- That costs nothing on a public repo. On a private one, the windows add up
+  to about 50 hours of GitHub Actions minutes a week.
+- The windows live in `cfbbot/sports.py`, in Eastern time.
 - On a public repo, GitHub pauses schedules after 60 days with no commits.
   If the bot goes quiet after a long offseason, re-enable it from the
   Actions tab.
-- State (pregame lines, picks already sent) lives in the Actions cache, not
-  in git. Clearing the cache just means the next scan starts fresh.
+- State (pregame lines, picks already sent, one file per sport) lives in the
+  Actions cache, not in git. Clearing the cache just means the next scan
+  starts fresh.

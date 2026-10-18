@@ -69,7 +69,7 @@ class State:
             "point": pick.quote.point,
             "price": pick.quote.price,
             "book": pick.quote.book,
-            "label": pick.label,
+            "label": pick.label + (" 🔒" if pick.tag == "board" else ""),
             "sent": now.isoformat(),
             "result": None,
         }
@@ -80,6 +80,12 @@ class State:
                 continue
             alert["final"] = f"{game.away.abbr} {game.away.score}, {game.home.abbr} {game.home.score}"
             alert["result"] = grade(alert, game.home_margin, game.total_points) if game.completed else "void"
+
+    def board_sent(self, day):
+        return self._slate(day).get("board_sent", False)
+
+    def mark_board_sent(self, day):
+        self._slate(day)["board_sent"] = True
 
     def recap_sent(self, day):
         return self._slate(day).get("recap_sent", False)

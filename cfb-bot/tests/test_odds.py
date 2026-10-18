@@ -43,6 +43,18 @@ class Summarize(unittest.TestCase):
         self.assertAlmostEqual(implied(150), 0.4)
 
 
+class Fetch(unittest.TestCase):
+    def test_sport_and_markets_go_in_the_request(self):
+        from unittest import mock
+        from cfbbot.sports import NFL
+        with mock.patch.object(odds, "get_json", return_value=([], {"x-requests-remaining": "450"})) as get:
+            self.assertEqual(odds.fetch("KEY", ("fanduel", "pinnacle"), NFL, markets="spreads"), ([], "450"))
+        url = get.call_args[0][0]
+        self.assertIn("/sports/americanfootball_nfl/odds?", url)
+        self.assertIn("markets=spreads", url)
+        self.assertIn("bookmakers=fanduel%2Cpinnacle", url)
+
+
 class Match(unittest.TestCase):
     def setUp(self):
         self.games = sample_games()

@@ -3,11 +3,10 @@
 import time
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
-from zoneinfo import ZoneInfo
 
-from . import espn, model, odds, report
+from . import board, espn, model, odds, report, sports
+from .sports import ET, NCAAF
 
-ET = ZoneInfo("America/New_York")
 SOON = timedelta(minutes=75)  # grab a pregame line for anything kicking off within this
 LOOP_EVERY = timedelta(minutes=30)
 # GitHub stops a job at 6 hours. Hand off to a fresh run well before that.
@@ -25,36 +24,56 @@ def slate_day(now):
     return (now.astimezone(ET) - timedelta(hours=6)).date()
 
 
-def in_saturday_window(now):
-    """11am Saturday to 4:30am Sunday, Eastern, daylight saving and all."""
-    et = now.astimezone(ET)
-    minutes = et.hour * 60 + et.minute
-    return (et.weekday() == 5 and minutes >= 11 * 60) or (et.weekday() == 6 and minutes < 4 * 60 + 30)
+def any_window_open(now):
+    return bool(sports.open_sports(now))
 
 
-def keep_scanning(scan_once, now=lambda: datetime.now(timezone.utc), sleep=time.sleep):
-    """Scan every 30 minutes until Saturday's window closes.
+def keep_scanning(scan_once, now=lambda: datetime.now(timezone.utc), sleep=time.sleep, is_open=any_window_open):
+    """Scan every 30 minutes for as long as a sport's window is open.
 
     GitHub's scheduler skipped 16 of the first night's 20 half-hour slots, so a
     scheduled run no longer scans once and quits: it keeps going itself.
-    Returns True when the time budget ran out with the window still open,
+    Returns True when the time budget ran out with a window still open,
     meaning a fresh run should pick up where this one stopped.
     """
     started = now()
+    if not is_open(started):
+        return False
     while True:
         try:
             scan_once()
         except Exception as err:  # one bad scan shouldn't end the night
             print(f"scan failed, trying again next round: {err}")
         next_at = now() + LOOP_EVERY
-        if not in_saturday_window(next_at):
+        if not is_open(next_at):
             return False
         if next_at - started > LOOP_BUDGET:
             return True
         sleep(max(0.0, (next_at - now()).total_seconds()))
 
 
-def run(cfg, state, now, fetch_games, fetch_odds, fetch_page=None):
+def morning_board(cfg, state, now, games, fetch_odds, sport=NCAAF, force=False):
+    """The board goes out once a day per sport, on the first scan of the
+    window. Returns the message, or None when there's nothing to send yet.
+    `force` skips the window and once-a-day checks (for sending one by hand)."""
+    day = slate_day(now)
+    if not cfg.odds_api_key or not (force or (sports.window_start(sport, now) and not state.board_sent(day))):
+        return None
+    if not any(g.state == "pre" and g.start > now for g in games):
+        return None
+    try:
+        events, _ = fetch_odds()
+    except (odds.OddsError, OSError) as err:
+        print(f"warning: no {sport.name} board this scan, odds feed failed: {err}")
+        return None
+    picks = board.find(games, events, now, sport, cfg.bookmakers)
+    for pick in picks:
+        state.record_alert(day, pick, now)
+    state.mark_board_sent(day)
+    return report.board_message(now.astimezone(ET), picks, sport)
+
+
+def run(cfg, state, now, fetch_games, fetch_odds, fetch_page=None, sport=NCAAF):
     day = slate_day(now)
     now_et = now.astimezone(ET)
     games = fetch_games(day)
@@ -100,7 +119,7 @@ def run(cfg, state, now, fetch_games, fetch_odds, fetch_page=None):
     for game in live:
         spread, total = pregame[game.id]
         picks += model.find_picks(game, lines.get(game.id), spread, total, cfg.spread_edge, cfg.total_edge,
-                                  yards.get(game.id))
+                                  yards.get(game.id), sport)
     picks.sort(key=lambda p: p.prob, reverse=True)
     still = [p for p in picks if state.alerted(day, p.key)]
     fresh = [p for p in picks if not state.alerted(day, p.key)]
@@ -115,11 +134,11 @@ def run(cfg, state, now, fetch_games, fetch_odds, fetch_page=None):
                 notes.append("No ODDS_API_KEY set.")
             priceable = [(g, *pregame[g.id], yards.get(g.id)) for g in live if model.priceable(g)]
             if priceable:
-                result.messages.append(report.fair_lines_message(now_et, len(live), priceable, notes))
+                result.messages.append(report.fair_lines_message(now_et, len(live), priceable, notes, sport))
         elif fresh:
-            result.messages.append(report.picks_message(now_et, len(live), fresh, still, notes))
+            result.messages.append(report.picks_message(now_et, len(live), fresh, still, notes, sport))
         elif cfg.heartbeat:
-            result.messages.append(report.heartbeat_message(now_et, len(live), priced, still, notes))
+            result.messages.append(report.heartbeat_message(now_et, len(live), priced, still, notes, sport))
 
     for game in games:
         if game.state == "post":
@@ -127,13 +146,13 @@ def run(cfg, state, now, fetch_games, fetch_odds, fetch_page=None):
     alerts = state.alerts(day)
     still_going = any(g.state == "in" or (g.state == "pre" and g.start - now <= timedelta(hours=12)) for g in games)
     if alerts and not still_going and not state.recap_sent(day):
-        result.messages.append(report.recap_message(day, list(alerts.values())))
+        result.messages.append(report.recap_message(day, list(alerts.values()), sport))
         state.mark_recap_sent(day)
 
     with_lines = sum(1 for g in live if any(x is not None for x in pregame[g.id]))
     with_yards = sum(1 for y in yards.values() if y)
     result.summary = (
-        f"{day}: {len(games)} games, {len(live)} live ({with_lines} with a pregame line, {with_yards} with yards), "
+        f"{sport.name} {day}: {len(games)} games, {len(live)} live ({with_lines} with a pregame line, {with_yards} with yards), "
         f"{len(soon)} kicking off soon, "
         f"{len(picks)} picks ({len(fresh)} new), {len(result.messages)} messages"
         + (f", odds credits left: {credits}" if credits is not None else "")

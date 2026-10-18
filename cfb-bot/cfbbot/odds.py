@@ -11,9 +11,11 @@ from urllib.error import HTTPError
 from urllib.parse import urlencode
 
 from .http import error_message, get_json
+from .sports import NCAAF
 from .util import implied, parse_time
 
-ODDS_URL = "https://api.the-odds-api.com/v4/sports/americanfootball_ncaaf/odds"
+ODDS_URL = "https://api.the-odds-api.com/v4/sports/{sport}/odds"
+LIVE_MARKETS = "h2h,spreads,totals"
 # Live markets suspend during plays. A quote older than this is probably a
 # suspended or stale one, and pricing off it would invent an edge.
 LIVE_MAX_AGE = timedelta(minutes=10)
@@ -72,16 +74,16 @@ class Lines:
     best: dict = field(default_factory=dict)
 
 
-def fetch(api_key, bookmakers=()):
-    """Every NCAAF game the API has lines for, live and upcoming. Costs
-    3 credits a call (3 markets x 1 region, or up to 10 named books)."""
-    params = {"apiKey": api_key, "markets": "h2h,spreads,totals", "oddsFormat": "american", "dateFormat": "iso"}
+def fetch(api_key, bookmakers=(), sport=NCAAF, markets=LIVE_MARKETS):
+    """Every game the API has lines for, live and upcoming. Costs one credit
+    per market (one region, or up to 10 named books)."""
+    params = {"apiKey": api_key, "markets": markets, "oddsFormat": "american", "dateFormat": "iso"}
     if bookmakers:
         params["bookmakers"] = ",".join(bookmakers)
     else:
         params["regions"] = "us"
     try:
-        data, headers = get_json(f"{ODDS_URL}?{urlencode(params)}")
+        data, headers = get_json(f"{ODDS_URL.format(sport=sport.odds_key)}?{urlencode(params)}")
     except HTTPError as err:
         raise OddsError(f"The Odds API returned {err.code}: {error_message(err)}") from None
     return data, headers.get("x-requests-remaining")
