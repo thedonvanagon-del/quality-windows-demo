@@ -67,8 +67,6 @@ NFL = Sport(
     margin_tail=.012,
     windows=(
         Window(6, 9 * 60, 16 * 60),   # Sunday 9am (London games) to Monday 1am
-        Window(0, 17 * 60, 8 * 60),   # Monday night
-        Window(3, 17 * 60, 8 * 60),   # Thursday night
         Window(5, 11 * 60, 14 * 60),  # Saturdays late in the season
     ),
     state_file="nfl.json",

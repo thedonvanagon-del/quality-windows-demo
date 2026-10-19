@@ -11,6 +11,10 @@ SOON = timedelta(minutes=75)  # grab a pregame line for anything kicking off wit
 LOOP_EVERY = timedelta(minutes=30)
 # GitHub stops a job at 6 hours. Hand off to a fresh run well before that.
 LOOP_BUDGET = timedelta(hours=5, minutes=40)
+# College's Saturday window closes at 4:30am and the NFL's Sunday one opens at
+# 9am. A run stays up through a gap that short, so once Saturday gets going,
+# Sunday doesn't depend on GitHub's scheduler too.
+BRIDGE = timedelta(hours=5)
 
 
 @dataclass
@@ -24,17 +28,20 @@ def slate_day(now):
     return (now.astimezone(ET) - timedelta(hours=6)).date()
 
 
-def any_window_open(now):
-    return bool(sports.open_sports(now))
+def stay_up(now):
+    """A sport's window is open now or opens within BRIDGE."""
+    step = timedelta(minutes=30)  # every window lasts hours, so this can't skip one
+    return any(sports.open_sports(now + step * i) for i in range(int(BRIDGE / step) + 1))
 
 
-def keep_scanning(scan_once, now=lambda: datetime.now(timezone.utc), sleep=time.sleep, is_open=any_window_open):
-    """Scan every 30 minutes for as long as a sport's window is open.
+def keep_scanning(scan_once, now=lambda: datetime.now(timezone.utc), sleep=time.sleep, is_open=stay_up):
+    """Scan every 30 minutes for as long as a sport's window is open or about
+    to open. `scan_once` only scans the sports whose window is open.
 
     GitHub's scheduler skipped 16 of the first night's 20 half-hour slots, so a
     scheduled run no longer scans once and quits: it keeps going itself.
-    Returns True when the time budget ran out with a window still open,
-    meaning a fresh run should pick up where this one stopped.
+    Returns True when the time budget ran out with a window still open or
+    coming, meaning a fresh run should pick up where this one stopped.
     """
     started = now()
     if not is_open(started):

@@ -21,9 +21,9 @@ class Windows(unittest.TestCase):
         self.assertIsNotNone(sports.window_start(NFL, et(2026, 10, 18, 9, 0)))    # Sunday morning
         self.assertIsNotNone(sports.window_start(NFL, et(2026, 10, 19, 0, 59)))   # Sunday night game
         self.assertIsNone(sports.window_start(NFL, et(2026, 10, 19, 1, 0)))
-        self.assertIsNotNone(sports.window_start(NFL, et(2026, 10, 19, 20, 15)))  # Monday night
-        self.assertIsNotNone(sports.window_start(NFL, et(2026, 10, 22, 20, 15)))  # Thursday night
-        self.assertIsNone(sports.window_start(NFL, et(2026, 10, 21, 20, 15)))     # Wednesday
+        self.assertIsNone(sports.window_start(NFL, et(2026, 10, 19, 20, 15)))     # Monday night: weekends only
+        self.assertIsNone(sports.window_start(NFL, et(2026, 10, 22, 20, 15)))     # Thursday night
+        self.assertIsNotNone(sports.window_start(NFL, et(2026, 12, 19, 16, 25)))  # a December Saturday
 
     def test_open_sports(self):
         self.assertEqual(sports.open_sports(et(2026, 10, 17, 14, 0)), [NCAAF, NFL])  # NFL Saturday window too
