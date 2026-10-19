@@ -10,7 +10,7 @@ For macOS and Linux. On Windows, ask for the PowerShell version.
 
 - **Docker Desktop**, installed and running. Get it at https://www.docker.com/products/docker-desktop/ (on Linux, Docker Engine works too).
 - A terminal.
-- Whichever of Claude Code, Codex and Gemini CLI you already use.
+- Whichever of Claude Code, Codex and Gemini CLI you already use. Gemini CLI needs version 0.25 or newer (`gemini --version`).
 
 ## 1. Install
 
@@ -66,14 +66,14 @@ codex-free                                          # Codex on free models
 gemini-free                                         # Gemini CLI on free models
 claude-free -p "question"                           # one-shot questions
 codex-free exec --skip-git-repo-check "question"
-gemini-free --skip-trust -p "question"
+GEMINI_CLI_TRUST_WORKSPACE=true gemini-free -p "question"
 ```
 
 - **First run.** Each command has its own fresh profile, so expect the first-run prompts: a theme and folder trust in Claude Code, and folder trust in Gemini. The one-shot forms above skip the folder checks that Codex and Gemini otherwise insist on.
-- **Start Gemini in a project folder.** If you also use regular Gemini CLI, `gemini-free` won't start in your home folder, because there Gemini would mix in your normal settings and could skip the router. `cd ~/Documents` (or any project folder) first. It tells you if you forget.
+- **Start Codex and Gemini in a project folder.** If you also use regular Codex or Gemini CLI, `codex-free` and `gemini-free` won't start in your home folder, because there they would mix in your normal settings, and Gemini could skip the router. `cd ~/Documents` (or any project folder) first. They tell you if you forget.
 - **Claude asks before acting.** `claude-free` asks before each edit or command. Claude Code's newer auto mode is turned off here, because it would have a free model decide what's safe to run.
-- **Model choice.** The router picks a model (`auto`) and fails over on its own. To pin one, use `FREELLMAPI_MODEL=<model id> claude-free`. That works for all three commands. Model IDs are on the dashboard's **Models** page.
-- **If an agent looks stuck,** run `freellm-test`. It tells you if Docker isn't running. When no provider has quota left, agents retry for a while before giving up. Most daily limits reset around midnight UTC, but Google's resets at midnight US Pacific time.
+- **Model choice.** The router picks a model (`auto`) and fails over on its own. To pin one, use `FREELLMAPI_MODEL=<model id> claude-free`. That works for all three commands, with one exception: Gemini models can't be pinned by name through `gemini-free`. Pick those in the dashboard under **Keys → Agents → Gemini model mapping**. Model IDs are on the dashboard's **Models** page.
+- **If an agent looks stuck,** run `freellm-test`. It tells you if Docker isn't running, or if the router is stopped and how to start it. When no provider has quota left, agents retry for a while before giving up. Most daily limits reset around midnight UTC, but Google's resets at midnight US Pacific time.
 - **Quality.** Free models are a step below the paid frontier models. They're fine for everyday tasks. For the hard stuff, use your normal `claude`.
 
 ## What changed on your computer
@@ -84,7 +84,7 @@ gemini-free --skip-trust -p "question"
 | The router itself. It listens only on this computer (`127.0.0.1:3001`) and starts whenever Docker does. | Docker container `freellmapi-freellmapi-1`, image `ghcr.io/tashfeenahmed/freellmapi` (v0.15.0 unless you updated) |
 | Database with your provider keys, encrypted | Docker volume `freellmapi_freellmapi-data` |
 | The six commands, your unified key (only you can read it), and separate settings and history folders for each agent | `~/.freellmapi-free/` |
-| One line that puts the commands on your PATH, marked `# freellmapi-free`. If that file didn't exist, the installer created it. | `~/.zshrc` for zsh, the Mac default. For bash: `~/.bashrc` on Linux, or on a Mac whichever of `~/.bash_profile`, `~/.bash_login` or `~/.profile` already exists. For fish: `~/.config/fish/conf.d/freellmapi-free.fish` |
+| One line that puts the commands on your PATH, marked `# freellmapi-free`. If that file didn't exist, the installer created it. | `~/.zshrc` for zsh, the Mac default (or `$ZDOTDIR/.zshrc` if you set that). For bash: `~/.bashrc` on Linux, or on a Mac whichever of `~/.bash_profile`, `~/.bash_login` or `~/.profile` already exists. For fish: `~/.config/fish/conf.d/freellmapi-free.fish` |
 
 **Not changed:** `~/.claude`, `~/.codex`, `~/.gemini`, your agent installs, and your logins. Each `-free` command sets its settings for that one run only. It also keeps your real Anthropic and Google credentials, settings files and `.env` files from reaching the router.
 
@@ -98,7 +98,7 @@ Make sure Docker Desktop is running, then:
 freellm-uninstall
 ```
 
-It asks once, then removes everything in the table above: the container, every version of the image, the database, both folders and the PATH line. If Docker isn't running, it stops without changing anything, so you can open Docker and run it again. Open a new terminal afterwards.
+It asks once, then removes everything in the table above: the container, every version of the image, the database, both folders and the PATH line. If Docker isn't running, it stops without changing anything, so you can open Docker and run it again. If you've already uninstalled Docker itself, it skips the Docker part (that went with Docker) and removes the rest. Open a new terminal afterwards.
 
 **Just want to pause it?** Run `cd ~/freellmapi && docker compose stop`. Bring it back with `cd ~/freellmapi && docker compose start`.
 
@@ -107,7 +107,7 @@ It asks once, then removes everything in the table above: the container, every v
 ```bash
 docker rm -f freellmapi-freellmapi-1
 docker volume rm freellmapi_freellmapi-data
-docker image rm $(docker image ls -q ghcr.io/tashfeenahmed/freellmapi)
+docker image rm -f $(docker image ls -q ghcr.io/tashfeenahmed/freellmapi | sort -u)
 rm -rf ~/freellmapi ~/.freellmapi-free
 # then delete the line ending in "# freellmapi-free" from your shell file (see the table above)
 ```
@@ -120,7 +120,7 @@ Check the [release notes](https://github.com/tashfeenahmed/freellmapi/releases) 
 FREELLMAPI_VERSION=v0.16.0 bash ~/Downloads/install.sh
 ```
 
-This keeps your account, your provider keys, your settings and your port. If `install.sh` is no longer in Downloads, download it again the same way as in step 1.
+This keeps your account, your provider keys, your settings and your port. If the version name is wrong or the download fails, nothing changes. If `install.sh` is no longer in Downloads, download it again the same way as in step 1.
 
 **Port 3001 already taken?** Install on another one with `FREELLMAPI_PORT=3002 bash ~/Downloads/install.sh`. The dashboard is then at http://localhost:3002, and later runs remember the new port.
 

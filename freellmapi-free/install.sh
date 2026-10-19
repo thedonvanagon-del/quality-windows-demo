@@ -41,23 +41,41 @@ only_ours() {
 }
 
 # --- 1. Preflight -------------------------------------------------------------
-[ -z "${SUDO_USER:-}" ] || die "Run this without sudo. It installs into your own home folder."
+# Under sudo or `su -` everything would land in root's home, out of your reach.
+if [ "$(id -u)" = 0 ] && [ -z "${FREELLMAPI_ALLOW_ROOT:-}" ]; then
+  die "Run this as your normal user, not with sudo or as root. It installs into your own home folder."
+fi
 command -v docker >/dev/null 2>&1 \
   || die "Docker isn't installed. Install Docker Desktop (https://www.docker.com/products/docker-desktop/), open it once, then run this again."
-if ! docker_err="$(docker info 2>&1 >/dev/null)"; then
-  case "$docker_err" in
-    *"permission denied"*)
+if ! docker_out="$(docker info 2>&1)"; then
+  if [ "$(uname)" = Darwin ]; then
+    case "$docker_out" in
+      *"Error loading config file"*)
+        die "Docker can't read its settings in ~/.docker (left over from running docker with sudo). Fix it with: sudo chown -R $(id -un) ~/.docker  then open Docker Desktop and run this again." ;;
+    esac
+    die "Docker Desktop isn't running. Open it, wait until it says it's running, then run this again."
+  fi
+  case "$docker_out" in
+    *"permission denied while trying to connect"*)
       die "Docker is running, but your user isn't allowed to use it yet. Run: sudo usermod -aG docker $(id -un)  then log out and back in, and run this again (without sudo)." ;;
-    *)
-      die "Docker is installed but not running. Open Docker Desktop, wait until it says it's running, then run this again." ;;
   esac
+  die "Docker is installed but not running. Start it (open Docker Desktop, or: sudo systemctl start docker), then run this again."
 fi
 docker compose version >/dev/null 2>&1 \
   || die "This needs Docker Compose v2 ('docker compose'). Update Docker Desktop, then run this again."
 command -v curl >/dev/null 2>&1 || die "curl is missing."
 
-only_ours "$SERVER_DIR" .env .DS_Store docker-compose.yml 'docker-compose.yml.backup-*'
-only_ours "$FREE_HOME" bin claude codex gemini env.sh url key created .DS_Store
+# An existing folder without env.sh wasn't made by this installer, even if its
+# entries happen to be called claude, codex or gemini.
+if [ -d "$FREE_HOME" ] && [ ! -f "$FREE_HOME/env.sh" ]; then
+  for f in "$FREE_HOME"/* "$FREE_HOME"/.[!.]*; do
+    if [ -e "$f" ] && [ "$(basename "$f")" != .DS_Store ]; then
+      die "$FREE_HOME already exists and this installer didn't make it. Move it, or pick another folder with FREELLMAPI_FREE_HOME=..."
+    fi
+  done
+fi
+only_ours "$SERVER_DIR" .env .DS_Store docker-compose.yml 'docker-compose.yml.*'
+only_ours "$FREE_HOME" bin claude codex gemini env.sh url key created rc .DS_Store
 only_ours "$FREE_HOME/bin" claude-free codex-free gemini-free freellm-key freellm-test freellm-uninstall .DS_Store
 
 mkdir -p "$SERVER_DIR" "$FREE_HOME"
@@ -65,16 +83,35 @@ SERVER_DIR="$(cd "$SERVER_DIR" && pwd)"
 FREE_HOME="$(cd "$FREE_HOME" && pwd)"
 compose="$SERVER_DIR/docker-compose.yml"
 
-other="$(docker ps -a --filter "label=com.docker.compose.project=$PROJECT" \
-  --format '{{.Label "com.docker.compose.project.working_dir"}}' 2>/dev/null \
-  | sort -u | grep -vxF -e "$SERVER_DIR" -e "$(cd "$SERVER_DIR" && pwd -P)" | head -1 || true)"
-[ -z "$other" ] \
-  || die "Another FreeLLMAPI install is already running from $other. Stop it first (cd \"$other\" && docker compose down), then run this again."
+# Compare folders by identity (-ef), so a symlink or a different letter case on
+# a Mac doesn't make your own install look like someone else's.
+while IFS= read -r dir; do
+  if [ -n "$dir" ] && ! [ "$dir" -ef "$SERVER_DIR" ]; then
+    die "Another FreeLLMAPI install is already set up (from $dir). Remove it first with: docker compose -p $PROJECT down  then run this again."
+  fi
+done < <(docker ps -a --filter "label=com.docker.compose.project=$PROJECT" \
+  --format '{{.Label "com.docker.compose.project.working_dir"}}' 2>/dev/null | sort -u)
+
+# A database left by an earlier install only opens with that install's key.
+if [ ! -f "$SERVER_DIR/.env" ] && docker volume inspect "${PROJECT}_freellmapi-data" >/dev/null 2>&1; then
+  die "Docker still holds a FreeLLMAPI database from an earlier install, and its encryption key isn't in $SERVER_DIR/.env. To keep that account and its keys, copy the old install's .env into $SERVER_DIR. To start fresh, delete it with: docker volume rm ${PROJECT}_freellmapi-data  Then run this again."
+fi
 
 # Keep the port from an earlier install unless FREELLMAPI_PORT says otherwise.
 # (Not $PORT: plenty of shells already set that for other projects.)
-old_port="$(sed -n 's/.*"127\.0\.0\.1:\([0-9][0-9]*\):3001".*/\1/p' "$compose" 2>/dev/null | head -1 || true)"
+old_port=""
+if [ -f "$compose" ] && grep -qF "$MARK" "$compose"; then
+  old_port="$(sed -n 's/.*"127\.0\.0\.1:\([0-9][0-9]*\):3001".*/\1/p' "$compose" | head -1)"
+elif [ -f "$compose" ]; then
+  # The official one-liner publishes the PORT from its .env.
+  old_port="$(sed -n 's/^PORT=\([0-9][0-9]*\)$/\1/p' "$SERVER_DIR/.env" 2>/dev/null | head -1 || true)"
+fi
 PORT="${FREELLMAPI_PORT:-${old_port:-3001}}"
+
+# Download first, so a typo in FREELLMAPI_VERSION leaves a working setup alone.
+say "Downloading $IMAGE"
+docker pull "$IMAGE" \
+  || die "Docker couldn't download $IMAGE (see Docker's message above). Check the version name, your internet connection and free space in Docker Desktop. Nothing was changed."
 
 # --- 2. Router files in ~/freellmapi ------------------------------------------
 if [ -f "$SERVER_DIR/.env" ]; then
@@ -89,15 +126,11 @@ else
   (umask 077 && printf 'ENCRYPTION_KEY=%s\nPORT=3001\n' "$enc_key" > "$SERVER_DIR/.env")
 fi
 
-if [ -f "$compose" ] && ! grep -qF "$MARK" "$compose"; then
-  backup="$compose.backup-$(date +%Y%m%d%H%M%S)"
-  cp "$compose" "$backup"
-  say "Backed up your existing docker-compose.yml to $backup"
-fi
 # The repo's docker-compose.yml without the build section and the optional
 # Watchtower updater, pinned to a release instead of :latest, and always bound
-# to this computer only.
-cat > "$compose" <<EOF
+# to this computer only. Written beside the old one and swapped in only once it
+# starts, so a failed run leaves the previous setup in place.
+cat > "$compose.new" <<EOF
 $MARK: written by install.sh. Re-run it to change version or port.
 name: $PROJECT
 services:
@@ -126,11 +159,19 @@ volumes:
   freellmapi-data:
 EOF
 
-say "Pulling $IMAGE and starting it"
-(cd "$SERVER_DIR" && docker compose pull) \
-  || die "Couldn't download $IMAGE. Check your internet connection, then run this again."
-(cd "$SERVER_DIR" && docker compose up -d) \
-  || die "The router didn't start. If Docker said the port is already allocated, something else is using port $PORT. Run this again with a different one, e.g. FREELLMAPI_PORT=3002 bash $0"
+say "Starting the router on port $PORT"
+if ! (cd "$SERVER_DIR" && docker compose -f docker-compose.yml.new up -d); then
+  rm -f "$compose.new"
+  # up -d may already have replaced the old container. Bring the old setup back.
+  if [ -f "$compose" ]; then (cd "$SERVER_DIR" && docker compose up -d) >/dev/null 2>&1 || true; fi
+  die "The router didn't start on port $PORT. If Docker said the port is already allocated or not available, run this again with another one, e.g. FREELLMAPI_PORT=$((PORT + 1)) bash $0"
+fi
+if [ -f "$compose" ] && ! grep -qF "$MARK" "$compose"; then
+  backup="$compose.backup-$(date +%Y%m%d%H%M%S)"
+  cp "$compose" "$backup"
+  say "Backed up your existing docker-compose.yml to $backup"
+fi
+mv "$compose.new" "$compose"
 
 URL="http://localhost:$PORT"
 printf 'Waiting for %s ' "$URL"
@@ -147,18 +188,12 @@ echo
 say "Installing claude-free, codex-free, gemini-free and helpers in $FREE_HOME/bin"
 mkdir -p "$FREE_HOME/bin" "$FREE_HOME/claude" "$FREE_HOME/codex" "$FREE_HOME/gemini"
 
-# Follow port changes, but keep a URL set with `freellm-key --url` (say, the
+# Follow port changes, but keep any URL set with `freellm-key --url` (say, the
 # desktop app on 127.0.0.1:31415).
 saved_url="$(cat "$FREE_HOME/url" 2>/dev/null || true)"
-case "$saved_url" in
-  "" | http://localhost:[0-9]*) printf '%s\n' "$URL" > "$FREE_HOME/url" ;;
-esac
-
-# Auto mode would have a free model judge every edit and command for safety,
-# with ~36k-token checks on top. Ask instead, like plain Claude Code used to.
-claude_settings="$FREE_HOME/claude/settings.json"
-[ -f "$claude_settings" ] \
-  || printf '{\n  "permissions": { "defaultMode": "default", "disableAutoMode": "disable" }\n}\n' > "$claude_settings"
+if [ -z "$saved_url" ] || [ "$saved_url" = "http://localhost:${old_port:-3001}" ]; then
+  printf '%s\n' "$URL" > "$FREE_HOME/url"
+fi
 
 # Gemini reads its auth choice from settings. This private copy says "use an
 # API key", so gemini-free never falls back to your Google login.
@@ -220,6 +255,10 @@ export ANTHROPIC_DEFAULT_OPUS_MODEL="$FREELLMAPI_MODEL"
 export ANTHROPIC_DEFAULT_SONNET_MODEL="$FREELLMAPI_MODEL"
 export ANTHROPIC_DEFAULT_HAIKU_MODEL="$FREELLMAPI_MODEL"
 export CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY=1
+# Flag settings beat every settings file (this profile's, a project's), so these
+# hold on every run: ask before acting, never auto mode (where a free model would
+# judge each action), and no cloud-provider switch that would skip the router.
+set -- --settings '{"permissions":{"defaultMode":"default","disableAutoMode":"disable"},"env":{"CLAUDE_CODE_USE_BEDROCK":"","CLAUDE_CODE_USE_VERTEX":"","CLAUDE_CODE_USE_FOUNDRY":"","CLAUDE_CODE_USE_ANTHROPIC_AWS":"","CLAUDE_CODE_USE_ANTHROPIC_GOOGLE_CLOUD":"","CLAUDE_CODE_USE_MANTLE":"","CLAUDE_CODE_USE_GATEWAY":"","ANTHROPIC_API_KEY":""}}' "$@"
 # From your home folder, Claude Code would read your real ~/.claude/settings.json
 # as this folder's project settings (keys, providers and all). Skip them there.
 if [ "$(pwd -P)" = "$(cd "$HOME" && pwd -P)" ]; then
@@ -234,6 +273,13 @@ write_cmd codex-free <<'EOF'
 set -euo pipefail
 . "$FREE_HOME/env.sh"
 command -v codex >/dev/null 2>&1 || { echo "codex isn't installed." >&2; exit 127; }
+# Once your home folder is trusted, Codex reads ~/.codex/config.toml there as
+# project settings (sandbox, approvals, MCP servers), whatever CODEX_HOME says.
+if [ -f "$HOME/.codex/config.toml" ] && [ "$(pwd -P)" = "$(cd "$HOME" && pwd -P)" ]; then
+  echo "Start codex-free from a project folder, not your home folder (for example: cd ~/Documents)." >&2
+  echo "Here Codex would mix in your normal ~/.codex settings." >&2
+  exit 1
+fi
 export CODEX_HOME="$FREE_HOME/codex"
 export FREELLMAPI_API_KEY
 exec codex \
@@ -261,7 +307,17 @@ if [ -d "$HOME/.gemini" ] && [ "$(pwd -P)" = "$(cd "$HOME" && pwd -P)" ]; then
   echo "Here Gemini would mix in your normal ~/.gemini settings and could skip the router." >&2
   exit 1
 fi
+# Set before anything runs gemini: even `gemini --version` writes into its home.
 export GEMINI_CLI_HOME="$FREE_HOME/gemini"
+# GEMINI_CLI_HOME arrived in 0.25. Older versions would quietly use your real
+# ~/.gemini and Google login instead of the router.
+gemini_version="$(gemini --version 2>/dev/null | head -1 || true)"
+case "$gemini_version" in
+  0.[0-9].* | 0.1[0-9].* | 0.2[0-4].*)
+    echo "gemini-free needs Gemini CLI 0.25 or newer (you have $gemini_version)." >&2
+    echo "Update it (npm install -g @google/gemini-cli, or brew upgrade gemini-cli), then run gemini-free again." >&2
+    exit 1 ;;
+esac
 export GOOGLE_GEMINI_BASE_URL="$FREELLMAPI_URL"
 export GEMINI_API_KEY="$FREELLMAPI_API_KEY"
 # Set to empty rather than unset: Gemini fills unset variables from .env files
@@ -269,9 +325,13 @@ export GEMINI_API_KEY="$FREELLMAPI_API_KEY"
 # key or Vertex and skip the router.
 export GOOGLE_API_KEY="" GOOGLE_GENAI_USE_VERTEXAI="" GOOGLE_GENAI_USE_GCA="" \
   GOOGLE_CLOUD_PROJECT="" GOOGLE_CLOUD_LOCATION=""
-if [ "$FREELLMAPI_MODEL" != auto ]; then
-  export GEMINI_MODEL="$FREELLMAPI_MODEL"
-fi
+case "$FREELLMAPI_MODEL" in
+  auto) ;;
+  gemini*)
+    # The router maps every gemini-* name to the dashboard's choice.
+    echo "Note: gemini-free can't pin a Gemini model by name. Pick it in the dashboard under Keys > Agents > Gemini model mapping." >&2 ;;
+  *) export GEMINI_MODEL="$FREELLMAPI_MODEL" ;;
+esac
 exec gemini "$@"
 EOF
 
@@ -306,7 +366,9 @@ esac
 echo "Saved. Now run: freellm-test"
 EOF
 
-write_cmd freellm-test <<'EOF'
+{
+  printf 'SERVER_DIR=%q\n' "$SERVER_DIR"
+  cat <<'EOF'
 # Sends one request through FreeLLMAPI and shows which free model answered.
 #   freellm-test                  default question
 #   freellm-test "your question"
@@ -325,7 +387,11 @@ code="$(printf 'header = "Authorization: Bearer %s"\n' "$FREELLMAPI_API_KEY" \
     -d "{\"model\":\"$FREELLMAPI_MODEL\",\"max_tokens\":300,\"messages\":[{\"role\":\"user\",\"content\":\"$escaped\"}]}" \
     2>/dev/null || true)"
 if [ "$code" = 000 ] || [ -z "$code" ]; then
-  echo "The router isn't answering at $FREELLMAPI_URL. Open Docker Desktop, wait until it's running, then try again." >&2
+  if ! docker info >/dev/null 2>&1; then
+    echo "The router isn't answering at $FREELLMAPI_URL because Docker isn't running. Open Docker Desktop, wait until it's running, then try again." >&2
+  else
+    echo "Docker is running, but the router isn't answering at $FREELLMAPI_URL. Start it with: cd \"$SERVER_DIR\" && docker compose up -d" >&2
+  fi
   exit 1
 fi
 if [ "$code" != 200 ]; then
@@ -344,6 +410,7 @@ else
   echo
 fi
 EOF
+} | write_cmd freellm-test
 
 {
   printf 'SERVER_DIR=%q\n' "$SERVER_DIR"
@@ -360,23 +427,38 @@ printf 'Remove FreeLLMAPI, its database (your provider keys inside it) and the -
 read -r answer
 case "$answer" in y | Y | yes | YES) ;; *) echo "Nothing changed."; exit 0 ;; esac
 
-# The router goes first. If Docker can't remove it, stop before touching
-# anything else, so a later run can still finish the job.
-if [ -f "$SERVER_DIR/docker-compose.yml" ]; then
-  if ! command -v docker >/dev/null 2>&1 || ! docker info >/dev/null 2>&1; then
-    echo "Docker isn't running. Open Docker Desktop, wait until it's running, then run freellm-uninstall again. Nothing changed." >&2
-    exit 1
+# The router goes first, found by its project name so this works even if
+# ~/freellmapi was moved or deleted. If Docker can't remove it, stop before
+# touching anything else, so a later run can still finish the job.
+if ! command -v docker >/dev/null 2>&1; then
+  echo "Docker isn't installed any more, so there's no router left to remove."
+elif ! docker info >/dev/null 2>&1; then
+  echo "Docker isn't running. Open Docker Desktop, wait until it's running, then run freellm-uninstall again. Nothing changed." >&2
+  exit 1
+else
+  not_ours=""
+  while IFS= read -r dir; do
+    if [ -n "$dir" ] && [ "$dir" != "$SERVER_DIR" ] && ! [ "$dir" -ef "$SERVER_DIR" ]; then
+      not_ours="$dir"
+    fi
+  done < <(docker ps -a --filter label=com.docker.compose.project=freellmapi \
+    --format '{{.Label "com.docker.compose.project.working_dir"}}' | sort -u)
+  if [ -n "$not_ours" ]; then
+    echo "Docker's FreeLLMAPI router was set up from $not_ours, not by this kit. Leaving it alone."
+  else
+    (cd "$SERVER_DIR" 2>/dev/null || cd /; docker compose -p freellmapi down -v) \
+      || { echo "Couldn't remove the router container. Nothing else changed." >&2; exit 1; }
+    # Every version, including ones left behind by updates.
+    docker image ls --format '{{.Repository}}:{{.Tag}}' ghcr.io/tashfeenahmed/freellmapi 2>/dev/null \
+      | while read -r img; do
+          if docker image rm "$img" >/dev/null 2>&1; then echo "Removed image $img"; fi
+        done || true
+    docker image prune -f --filter "label=org.opencontainers.image.source=https://github.com/tashfeenahmed/freellmapi" \
+      >/dev/null 2>&1 || true
   fi
-  (cd "$SERVER_DIR" && docker compose down -v) \
-    || { echo "Couldn't remove the router container. Nothing else changed." >&2; exit 1; }
-  # Every version, including ones left behind by updates.
-  docker image ls --format '{{.Repository}}:{{.Tag}}' ghcr.io/tashfeenahmed/freellmapi 2>/dev/null \
-    | while read -r img; do
-        if docker image rm "$img" >/dev/null 2>&1; then echo "Removed image $img"; fi
-      done || true
 fi
 rm -f "$SERVER_DIR/.env" "$SERVER_DIR/docker-compose.yml" "$SERVER_DIR/.DS_Store" \
-  "$SERVER_DIR"/docker-compose.yml.backup-*
+  "$SERVER_DIR"/docker-compose.yml.*
 if rmdir "$SERVER_DIR" 2>/dev/null; then
   echo "Removed $SERVER_DIR"
 elif [ -d "$SERVER_DIR" ]; then
@@ -384,16 +466,18 @@ elif [ -d "$SERVER_DIR" ]; then
 fi
 
 created="$(cat "$FREE_HOME/created" 2>/dev/null || true)"
-for rc in "$HOME/.zshrc" "$HOME/.bashrc" "$HOME/.bash_profile" "$HOME/.bash_login" \
-  "$HOME/.profile" "$HOME/.config/fish/conf.d/freellmapi-free.fish"; do
-  if [ -f "$rc" ] && grep -qF '# freellmapi-free' "$rc"; then
-    grep -vF '# freellmapi-free' "$rc" > "$rc.freellmapi-tmp" || true
+recorded_rc="$(cat "$FREE_HOME/rc" 2>/dev/null || true)"
+for rc in ${recorded_rc:+"$recorded_rc"} "$HOME/.zshrc" "$HOME/.bashrc" "$HOME/.bash_profile" \
+  "$HOME/.bash_login" "$HOME/.profile" "$HOME/.config/fish/conf.d/freellmapi-free.fish"; do
+  # LC_ALL=C and -a: treat every byte as text, so lines in another encoding survive.
+  if [ -f "$rc" ] && LC_ALL=C grep -aqF '# freellmapi-free' "$rc"; then
+    LC_ALL=C grep -avF '# freellmapi-free' "$rc" > "$rc.freellmapi-tmp" || true
     cat "$rc.freellmapi-tmp" > "$rc"
     rm -f "$rc.freellmapi-tmp"
     echo "Removed the PATH line from $rc"
     # A file the installer created and that is now empty goes too, so it can't
     # keep shadowing ~/.profile.
-    if printf '%s\n' "$created" | grep -qxF "$rc" && ! grep -q '[^[:space:]]' "$rc"; then
+    if printf '%s\n' "$created" | grep -qxF "$rc" && ! LC_ALL=C grep -aq '[^[:space:]]' "$rc"; then
       rm -f "$rc"
       echo "Removed $rc (the installer had created it)"
     fi
@@ -407,7 +491,8 @@ done
 rm -f "$FREE_HOME/bin/.DS_Store"
 rmdir "$FREE_HOME/bin" 2>/dev/null || true
 rm -rf "$FREE_HOME/claude" "$FREE_HOME/codex" "$FREE_HOME/gemini"
-rm -f "$FREE_HOME/env.sh" "$FREE_HOME/url" "$FREE_HOME/key" "$FREE_HOME/created" "$FREE_HOME/.DS_Store"
+rm -f "$FREE_HOME/env.sh" "$FREE_HOME/url" "$FREE_HOME/key" "$FREE_HOME/created" "$FREE_HOME/rc" \
+  "$FREE_HOME/.DS_Store"
 if rmdir "$FREE_HOME" 2>/dev/null; then
   echo "Removed $FREE_HOME"
 else
@@ -421,7 +506,7 @@ EOF
 shell_name="$(basename "${SHELL:-bash}")"
 rc=""
 case "$shell_name" in
-  zsh) rc="$HOME/.zshrc" ;;
+  zsh) rc="${ZDOTDIR:-$HOME}/.zshrc" ;;
   bash)
     if [ "$(uname)" = Darwin ]; then
       # Terminal starts bash as a login shell, which reads only the first of
@@ -446,14 +531,17 @@ else
     printf '%s\n' "$rc" >> "$FREE_HOME/created"
   fi
   if [ "$shell_name" = fish ]; then
-    # shellcheck disable=SC2016 # $PATH must stay literal in the rc file
-    printf "\nset -gx PATH '%s/bin' \$PATH %s\n" "$FREE_HOME" "$MARK" >> "$rc"
+    # fish single quotes only treat \ and ' specially; escape both.
+    fish_bin="$(printf '%s' "$FREE_HOME/bin" | sed "s/[\\\\']/\\\\&/g")"
+    printf "\nset -gx PATH '%s' \$PATH %s\n" "$fish_bin" "$MARK" >> "$rc"
   else
     # shellcheck disable=SC2016 # $PATH must stay literal in the rc file
     printf '\nexport PATH=%q:"$PATH" %s\n' "$FREE_HOME/bin" "$MARK" >> "$rc"
   fi
   say "Added one line to $rc so the -free commands are on your PATH"
 fi
+# The uninstaller looks here first, wherever the line went (ZDOTDIR, fish, ...).
+if [ -n "$rc" ]; then printf '%s\n' "$rc" > "$FREE_HOME/rc"; fi
 
 # --- 5. Next steps ------------------------------------------------------------
 setup_code="$(cd "$SERVER_DIR" && docker compose logs --no-color freellmapi 2>/dev/null \
