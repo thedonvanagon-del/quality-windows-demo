@@ -4,4 +4,5 @@
 exclude:
   - aws
   - sites
+  - cfb-bot
   - freellmapi-free

@@ -1,0 +1,94 @@
+name: cfb-bot
+
+# College football on Saturdays and the NFL on Sundays (plus its December
+# Saturdays): a morning board of spreads that beat the sharp line, then in-play
+# picks every 30 minutes, all to Telegram. Setup and tuning live in
+# cfb-bot/README.md.
+
+on:
+  schedule:
+    # GitHub cron is UTC and best effort: on the first Saturday it ran 4 of
+    # about 20 slots. So these only need to start a run. A run keeps scanning
+    # every 30 minutes while a window is open (cfbbot/sports.py has them, in
+    # Eastern time), waits out gaps of up to 5 hours, and starts the next run
+    # before GitHub's 6-hour job limit. So one Saturday slot can carry the
+    # whole weekend. While one is going, these queue behind it; with nothing
+    # open or coming they exit right away. Slots cover both EDT and EST.
+    - cron: "7,37 10-23 * * 6"         # Saturday: from 6am, waiting for the 10am college board
+    - cron: "7,37 * * * 0"             # Sunday: college late games, then NFL from 9am
+    - cron: "7,37 0-5 * * 1"           # Monday: the end of the Sunday night game
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: What to run
+        type: choice
+        options: [loop, scan, board, dry-run, test-telegram]
+        default: loop
+
+permissions:
+  contents: read
+  actions: write  # a run starts the next one before the 6-hour limit
+
+# One run at a time, so two never fight over the state file.
+concurrency:
+  group: cfb-bot
+  cancel-in-progress: false
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 355
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      # Pregame lines and picks already sent carry over between runs in the
+      # Actions cache. Each run saves under a new key; restore takes the newest.
+      - name: restore state
+        uses: actions/cache/restore@v4
+        with:
+          path: cfb-bot/state
+          key: cfb-bot-state-${{ github.run_id }}
+          restore-keys: cfb-bot-state-
+
+      - name: scan
+        id: scan
+        working-directory: cfb-bot
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          ODDS_API_KEY: ${{ secrets.ODDS_API_KEY }}
+          CFB_BOOKMAKERS: ${{ vars.CFB_BOOKMAKERS }}
+          CFB_SPREAD_EDGE: ${{ vars.CFB_SPREAD_EDGE }}
+          CFB_TOTAL_EDGE: ${{ vars.CFB_TOTAL_EDGE }}
+          CFB_HEARTBEAT: ${{ vars.CFB_HEARTBEAT }}
+          MODE: ${{ inputs.mode || 'loop' }}
+          PYTHONUNBUFFERED: "1"  # show each scan in the log as it happens
+        run: |
+          case "$MODE" in
+            dry-run) python -m cfbbot --dry-run ;;
+            test-telegram) python -m cfbbot --test-telegram ;;
+            board) python -m cfbbot --board ;;
+            scan) python -m cfbbot ;;
+            *) python -m cfbbot --loop ;;
+          esac
+
+      - name: save state
+        if: always() && hashFiles('cfb-bot/state/*.json') != ''
+        uses: actions/cache/save@v4
+        with:
+          path: cfb-bot/state
+          key: cfb-bot-state-${{ github.run_id }}-${{ github.run_attempt }}
+
+      # The loop hit its time budget with games still going: start a fresh
+      # run. It queues behind this one and picks up the saved state.
+      - name: keep going
+        if: steps.scan.outputs.again == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          REF: ${{ github.ref_name }}
+        run: gh workflow run cfb-bot.yml --ref "$REF" -f mode=loop
