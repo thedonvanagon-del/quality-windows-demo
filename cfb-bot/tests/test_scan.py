@@ -193,10 +193,10 @@ class FakeClock:
 
 class KeepScanning(unittest.TestCase):
     def test_runs_until_the_window_closes(self):
-        clock = FakeClock(datetime(2026, 10, 18, 1, 0, tzinfo=scan.ET))  # 1am Sunday
+        clock = FakeClock(datetime(2026, 10, 18, 22, 0, tzinfo=scan.ET))  # Sunday night game
         self.assertFalse(scan.keep_scanning(clock.scan, now=clock, sleep=clock.sleep))
-        self.assertEqual(clock.scans, 7)  # 1:00, 1:30 ... 4:00
-        self.assertLess(clock.now, datetime(2026, 10, 18, 4, 30, tzinfo=scan.ET))
+        self.assertEqual(clock.scans, 6)  # 10:00, 10:30 ... 12:30
+        self.assertLess(clock.now, datetime(2026, 10, 19, 1, 0, tzinfo=scan.ET))
 
     def test_hands_off_before_the_six_hour_limit(self):
         clock = FakeClock(datetime(2026, 10, 17, 12, 0, tzinfo=scan.ET))  # noon Saturday
@@ -205,18 +205,25 @@ class KeepScanning(unittest.TestCase):
         self.assertLess(clock.now - datetime(2026, 10, 17, 12, 0, tzinfo=scan.ET), timedelta(hours=6))
 
     def test_outside_every_window_it_does_nothing(self):
-        clock = FakeClock(datetime(2026, 10, 17, 9, 7, tzinfo=scan.ET))  # 9:07am Saturday, an early cron slot
+        clock = FakeClock(datetime(2026, 10, 21, 12, 7, tzinfo=scan.ET))  # Wednesday
         self.assertFalse(scan.keep_scanning(clock.scan, now=clock, sleep=clock.sleep))
         self.assertEqual(clock.scans, 0)
 
     def test_carries_from_saturday_night_into_nfl_sunday(self):
-        # 4:30am closes college; the NFL window opens at 9am, so a run that
-        # starts Sunday at 9 goes until its time budget.
-        clock = FakeClock(datetime(2026, 10, 18, 9, 0, tzinfo=scan.ET))
+        # College closes at 4:30am and the NFL opens at 9. A run going at 1am
+        # doesn't quit in between: it hands off to a fresh run that waits.
+        clock = FakeClock(datetime(2026, 10, 18, 1, 0, tzinfo=scan.ET))
         self.assertTrue(scan.keep_scanning(clock.scan, now=clock, sleep=clock.sleep))
+        self.assertGreater(clock.now, datetime(2026, 10, 18, 4, 30, tzinfo=scan.ET))
+        self.assertTrue(scan.stay_up(datetime(2026, 10, 18, 6, 40, tzinfo=scan.ET)))
+
+    def test_an_early_saturday_start_waits_for_the_board(self):
+        self.assertTrue(scan.stay_up(datetime(2026, 10, 17, 6, 7, tzinfo=scan.ET)))   # board at 10
+        self.assertFalse(scan.stay_up(datetime(2026, 10, 17, 4, 7, tzinfo=scan.ET)))  # too early to wait
+        self.assertFalse(scan.stay_up(datetime(2026, 10, 19, 1, 7, tzinfo=scan.ET)))  # after Sunday night
 
     def test_a_failed_scan_does_not_end_the_night(self):
-        clock = FakeClock(datetime(2026, 10, 18, 3, 0, tzinfo=scan.ET))
+        clock = FakeClock(datetime(2026, 10, 18, 23, 0, tzinfo=scan.ET))  # Sunday night
         calls = []
 
         def flaky():
@@ -226,7 +233,7 @@ class KeepScanning(unittest.TestCase):
                 raise OSError("ESPN timed out")
 
         self.assertFalse(scan.keep_scanning(flaky, now=clock, sleep=clock.sleep))
-        self.assertEqual(len(calls), 3)  # 3:00 (failed), 3:30, 4:00
+        self.assertEqual(len(calls), 4)  # 11:00 (failed), 11:30, 12:00, 12:30
 
 
 class SlateDay(unittest.TestCase):

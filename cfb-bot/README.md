@@ -7,7 +7,10 @@ It runs on GitHub Actions, so nothing has to stay on at your place.
 | | Morning board | In-play scans |
 |---|---|---|
 | College (FBS) | Saturday 10am ET | Saturday 10am to 4:30am |
-| NFL | Sunday 9am ET, Monday and Thursday 5pm ET | Sunday 9am to 1am, Monday and Thursday 5pm to 1am |
+| NFL | Sunday 9am ET | Sunday 9am to 1am |
+
+Weekends only. Monday and Thursday night NFL games are skipped. The NFL's
+December Saturday games get the same board and scans from 11am.
 
 An in-play message looks like this:
 
@@ -51,7 +54,7 @@ The same pick never gets sent twice in a day.
 3. **Get an odds key** at [the-odds-api.com](https://the-odds-api.com). An
    in-play scan costs 3 credits and only happens while games are live or
    about to kick. A board costs 1. A college Saturday runs about 80 credits,
-   an NFL week about 100, so both sports come to roughly 800 a month. The
+   an NFL Sunday about 60, so both sports come to roughly 600 a month. The
    free plan's 500 covers college alone; for both you need the smallest
    paid plan. When credits run out, boards stop and in-play falls back to
    the model's fair lines until the month resets.
@@ -64,6 +67,7 @@ The same pick never gets sent twice in a day.
    the bot that sent it, so if nothing shows up, open your chat with that bot.
    `dry-run` prints a real scan to the run log without sending anything, and
    `board` sends a board right now for any sport with games left today.
+   Every message the bot sends is also printed in that run's log.
 
 ## Tuning
 
@@ -162,10 +166,13 @@ python -m cfbbot --loop                # what GitHub runs: scan every 30 minutes
 - GitHub's scheduler is best effort. On the first Saturday it ran 4 of about
   20 half-hour slots. So a run doesn't scan once and quit: it keeps scanning
   every 30 minutes while a window is open and starts the next run before
-  GitHub's 6-hour job limit. Only one slot has to fire to cover a day.
+  GitHub's 6-hour job limit. It also waits out gaps of up to 5 hours, so a
+  run that starts as early as 6am Saturday holds for the 10am board, and
+  Saturday night carries straight into NFL Sunday. One Saturday slot firing
+  covers the whole weekend; the Sunday slots are a backup.
   To start one by hand: Actions → cfb-bot → Run workflow → `loop`.
-- That costs nothing on a public repo. On a private one, the windows add up
-  to about 50 hours of GitHub Actions minutes a week.
+- That costs nothing on a public repo. On a private one, a weekend runs
+  about 45 hours of GitHub Actions minutes.
 - The windows live in `cfbbot/sports.py`, in Eastern time.
 - On a public repo, GitHub pauses schedules after 60 days with no commits.
   If the bot goes quiet after a long offseason, re-enable it from the

@@ -81,10 +81,9 @@ def scan_once(cfg, sport, dry_run, force_board=False, live=True):
         print(result.summary)
         messages += result.messages
     for message in messages:
-        if dry_run:
-            print("\n" + message)
-        else:
+        if not dry_run:
             telegram.send(cfg.telegram_token, cfg.telegram_chat_id, message)
+        print("\n" + message)  # the run log shows exactly what went out
     # Save only after everything sent, so a failed send gets retried next scan.
     if not dry_run:
         state.prune(now)
