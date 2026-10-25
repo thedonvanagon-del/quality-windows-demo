@@ -89,6 +89,9 @@ const MIGRATIONS = [
   `
   ALTER TABLE users ADD COLUMN theme TEXT;
   `,
+  `
+  ALTER TABLE users ADD COLUMN bio TEXT;
+  `,
 ];
 
 export function openStore(file) {

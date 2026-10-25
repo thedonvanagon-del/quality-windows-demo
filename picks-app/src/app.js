@@ -21,6 +21,7 @@ import * as social from './views/social.js';
 const PUBLIC_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'public');
 const MAX_BODY = 16 * 1024;
 const DEFAULT_SPORT = 'nfl';
+export const BIO_MAX = 160;
 
 const SECURITY_HEADERS = {
   'Content-Security-Policy':
@@ -345,7 +346,7 @@ export function createApp({ store, games, config, now = () => new Date(), log = 
   }
 
   function profilePage(ctx, { name }) {
-    const player = store.get('SELECT id, screen_name, created_at FROM users WHERE screen_name = ?', name);
+    const player = store.get('SELECT id, screen_name, created_at, bio FROM users WHERE screen_name = ?', name);
     if (!player) return notFound(ctx);
     if (player.screen_name !== name) return redirect(ctx, `/u/${encodeURIComponent(player.screen_name)}`);
     const { picks, hidden } = publicPicks(store, player.id, { viewerId: ctx.user?.id, now: ctx.now });
@@ -362,6 +363,19 @@ export function createApp({ store, games, config, now = () => new Date(), log = 
     if (!signedIn(ctx)) return;
     const theme = ctx.form.get('theme');
     if (THEMES.includes(theme)) store.run('UPDATE users SET theme = ? WHERE id = ?', theme, ctx.user.id);
+    redirect(ctx, `/u/${encodeURIComponent(ctx.user.screenName)}`);
+  }
+
+  function bioPost(ctx) {
+    if (!signedIn(ctx)) return;
+    // One paragraph: line breaks and runs of spaces fold into single spaces.
+    const bio = String(ctx.form.get('bio') ?? '').replace(/\s+/g, ' ').trim();
+    if (bio.length > BIO_MAX) {
+      flash(ctx, 'error', `Keep your bio to ${BIO_MAX} characters.`);
+    } else {
+      store.run('UPDATE users SET bio = ? WHERE id = ?', bio || null, ctx.user.id);
+      flash(ctx, 'ok', bio ? 'Bio saved.' : 'Bio cleared.');
+    }
     redirect(ctx, `/u/${encodeURIComponent(ctx.user.screenName)}`);
   }
 
@@ -412,6 +426,7 @@ export function createApp({ store, games, config, now = () => new Date(), log = 
     ['POST', '/join/:code', joinPost],
     ['GET', '/u/:name', profilePage],
     ['POST', '/theme', themePost],
+    ['POST', '/bio', bioPost],
   ].map(([method, pattern, handler]) => {
     const keys = [];
     const regex = new RegExp(`^${pattern.replace(/:(\w+)/g, (_, key) => (keys.push(key), '([^/]+)'))}$`);

@@ -421,6 +421,22 @@ tr.me td { background: var(--accent-soft); }
 .members li { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--line); }
 .members li:last-child { border-bottom: 0; }
 
+/* ---- Bio ---------------------------------------------------------------- */
+
+.bio { font-size: 1.02rem; margin: 12px 0 0; max-width: 40em; overflow-wrap: anywhere; }
+.bio-form { display: grid; gap: 10px; max-width: 560px; }
+.bio-form textarea {
+  font: inherit;
+  padding: 11px 13px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: var(--bg);
+  color: var(--ink);
+  width: 100%;
+  resize: vertical;
+}
+.bio-form textarea:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+
 /* ---- Color picker ------------------------------------------------------ */
 
 .swatches { display: flex; gap: 8px; flex-wrap: wrap; }

@@ -159,6 +159,12 @@ function espnEvent(g, at) {
   };
 }
 
+const BIOS = {
+  SharpShooter: 'Sides and totals, mostly NBA and NHL. I shop the number and I post every pick before the game.',
+  FadeMe: 'You know what to do.',
+  DogLover: 'Plus money or nothing.',
+};
+
 const PLAYERS = [
   // name, how often they're right, how many games they play
   ['SharpShooter', 0.6, 0.45],
@@ -187,7 +193,7 @@ export async function seedDemo({ store, games, espn, now = () => new Date() }) {
     const email = name === 'SharpShooter' ? DEMO_LOGIN.email : `${name.toLowerCase()}@example.com`;
     const hash = await hashPassword(name === 'SharpShooter' ? DEMO_LOGIN.password : `${name}-demo`);
     const created = new Date(at.getTime() - (PAST_DAYS + 3) * 86_400_000).toISOString();
-    ids[name] = Number(store.run('INSERT INTO users (email, password_hash, screen_name, created_at) VALUES (?, ?, ?, ?)', email, hash, name, created).lastInsertRowid);
+    ids[name] = Number(store.run('INSERT INTO users (email, password_hash, screen_name, created_at, bio) VALUES (?, ?, ?, ?, ?)', email, hash, name, created, BIOS[name] ?? null).lastInsertRowid);
   }
 
   const all = store.all('SELECT * FROM games').map((row) => ({

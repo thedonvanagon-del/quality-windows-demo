@@ -117,6 +117,16 @@ export function join(ctx, { group, members, already }) {
   });
 }
 
+/** A short line about yourself, on your profile for anyone to read. */
+function bioForm(ctx, player) {
+  return html`<h2>Your bio</h2>
+    <form class="bio-form" method="post" action="/bio">
+      ${csrfField(ctx)}
+      <textarea name="bio" rows="3" maxlength="160" placeholder="What you bet, how you bet, where people can find you." aria-label="Your bio">${player.bio ?? ''}</textarea>
+      <div class="row"><button class="btn small">Save bio</button><span class="muted small">Up to 160 characters. Everyone can see it.</span></div>
+    </form>`;
+}
+
 const COLORS = { ember: 'Ember', teal: 'Teal', violet: 'Violet' };
 
 /** Three swatches; the player's pick colors the app on every device they use. */
@@ -136,9 +146,10 @@ export function profile(ctx, { player, record, bySport, picks, hidden }) {
     description: `${player.screen_name}: ${recordText(record)}, ${record.units > 0 ? '+' : ''}${record.units} units. Every pick locked before the game and graded off the final.`,
     body: html`
       <div class="team"><span class="avatar big">${player.screen_name[0]}</span><h1>${player.screen_name}</h1></div>
+      ${player.bio ? html`<p class="bio">${player.bio}</p>` : ''}
       <p class="lede">On the record since ${joined(player.created_at)}. ${record.graded} graded ${record.graded === 1 ? 'pick' : 'picks'}, every one locked before its game.</p>
       ${statStrip(record)}
-      ${ctx.user?.id === player.id ? colorPicker(ctx) : ''}
+      ${ctx.user?.id === player.id ? html`${bioForm(ctx, player)}${colorPicker(ctx)}` : ''}
       ${bySport.length
         ? html`<h2>By sport</h2>
           <div class="table"><table>

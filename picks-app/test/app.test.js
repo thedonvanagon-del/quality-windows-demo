@@ -75,6 +75,24 @@ describe('accounts', () => {
     assert.match((await b.get('/picks')).location, /^\/login/);
   });
 
+  test('write a short bio that everyone can read', async () => {
+    const b = await player('ann@example.com', 'Ann');
+    await b.get('/u/Ann');
+    await b.post('/bio', { bio: 'Big Ten unders.\n\nThat is <b>it</b>.' });
+    const mine = await b.get('/u/Ann');
+    assert.match(visible(mine.text), /Bio saved\./);
+    const theirs = await app.browser().get('/u/Ann');
+    assert.match(theirs.text, /<p class="bio">Big Ten unders\. That is &lt;b&gt;it&lt;\/b&gt;\.<\/p>/);
+    assert.doesNotMatch(theirs.text, /Save bio/, 'only the owner gets the form');
+
+    await b.post('/bio', { bio: 'x'.repeat(161) });
+    assert.match(visible((await b.get('/u/Ann')).text), /Keep your bio to 160 characters/);
+    assert.match((await b.get('/u/Ann')).text, /Big Ten unders/, 'a too-long bio leaves the old one');
+
+    await b.post('/bio', { bio: '   ' });
+    assert.doesNotMatch((await app.browser().get('/u/Ann')).text, /class="bio"/);
+  });
+
   test('pick an app color that sticks to the account', async () => {
     const b = await player('ann@example.com', 'Ann');
     assert.match((await b.get('/games')).text, /data-theme="ember"/, 'orange by default');
