@@ -6,7 +6,7 @@ import { clock, event, setFinal, setLine, setLive, startApp, visible } from './h
 // Sunday 8am Eastern; Bills at Chiefs kicks off at 1pm.
 const MORNING = '2026-10-25T12:00:00.000Z';
 const KICKOFF = '2026-10-25T17:00:00.000Z';
-const BILLS_PLUS = { game: 'nfl:1', market: 'spread', side: 'away', line: '3.5', odds: '-110', units: '1' };
+const BILLS_PLUS = { game: 'nfl:1', market: 'spread', side: 'away', line: '3.5', odds: '-110', wager: '100' };
 
 let time;
 let app;
@@ -118,22 +118,54 @@ describe('picks', () => {
     const slip = await b.get('/pick?game=nfl:1&market=spread&side=away');
     assert.match(visible(slip.text), /Bills \+3\.5/);
 
-    const res = await b.post('/picks', { ...BILLS_PLUS, units: '2' });
+    const res = await b.post('/picks', { ...BILLS_PLUS, wager: '200' });
     assert.equal(res.location, '/games?sport=nfl');
-    assert.match(visible((await b.get(res.location)).text), /Locked in: Bills \+3\.5 \(-110\), 2u\./);
+    assert.match(visible((await b.get(res.location)).text), /Locked in: Bills \+3\.5 \(-110\), \$200 to win \$181\.82\./);
     const [p] = picks();
     assert.equal(p.line, 3.5);
     assert.equal(p.odds, -110);
     assert.equal(p.units, 2);
+    assert.equal(p.wager, 200);
     assert.equal(p.made_at, MORNING);
 
     await b.post('/picks', { ...BILLS_PLUS, side: 'home', line: '-3.5' });
     assert.match(visible((await b.get('/games')).text), /already have a spread pick/);
     assert.equal(picks().length, 1);
 
-    await b.post('/picks', { game: 'nfl:1', market: 'total', side: 'over', line: '47.5', odds: '-110', units: '1' });
+    await b.post('/picks', { game: 'nfl:1', market: 'total', side: 'over', line: '47.5', odds: '-110', wager: '100' });
     assert.equal(picks().length, 2, 'a total on the same game is its own pick');
     assert.match((await b.get('/games')).text, /cell mine/);
+  });
+
+  test('wager dollars, counted in units, private to the bettor', async () => {
+    const b = await player('ann@example.com', 'Ann');
+    await b.get('/u/Ann');
+    await b.post('/unit', { unit_size: '$50' });
+    await b.get('/games');
+    await b.post('/picks', { ...BILLS_PLUS, wager: '$125' });
+    const [p] = picks();
+    assert.deepEqual([p.wager, p.units], [125, 2.5]);
+
+    const mine = visible((await b.get('/picks')).text);
+    assert.match(mine, /\$125 to win \$113\.64/);
+    assert.match(mine, /Starts in 5h 0m/);
+    assert.match((await b.get('/games')).text, /class="badge"[^>]*>1</, 'one open bet on the My bets tab');
+
+    const bob = await player('bob@example.com', 'Bob');
+    time.set('2026-10-25T17:05:00.000Z');
+    const seen = visible((await bob.get('/u/Ann')).text);
+    assert.match(seen, /Bills \+3\.5 −110 2\.5u/);
+    assert.doesNotMatch(seen, /\$125/, 'nobody else sees dollars');
+  });
+
+  test('turn away a wager out of range', async () => {
+    const b = await player('ann@example.com', 'Ann');
+    for (const wager of ['0', 'lots', '1000000']) {
+      const res = await b.post('/picks', { ...BILLS_PLUS, wager });
+      assert.equal(res.status, 400, wager);
+      assert.match(visible(res.text), /Wager between \$1 and \$100,000/);
+    }
+    assert.equal(picks().length, 0);
   });
 
   test('ask again when the line moves', async () => {
@@ -225,11 +257,11 @@ describe('picks', () => {
 describe('grading and boards', () => {
   test('grade off the final and rank by units', async () => {
     const ann = await player('ann@example.com', 'Ann');
-    await ann.post('/picks', { ...BILLS_PLUS, units: '2' });
+    await ann.post('/picks', { ...BILLS_PLUS, wager: '200' });
     const bob = await player('bob@example.com', 'Bob');
-    await bob.post('/picks', { game: 'nfl:1', market: 'ml', side: 'home', line: '', odds: '-170', units: '1' });
+    await bob.post('/picks', { game: 'nfl:1', market: 'ml', side: 'home', line: '', odds: '-170', wager: '100' });
     const cat = await player('cat@example.com', 'Cat');
-    await cat.post('/picks', { game: 'nfl:1', market: 'total', side: 'under', line: '47.5', odds: '-110', units: '1' });
+    await cat.post('/picks', { game: 'nfl:1', market: 'total', side: 'under', line: '47.5', odds: '-110', wager: '100' });
 
     setFinal(game, 27, 24);
     time.set('2026-10-25T21:00:00.000Z');
@@ -240,7 +272,7 @@ describe('grading and boards', () => {
     assert.ok(board.indexOf('Ann') < board.indexOf('Bob') && board.indexOf('Bob') < board.indexOf('Cat'), board);
     assert.match(board, /Ann 1-0 100% \+1\.82u \+91%/);
     assert.match(visible((await app.browser().get('/leaderboard?sport=nba')).text), /No graded picks here yet/);
-    assert.match(visible((await ann.get('/picks')).text), /Won \+1\.82u/);
+    assert.match(visible((await ann.get('/picks?tab=settled')).text), /Won \+\$181\.82/);
     assert.match(visible((await app.browser().get('/u/Cat')).text), /0-1/);
   });
 

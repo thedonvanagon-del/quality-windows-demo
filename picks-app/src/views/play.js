@@ -1,9 +1,9 @@
 import { html } from '../html.js';
-import { formatOdds, formatSpread, formatUnits, MARKET_NAME, price, selection, toWin, UNIT_CHOICES } from '../picks.js';
+import { formatMoney, formatOdds, formatSpread, formatUnits, MARKET_NAME, price, selection, toWin, unitsFor, WAGER_CHIPS, WAGER_MAX, WAGER_MIN } from '../picks.js';
 import { SPORT } from '../sports.js';
 import { dayLabel, etDay } from '../time.js';
 import { csrfField, layout } from './layout.js';
-import { at, minus, pickItem, sportTabs, statStrip, teamLogo } from './parts.js';
+import { at, minus, pickItem, sportTabs, statStrip, tabs, teamLogo } from './parts.js';
 
 /** `mine` maps game id -> { spread: 'home', total: 'over', ... } for the player's picks. */
 export function games(ctx, { sport, list, mine, problem }) {
@@ -60,7 +60,9 @@ function cell(game, market, side, mine) {
   return html`<a class="${kind}" href="/pick?${query}" aria-label="Pick ${label}">${inner}</a>`;
 }
 
-export function slip(ctx, { game, market, side, current, error, units = 1 }) {
+export function slip(ctx, { game, market, side, current, error, wager }) {
+  const unitSize = ctx.user.unitSize;
+  wager ??= unitSize;
   const sport = SPORT[game.sport];
   const picked = side === 'home' || side === 'away' ? game[side] : null;
   return layout(ctx, {
@@ -83,18 +85,21 @@ export function slip(ctx, { game, market, side, current, error, units = 1 }) {
               </div>
               <span class="odds-pill">${minus(formatOdds(current.odds))}</span>
             </div>
-            <form method="post" action="/picks" data-odds="${current.odds}">
+            <form method="post" action="/picks" data-odds="${current.odds}" data-unit="${unitSize}">
               ${csrfField(ctx)}
               <input type="hidden" name="game" value="${game.id}">
               <input type="hidden" name="market" value="${market}">
               <input type="hidden" name="side" value="${side}">
               <input type="hidden" name="line" value="${current.line ?? ''}">
               <input type="hidden" name="odds" value="${current.odds}">
-              <fieldset class="stakes">
-                <legend>Stake</legend>
-                ${UNIT_CHOICES.map((u) => html`<label><input type="radio" name="units" value="${u}" ${u === units ? 'checked' : ''}><span>${formatUnits(u)}</span></label>`)}
-              </fieldset>
-              <div class="towin"><span>To win</span><b data-to-win>${formatUnits(toWin(current.odds, units))}</b></div>
+              <label class="wager">Wager
+                <span class="money-input"><span>$</span><input type="text" name="wager" value="${wager}" inputmode="decimal" autocomplete="off" required aria-describedby="wager-units"></span>
+              </label>
+              <div class="chips" hidden>
+                ${WAGER_CHIPS.map((n) => html`<button type="button" class="chip" data-wager="${n}">${formatMoney(n)}</button>`)}
+              </div>
+              <div class="towin"><span>To win</span><b data-to-win>${formatMoney(toWin(current.odds, wager))}</b></div>
+              <p class="muted small" id="wager-units">Counts as <span data-units>${formatUnits(unitsFor(wager, unitSize))}</span> on your record at ${formatMoney(unitSize)} a unit. Only you see dollar amounts.</p>
               <button class="btn block">Lock it in</button>
             </form>
             <p class="fine">You can delete it until the game starts. After that it's on your record for good.${game.lines.book ? ` Line from ${game.lines.book} via ESPN.` : ''}</p>
@@ -105,29 +110,30 @@ export function slip(ctx, { game, market, side, current, error, units = 1 }) {
   });
 }
 
-export function myPicks(ctx, { open, graded, record }) {
+export function myPicks(ctx, { open, graded, tab, record }) {
+  const deletable = (p) => p.game.state === 'pre' && new Date(p.game.start) > ctx.now;
+  const list = tab === 'settled' ? graded : open;
   return layout(ctx, {
-    title: 'My picks',
+    title: 'My bets',
     active: 'picks',
     body: html`
-      <h1>My picks</h1>
-      <p class="lede">Your open picks stay hidden from everyone else until their game starts.</p>
+      <h1>My bets</h1>
+      <p class="lede">Your open bets stay hidden from everyone else until their game starts. Dollar amounts only ever show to you.</p>
       ${statStrip(record)}
-      <h2>Open</h2>
-      ${open.length
-        ? html`<ul class="tickets">${open.map((p) =>
+      <div class="bets-tabs">${tabs('/picks', ctx.query, 'tab', [['', `Open (${open.length})`], ['settled', 'Settled']])}</div>
+      ${list.length
+        ? html`<ul class="tickets">${list.map((p) =>
             pickItem(p, {
-              actions:
-                p.game.state === 'pre' && new Date(p.game.start) > ctx.now
-                  ? html`<form method="post" action="/picks/${p.id}/delete" data-confirm="Delete this pick?">${csrfField(ctx)}<button class="btn danger small">Delete</button></form>`
-                  : null,
+              money: true,
+              now: ctx.now,
+              actions: deletable(p)
+                ? html`<form method="post" action="/picks/${p.id}/delete" data-confirm="Delete this bet?">${csrfField(ctx)}<button class="btn danger small">Delete</button></form>`
+                : null,
             }),
           )}</ul>`
-        : html`<div class="card empty">Nothing open. <a href="/games">Find a game</a>.</div>`}
-      <h2>Graded</h2>
-      ${graded.length
-        ? html`<ul class="tickets">${graded.map((p) => pickItem(p))}</ul>`
-        : html`<div class="card empty">Your graded picks land here once games go final.</div>`}
+        : tab === 'settled'
+          ? html`<div class="card empty">Settled bets land here once games go final.</div>`
+          : html`<div class="card empty">No open bets. <a href="/games">Find a game</a>.</div>`}
     `,
   });
 }

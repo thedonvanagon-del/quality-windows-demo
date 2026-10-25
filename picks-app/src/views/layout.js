@@ -15,13 +15,14 @@ export function layout(ctx, { title, active, body, description }) {
   const nav = playing
     ? [
         ['games', '/games', 'Games', icons.games],
-        ['picks', '/picks', 'My picks', icons.picks],
+        ['picks', '/picks', 'My bets', icons.picks],
         ['board', '/leaderboard', 'Leaderboard', icons.board],
         ['groups', '/groups', 'Groups', icons.groups],
       ]
     : [['board', '/leaderboard', 'Leaderboard', icons.board]];
+  const count = (key) => (key === 'picks' && ctx.openBets ? html`<b class="badge" aria-label="${ctx.openBets} open">${ctx.openBets > 99 ? '99+' : ctx.openBets}</b>` : '');
   const link = ([key, href, label, icon]) =>
-    html`<a href="${href}" class="${key === active ? 'on' : ''}" ${key === active ? html`aria-current="page"` : ''}>${icon}<span>${label}</span></a>`;
+    html`<a href="${href}" class="${key === active ? 'on' : ''}" ${key === active ? html`aria-current="page"` : ''}><span class="ic">${icon}${count(key)}</span><span>${label}</span></a>`;
   const favicon = `data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='${FAVICON_COLOR[theme] ?? FAVICON_COLOR.teal}'/%3E%3Cpath d='M9 17l5 5 9-12' stroke='%230b0f15' stroke-width='4' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E`;
 
   return html`<!doctype html>

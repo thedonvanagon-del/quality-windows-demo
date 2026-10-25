@@ -1,5 +1,5 @@
 import { html } from '../html.js';
-import { formatOdds, formatUnits, selection } from '../picks.js';
+import { formatMoney, formatOdds, formatUnits, selection, toWin } from '../picks.js';
 import { SPORT, SPORTS } from '../sports.js';
 import { PERIODS } from '../stats.js';
 import { kickoff, when } from '../time.js';
@@ -105,21 +105,35 @@ const WAITING = { pre: ['open', 'Open'], in: ['live', 'Live'], post: ['grading',
  * ahead of the game. `who` shows the player's name (feeds); `actions` adds
  * owner-only buttons.
  */
-export function pickItem(p, { who = false, actions = null } = {}) {
+/**
+ * One pick as a ticket. `money` (the owner's own view) shows dollars and a
+ * countdown; everyone else sees units. `who` shows the player's name;
+ * `actions` adds owner-only buttons.
+ */
+export function pickItem(p, { who = false, actions = null, money = false, now = null } = {}) {
   const g = p.game;
+  const dollars = money && p.wager != null;
   const score = g.home.score != null ? `${g.away.abbr} ${g.away.score}, ${g.home.abbr} ${g.home.score}` : null;
+  const soon = now && new Date(g.start) - now < 48 * 3_600_000;
   const status = p.result
     ? score ?? (p.result === 'void' ? g.detail || 'Called off' : '')
     : g.state === 'pre'
-      ? html`Starts ${at(g.start, 'long')}`
+      ? soon ? `Starts in ${lead(now, g.start)}` : html`Starts ${at(g.start, 'long')}`
       : `${g.detail}${score ? ` · ${score}` : ''}`;
   const [kind, label] = p.result ? [p.result, RESULT[p.result]] : WAITING[g.state] ?? WAITING.pre;
-  const pl = p.result === 'win' || p.result === 'loss' ? html` <span class="pl">${minus(formatUnits(p.profit, { sign: true }))}</span>` : '';
+  const won = p.result === 'win' || p.result === 'loss'
+    ? dollars ? formatMoney(p.result === 'win' ? toWin(p.odds, p.wager) : -p.wager, { sign: true }) : formatUnits(p.profit, { sign: true })
+    : null;
+  const pl = won ? html` <span class="pl">${minus(won)}</span>` : '';
+  const stake = dollars
+    ? `${formatMoney(p.wager)}${p.result ? '' : ` to win ${formatMoney(toWin(p.odds, p.wager))}`}`
+    : formatUnits(p.units);
   return html`<li class="ticket">
-    <div class="sel">${who ? html`${profileLink(p.screenName)} · ` : ''}${selection(p.market, p.side, p.line, g)}<span class="odds">${minus(formatOdds(p.odds))}</span><span class="units">${formatUnits(p.units)}</span></div>
+    <div class="sel">${who ? html`${profileLink(p.screenName)} · ` : ''}${selection(p.market, p.side, p.line, g)}<span class="odds">${minus(formatOdds(p.odds))}</span>${dollars ? '' : html`<span class="units">${stake}</span>`}</div>
     <div class="status ${kind}">${label}${pl}</div>
+    ${dollars || actions ? html`<div class="stake">${dollars ? stake : ''}</div>` : ''}
+    ${actions ? html`<div class="act">${actions}</div>` : ''}
     <div class="meta">${SPORT[g.sport]?.short} · ${g.away.short} @ ${g.home.short} · ${status}</div>
     <div class="receipt">${icons.lock}<span>Locked ${at(p.madeAt, 'long')}, ${lead(p.madeAt, g.start)} before the game</span></div>
-    ${actions ? html`<div class="act">${actions}</div>` : ''}
   </li>`;
 }

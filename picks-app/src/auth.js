@@ -72,7 +72,7 @@ export function createSession(store, userId, now) {
 export function readSession(store, token, now) {
   if (!token) return null;
   const row = store.get(
-    `SELECT s.token_hash, s.csrf, s.expires_at, u.id, u.email, u.screen_name, u.created_at, u.theme
+    `SELECT s.token_hash, s.csrf, s.expires_at, u.id, u.email, u.screen_name, u.created_at, u.theme, u.unit_size
        FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.token_hash = ?`,
     sha256(token),
   );
@@ -84,7 +84,7 @@ export function readSession(store, token, now) {
   return {
     tokenHash: row.token_hash,
     csrf: row.csrf,
-    user: { id: row.id, email: row.email, screenName: row.screen_name, createdAt: row.created_at, theme: row.theme },
+    user: { id: row.id, email: row.email, screenName: row.screen_name, createdAt: row.created_at, theme: row.theme, unitSize: row.unit_size ?? 100 },
   };
 }
 

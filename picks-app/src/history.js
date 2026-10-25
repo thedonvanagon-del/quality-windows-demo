@@ -3,7 +3,7 @@
 
 import { toGame } from './games.js';
 
-const COLUMNS = `p.id AS pick_id, p.user_id, p.market, p.side, p.line, p.odds, p.units, p.made_at,
+const COLUMNS = `p.id AS pick_id, p.user_id, p.market, p.side, p.line, p.odds, p.units, p.wager, p.made_at,
                  p.result, p.profit, u.screen_name, g.*`;
 
 function toPick(row) {
@@ -16,6 +16,7 @@ function toPick(row) {
     line: row.line,
     odds: row.odds,
     units: row.units,
+    wager: row.wager,
     madeAt: row.made_at,
     result: row.result,
     profit: row.profit,

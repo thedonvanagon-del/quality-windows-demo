@@ -8,7 +8,17 @@ export const MARKETS = {
   total: ['over', 'under'],
   ml: ['away', 'home'],
 };
-export const UNIT_CHOICES = [0.5, 1, 2, 3, 4, 5];
+// A player types a dollar wager; their record counts it in units, at their
+// own unit size, so a $10 bettor and a $1,000 bettor compete on skill.
+export const DEFAULT_UNIT = 100;
+export const WAGER_MIN = 1;
+export const WAGER_MAX = 100_000;
+export const WAGER_CHIPS = [10, 25, 50, 100, 250];
+
+/** Units for a dollar wager at a unit size, never below a hundredth. */
+export function unitsFor(wager, unitSize = DEFAULT_UNIT) {
+  return Math.max(0.01, round2(wager / unitSize));
+}
 
 /** The line and price on one side of a market right now, or null if it's not up. */
 export function price(game, market, side) {
@@ -55,8 +65,12 @@ export function isLocked(game, now) {
  * Write a pick, or say why not. `seen` is the line and price the player was
  * shown; if the number moved since, they get the new one to confirm instead.
  */
-export function makePick(store, { userId, game, market, side, units, seen, now }) {
-  if (!UNIT_CHOICES.includes(units)) return { error: 'Pick a stake from the list.' };
+export function makePick(store, { userId, game, market, side, wager, unitSize = DEFAULT_UNIT, seen, now }) {
+  if (!Number.isFinite(wager) || wager < WAGER_MIN || wager > WAGER_MAX) {
+    return { error: `Wager between $${WAGER_MIN} and $${WAGER_MAX.toLocaleString('en-US')}.` };
+  }
+  wager = round2(wager);
+  const units = unitsFor(wager, unitSize);
   if (isLocked(game, now)) return { error: 'That game has started. Picks lock at kickoff.' };
   const current = price(game, market, side);
   if (!current) return { error: 'That line is off the board right now.' };
@@ -67,11 +81,11 @@ export function makePick(store, { userId, game, market, side, units, seen, now }
   if (taken) return { error: `You already have a ${MARKET_NAME[market].toLowerCase()} pick on this game.` };
 
   const { lastInsertRowid } = store.run(
-    `INSERT INTO picks (user_id, game_id, sport, market, side, line, odds, units, game_start, made_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    userId, game.id, game.sport, market, side, current.line, current.odds, units, game.start, now.toISOString(),
+    `INSERT INTO picks (user_id, game_id, sport, market, side, line, odds, units, wager, game_start, made_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    userId, game.id, game.sport, market, side, current.line, current.odds, units, wager, game.start, now.toISOString(),
   );
-  return { id: Number(lastInsertRowid) };
+  return { id: Number(lastInsertRowid), wager, units };
 }
 
 /** Delete a pick before its game starts. After that it stays on the record. */
@@ -137,6 +151,12 @@ export function formatSpread(line) {
 
 export function formatOdds(odds) {
   return odds > 0 ? `+${odds}` : `${odds}`;
+}
+
+/** "$1,250", "$90.91", "+$181.82", "-$200" */
+export function formatMoney(n, { sign = false } = {}) {
+  const abs = Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: Number.isInteger(Math.abs(n)) ? 0 : 2, maximumFractionDigits: 2 });
+  return `${n < 0 ? '-' : sign && n > 0 ? '+' : ''}$${abs}`;
 }
 
 export function formatUnits(units, { sign = false } = {}) {

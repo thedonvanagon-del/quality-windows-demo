@@ -368,10 +368,11 @@ a.cell:hover { background: var(--tile-hover); border-color: color-mix(in srgb, v
 .ticket .sel { font-weight: 800; }
 .ticket .sel .odds { color: var(--accent); margin-left: 6px; white-space: nowrap; }
 .ticket .sel .units { color: var(--muted); font-weight: 700; font-size: 0.85rem; margin-left: 6px; white-space: nowrap; }
+.ticket .stake { grid-column: 1; align-self: center; font-weight: 800; font-size: 0.92rem; font-variant-numeric: tabular-nums; }
 .ticket .meta { grid-column: 1 / -1; color: var(--muted); font-size: 0.85rem; }
-.ticket .receipt { grid-column: 1; display: flex; align-items: center; gap: 6px; color: var(--faint); font-size: 0.76rem; }
+.ticket .receipt { grid-column: 1 / -1; display: flex; align-items: center; gap: 6px; color: var(--faint); font-size: 0.76rem; }
 .ticket .receipt svg { width: 12px; height: 12px; flex: none; }
-.ticket .act { grid-column: 2; grid-row: 3; align-self: end; }
+.ticket .act { grid-column: 2; align-self: center; justify-self: end; }
 
 .status { justify-self: end; align-self: start; font-size: 0.7rem; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; padding: 4px 8px; border-radius: 6px; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .status .pl { text-transform: none; }
@@ -420,6 +421,44 @@ tr.me td { background: var(--accent-soft); }
 .members { list-style: none; margin: 0; padding: 0; }
 .members li { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--line); }
 .members li:last-child { border-bottom: 0; }
+
+/* ---- Wagers and My bets ----------------------------------------------------- */
+
+.wager { margin-top: 4px; }
+.money-input { display: flex; align-items: center; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); padding-left: 13px; }
+.money-input > span { color: var(--muted); font-weight: 800; font-size: 1.1rem; }
+.money-input input { border: 0; background: transparent; font-size: 1.25rem; font-weight: 800; padding: 11px 13px 11px 6px; font-variant-numeric: tabular-nums; }
+.money-input input:focus { box-shadow: none; }
+.money-input:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.chips { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 10px; }
+.chip { font: inherit; font-weight: 800; font-size: 0.88rem; padding: 7px 12px; border-radius: 8px; border: 0; background: var(--tile); color: var(--ink); cursor: pointer; font-variant-numeric: tabular-nums; }
+.chip:hover { background: var(--tile-hover); }
+.chip.on { background: var(--accent); color: var(--accent-ink); }
+.slip .towin + p { margin: -6px 0 14px; }
+
+.bets-tabs { margin-top: 26px; }
+
+.nav a .ic, .tabbar a .ic { position: relative; display: inline-grid; place-items: center; }
+.badge {
+  position: absolute;
+  top: -6px;
+  right: -10px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-size: 0.66rem;
+  font-weight: 800;
+  line-height: 18px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.unit-form { display: flex; gap: 8px; align-items: center; max-width: 320px; }
+.unit-form .money-input { flex: 1; }
+.unit-form .money-input input { font-size: 1rem; padding: 9px 12px 9px 6px; }
 
 /* ---- Bio ---------------------------------------------------------------- */
 

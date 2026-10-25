@@ -92,6 +92,12 @@ const MIGRATIONS = [
   `
   ALTER TABLE users ADD COLUMN bio TEXT;
   `,
+  `
+  -- What a player says they're wagering, in dollars, and what one unit is
+  -- worth to them. Dollars stay private; boards count units.
+  ALTER TABLE users ADD COLUMN unit_size REAL;
+  ALTER TABLE picks ADD COLUMN wager REAL;
+  `,
 ];
 
 export function openStore(file) {

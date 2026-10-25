@@ -11,7 +11,7 @@ import { createGroup, deleteGroup, findByCode, groupFor, groupsOf, joinGroup, le
 import { groupFeed, ownPicks, picksOnGames, publicPicks } from './history.js';
 import { THEMES } from './config.js';
 import { LOGO_HOST } from './espn.js';
-import { deletePick, formatLine, formatUnits, isLocked, makePick, MARKETS, price } from './picks.js';
+import { deletePick, formatLine, formatMoney, isLocked, makePick, MARKETS, price, toWin, WAGER_MAX, WAGER_MIN } from './picks.js';
 import { SPORT } from './sports.js';
 import { leaderboard, PERIODS, record, recordBySport } from './stats.js';
 import * as account from './views/account.js';
@@ -224,25 +224,25 @@ export function createApp({ store, games, config, now = () => new Date(), log = 
     if (!signedIn(ctx)) return;
     const market = ctx.form.get('market');
     const side = ctx.form.get('side');
-    const units = Number(ctx.form.get('units'));
+    const wager = Number(String(ctx.form.get('wager') ?? '').replace(/[$,\s]/g, ''));
     const seen = { line: ctx.form.get('line') ? Number(ctx.form.get('line')) : null, odds: Number(ctx.form.get('odds')) };
     const { game, stale } = await games.current(ctx.form.get('game') ?? '');
     if (!game || !MARKETS[market]?.includes(side)) return notFound(ctx);
     const back = `/games?sport=${game.sport}`;
     const current = price(game, market, side);
     if (!isLocked(game, ctx.now) && current && stale) {
-      return send(ctx, 503, play.slip(ctx, { game, market, side, current, units, error: "Can't reach live lines right now, so picks are paused. Try again in a minute." }));
+      return send(ctx, 503, play.slip(ctx, { game, market, side, current, wager, error: "Can't reach live lines right now, so picks are paused. Try again in a minute." }));
     }
-    const result = makePick(store, { userId: ctx.user.id, game, market, side, units, seen, now: ctx.now });
-    if (result.moved) return send(ctx, 409, play.slip(ctx, { game, market, side, current: result.moved, units, error: result.error }));
+    const result = makePick(store, { userId: ctx.user.id, game, market, side, wager, unitSize: ctx.user.unitSize, seen, now: ctx.now });
+    if (result.moved) return send(ctx, 409, play.slip(ctx, { game, market, side, current: result.moved, wager, error: result.error }));
     if (result.error) {
       if (current && !isLocked(game, ctx.now) && !/already/.test(result.error)) {
-        return send(ctx, 400, play.slip(ctx, { game, market, side, current, error: result.error }));
+        return send(ctx, 400, play.slip(ctx, { game, market, side, current, wager: Number.isFinite(wager) ? wager : undefined, error: result.error }));
       }
       flash(ctx, 'error', result.error);
       return redirect(ctx, back);
     }
-    flash(ctx, 'ok', `Locked in: ${formatLine(market, side, current, game)}, ${formatUnits(units)}.`);
+    flash(ctx, 'ok', `Locked in: ${formatLine(market, side, current, game)}, ${formatMoney(result.wager)} to win ${formatMoney(toWin(current.odds, result.wager))}.`);
     redirect(ctx, back);
   }
 
@@ -259,7 +259,20 @@ export function createApp({ store, games, config, now = () => new Date(), log = 
   function myPicks(ctx) {
     if (!signedIn(ctx)) return;
     const { open, graded } = ownPicks(store, ctx.user.id);
-    send(ctx, 200, play.myPicks(ctx, { open, graded, record: record(store, ctx.user.id) }));
+    const tab = ctx.query.get('tab') === 'settled' ? 'settled' : 'open';
+    send(ctx, 200, play.myPicks(ctx, { open, graded, tab, record: record(store, ctx.user.id) }));
+  }
+
+  function unitPost(ctx) {
+    if (!signedIn(ctx)) return;
+    const size = Number(String(ctx.form.get('unit_size') ?? '').replace(/[$,\s]/g, ''));
+    if (Number.isFinite(size) && size >= WAGER_MIN && size <= WAGER_MAX) {
+      store.run('UPDATE users SET unit_size = ? WHERE id = ?', Math.round(size * 100) / 100, ctx.user.id);
+      flash(ctx, 'ok', `One unit is ${formatMoney(size)} now. Bets you already made keep their units.`);
+    } else {
+      flash(ctx, 'error', `Set a unit between ${formatMoney(WAGER_MIN)} and ${formatMoney(WAGER_MAX)}.`);
+    }
+    redirect(ctx, `/u/${encodeURIComponent(ctx.user.screenName)}`);
   }
 
   function leaderboardPage(ctx) {
@@ -427,6 +440,7 @@ export function createApp({ store, games, config, now = () => new Date(), log = 
     ['GET', '/u/:name', profilePage],
     ['POST', '/theme', themePost],
     ['POST', '/bio', bioPost],
+    ['POST', '/unit', unitPost],
   ].map(([method, pattern, handler]) => {
     const keys = [];
     const regex = new RegExp(`^${pattern.replace(/:(\w+)/g, (_, key) => (keys.push(key), '([^/]+)'))}$`);
@@ -458,6 +472,8 @@ export function createApp({ store, games, config, now = () => new Date(), log = 
       const cookies = parseCookies(req.headers.cookie);
       ctx.session = auth.readSession(store, cookies.sid, ctx.now);
       ctx.user = ctx.session?.user ?? null;
+      // The count on the My bets tab.
+      if (ctx.user?.screenName) ctx.openBets = store.get('SELECT COUNT(*) AS n FROM picks WHERE user_id = ? AND result IS NULL', ctx.user.id).n;
       if (cookies.flash) {
         ctx.flash = readFlash(cookies.flash);
         setCookie(ctx, 'flash', '', 0);
