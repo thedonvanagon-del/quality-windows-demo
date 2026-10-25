@@ -88,3 +88,23 @@ jobs:
       - name: demo runs end to end
         working-directory: cfb-bot
         run: python -m cfbbot --demo
+
+  mug-bot:
+    name: mug-bot tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - run: pip install pillow
+
+      - name: unit tests
+        working-directory: mug-bot
+        run: python -m unittest discover -s tests -v
+
+      - name: art fits the print area
+        working-directory: mug-bot
+        run: python -m mugbot make --image designs/joy-to-the-brew.png --title "Joy to the Brew" --dry-run
