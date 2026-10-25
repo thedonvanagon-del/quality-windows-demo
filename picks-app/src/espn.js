@@ -57,8 +57,22 @@ function team(competitor, state) {
     name: t.displayName ?? t.shortDisplayName ?? t.abbreviation ?? '?',
     short: t.shortDisplayName ?? t.name ?? t.abbreviation ?? '?',
     abbr: t.abbreviation ?? '',
+    logo: espnLogo(t.logo ?? t.logos?.[0]?.href),
     score: state === 'pre' || Number.isNaN(score) ? null : score,
   };
+}
+
+// Team logos load straight from ESPN's image server, the way Bookie Bullies
+// shows them. Only that host: the page's security policy allows nothing else.
+export const LOGO_HOST = 'a.espncdn.com';
+
+function espnLogo(url) {
+  try {
+    const u = new URL(url);
+    return u.protocol === 'https:' && u.hostname === LOGO_HOST ? u.href : null;
+  } catch {
+    return null;
+  }
 }
 
 function firstOdds(list) {

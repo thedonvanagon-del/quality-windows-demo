@@ -82,6 +82,10 @@ const MIGRATIONS = [
   );
   CREATE INDEX group_members_user ON group_members(user_id);
   `,
+  `
+  ALTER TABLE games ADD COLUMN home_logo TEXT;
+  ALTER TABLE games ADD COLUMN away_logo TEXT;
+  `,
 ];
 
 export function openStore(file) {

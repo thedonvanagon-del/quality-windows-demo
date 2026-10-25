@@ -107,10 +107,16 @@ function espnEvent(g, at) {
   const done = at >= new Date(new Date(g.start).getTime() + 3.5 * HOUR);
   const share = done ? 1 : started ? Math.min(0.9, (at - new Date(g.start)) / (3.5 * HOUR)) : 0;
   const state = done ? 'post' : started ? 'in' : 'pre';
+  const pro = ['nfl', 'nba', 'mlb', 'nhl'].includes(g.sport);
   const competitor = (side) => ({
     homeAway: side,
     score: started ? String(Math.round(g.final[side] * share)) : '0',
-    team: { abbreviation: g[side].abbr, displayName: g[side].name, shortDisplayName: g[side].short },
+    team: {
+      abbreviation: g[side].abbr,
+      displayName: g[side].name,
+      shortDisplayName: g[side].short,
+      logo: pro ? `https://a.espncdn.com/i/teamlogos/${g.sport}/500/${g[side].abbr.toLowerCase()}.png` : undefined,
+    },
   });
   const legacy = g.sport === 'mlb' || g.sport === 'nhl';
   const fav = g.ml.home < 0 ? 'home' : 'away';

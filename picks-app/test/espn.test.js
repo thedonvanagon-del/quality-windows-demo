@@ -79,3 +79,13 @@ test('skips events it cannot read', () => {
   assert.deepEqual(games, []);
   assert.deepEqual(parseScoreboard(SPORT.nfl, null), []);
 });
+
+test("keeps team logos only from ESPN's image server", () => {
+  const e = event({ id: '4', start: '2026-10-25T17:00Z' });
+  const [home, away] = e.competitions[0].competitors;
+  home.team.logo = 'https://a.espncdn.com/i/teamlogos/nfl/500/kc.png';
+  away.team.logo = 'https://evil.example/track.png';
+  const [game] = parseScoreboard(SPORT.nfl, { events: [e] });
+  assert.equal(game.home.logo, 'https://a.espncdn.com/i/teamlogos/nfl/500/kc.png');
+  assert.equal(game.away.logo, null);
+});

@@ -50,20 +50,22 @@ export function createGames({ store, espn, now = () => new Date(), log = console
         const replaceLines = g.state === 'pre' || Boolean(g.lines.spread || g.lines.total || g.lines.ml);
         store.run(
           `INSERT INTO games (id, sport, start_time, state, status, detail, completed,
-                              home_name, home_short, home_abbr, home_score,
-                              away_name, away_short, away_abbr, away_score, lines, updated_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                              home_name, home_short, home_abbr, home_score, home_logo,
+                              away_name, away_short, away_abbr, away_score, away_logo, lines, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
            ON CONFLICT (id) DO UPDATE SET
              start_time = excluded.start_time, state = excluded.state, status = excluded.status,
              detail = excluded.detail, completed = excluded.completed,
              home_score = excluded.home_score, away_score = excluded.away_score,
+             home_logo = COALESCE(excluded.home_logo, games.home_logo),
+             away_logo = COALESCE(excluded.away_logo, games.away_logo),
              -- ESPN drops the odds once a game starts; keep the last ones seen
              -- for display.
              lines = CASE WHEN ? THEN excluded.lines ELSE games.lines END,
              updated_at = excluded.updated_at`,
           g.id, g.sport, g.start, g.state, g.status, g.detail, g.completed ? 1 : 0,
-          g.home.name, g.home.short, g.home.abbr, g.home.score,
-          g.away.name, g.away.short, g.away.abbr, g.away.score, lines, at, replaceLines ? 1 : 0,
+          g.home.name, g.home.short, g.home.abbr, g.home.score, g.home.logo ?? null,
+          g.away.name, g.away.short, g.away.abbr, g.away.score, g.away.logo ?? null, lines, at, replaceLines ? 1 : 0,
         );
       }
     });
@@ -147,8 +149,8 @@ export function toGame(row) {
     status: row.status,
     detail: row.detail,
     completed: Boolean(row.completed),
-    home: { name: row.home_name, short: row.home_short, abbr: row.home_abbr, score: row.home_score },
-    away: { name: row.away_name, short: row.away_short, abbr: row.away_abbr, score: row.away_score },
+    home: { name: row.home_name, short: row.home_short, abbr: row.home_abbr, score: row.home_score, logo: row.home_logo },
+    away: { name: row.away_name, short: row.away_short, abbr: row.away_abbr, score: row.away_score, logo: row.away_logo },
     lines: JSON.parse(row.lines),
     updatedAt: row.updated_at,
   };

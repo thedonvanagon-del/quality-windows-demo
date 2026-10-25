@@ -9,6 +9,7 @@ import { fileURLToPath } from 'node:url';
 import * as auth from './auth.js';
 import { createGroup, deleteGroup, findByCode, groupFor, groupsOf, joinGroup, leaveGroup, membersOf } from './groups.js';
 import { groupFeed, ownPicks, picksOnGames, publicPicks } from './history.js';
+import { LOGO_HOST } from './espn.js';
 import { deletePick, formatLine, formatUnits, isLocked, makePick, MARKETS, price } from './picks.js';
 import { SPORT } from './sports.js';
 import { leaderboard, PERIODS, record, recordBySport } from './stats.js';
@@ -22,7 +23,7 @@ const DEFAULT_SPORT = 'nfl';
 
 const SECURITY_HEADERS = {
   'Content-Security-Policy':
-    "default-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'self'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'; object-src 'none'",
+    `default-src 'self'; img-src 'self' data: https://${LOGO_HOST}; style-src 'self'; script-src 'self'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'; object-src 'none'`,
   'X-Content-Type-Options': 'nosniff',
   'X-Frame-Options': 'DENY',
   'Referrer-Policy': 'same-origin',
@@ -31,7 +32,7 @@ const SECURITY_HEADERS = {
 
 export function createApp({ store, games, config, now = () => new Date(), log = console }) {
   const assets = loadAssets();
-  const app = { name: config.appName, assets: { css: assets.url('style.css'), js: assets.url('app.js') } };
+  const app = { name: config.appName, theme: config.theme ?? 'teal', assets: { css: assets.url('style.css'), js: assets.url('app.js') } };
   const loginLimit = auth.rateLimiter({ limit: 10, windowMs: 15 * 60_000 });
   const signupLimit = auth.rateLimiter({ limit: 10, windowMs: 60 * 60_000 });
   const joinLimit = auth.rateLimiter({ limit: 30, windowMs: 60 * 60_000 });

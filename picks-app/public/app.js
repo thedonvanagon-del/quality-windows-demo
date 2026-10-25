@@ -41,3 +41,10 @@ for (const button of document.querySelectorAll('[data-copy]')) {
     }
   });
 }
+
+// Team initials show until a logo has actually loaded, and stay if it never does.
+for (const img of document.querySelectorAll('.logo img')) {
+  const shown = () => img.parentElement.classList.add('loaded');
+  if (img.complete && img.naturalWidth) shown();
+  else img.addEventListener('load', shown);
+}

@@ -211,7 +211,7 @@ describe('grading and boards', () => {
     assert.ok(board.indexOf('Ann') < board.indexOf('Bob') && board.indexOf('Bob') < board.indexOf('Cat'), board);
     assert.match(board, /Ann 1-0 100% \+1\.82u \+91%/);
     assert.match(visible((await app.browser().get('/leaderboard?sport=nba')).text), /No graded picks here yet/);
-    assert.match(visible((await ann.get('/picks')).text), /W \+1\.82u/);
+    assert.match(visible((await ann.get('/picks')).text), /Won \+1\.82u/);
     assert.match(visible((await app.browser().get('/u/Cat')).text), /0-1/);
   });
 

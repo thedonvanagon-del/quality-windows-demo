@@ -3,7 +3,7 @@ import { formatOdds, formatSpread, formatUnits, MARKET_NAME, price, selection, t
 import { SPORT } from '../sports.js';
 import { dayLabel, etDay } from '../time.js';
 import { csrfField, layout } from './layout.js';
-import { at, pickItem, sportTabs, statStrip } from './parts.js';
+import { at, minus, pickItem, sportTabs, statStrip, teamLogo } from './parts.js';
 
 /** `mine` maps game id -> { spread: 'home', total: 'over', ... } for the player's picks. */
 export function games(ctx, { sport, list, mine, problem }) {
@@ -18,7 +18,7 @@ export function games(ctx, { sport, list, mine, problem }) {
     active: 'games',
     body: html`
       <h1>Games</h1>
-      <p class="lede">Tap a number to pick it. It takes the line on the board right now and locks when the game starts.</p>
+      <p class="lede">Tap a number to pick it. You get the line on the board right now, and it locks when the game starts.</p>
       ${sportTabs('/games', ctx.query, { all: false })}
       ${problem ? html`<div class="flash err" role="status">Can't reach live lines right now. Showing the last ones we saw.</div>` : ''}
       ${days.length
@@ -33,14 +33,13 @@ export function games(ctx, { sport, list, mine, problem }) {
 
 function gameCard(game, mine, sport) {
   const row = (side, totalSide) => html`
-    <span class="team">${side === 'home' ? html`<small>@</small> ` : ''}${game[side].short}</span>
+    <span class="team">${teamLogo(game[side])}<span class="tname">${game[side].short}</span></span>
     ${cell(game, 'spread', side, mine)}
     ${cell(game, 'total', totalSide, mine)}
     ${cell(game, 'ml', side, mine)}`;
-  return html`<article class="card game">
-    <div class="game-head"><span>${at(game.start)}</span><span>${game.lines.book ?? ''}</span></div>
+  return html`<article class="event" aria-label="${game.away.name} at ${game.home.name}">
     <div class="board">
-      <span></span><span class="colhead">${sport.spread}</span><span class="colhead">Total</span><span class="colhead">Money</span>
+      <span class="when">${at(game.start)}</span><span class="colhead">${sport.spread}</span><span class="colhead">Total</span><span class="colhead">Money</span>
       ${row('away', 'over')}
       ${row('home', 'under')}
     </div>
@@ -50,43 +49,57 @@ function gameCard(game, mine, sport) {
 function cell(game, market, side, mine) {
   const p = price(game, market, side);
   if (!p) return html`<span class="cell off" aria-label="No ${MARKET_NAME[market].toLowerCase()} yet">–</span>`;
+  const ml = market === 'ml';
   const top = market === 'spread' ? formatSpread(p.line) : market === 'total' ? `${side === 'over' ? 'O' : 'U'} ${p.line}` : formatOdds(p.odds);
-  const bottom = market === 'ml' ? '' : formatOdds(p.odds);
-  const inner = html`${top}${bottom ? html`<small>${bottom}</small>` : ''}`;
+  const inner = html`${minus(top)}${ml ? '' : html`<small>${minus(formatOdds(p.odds))}</small>`}`;
+  const kind = ml ? 'cell price' : 'cell';
   const label = `${selection(market, side, p.line, game)} at ${formatOdds(p.odds)}`;
-  if (mine[market] === side) return html`<a class="cell mine" href="/picks" aria-label="Your pick: ${label}">${inner}</a>`;
-  if (mine[market]) return html`<span class="cell taken" aria-label="${label}, you took the other side">${inner}</span>`;
+  if (mine[market] === side) return html`<a class="${kind} mine" href="/picks" aria-label="Your pick: ${label}">${inner}</a>`;
+  if (mine[market]) return html`<span class="${kind} taken" aria-label="${label}, you took the other side">${inner}</span>`;
   const query = new URLSearchParams({ game: game.id, market, side });
-  return html`<a class="cell" href="/pick?${query}" aria-label="Pick ${label}">${inner}</a>`;
+  return html`<a class="${kind}" href="/pick?${query}" aria-label="Pick ${label}">${inner}</a>`;
 }
 
 export function slip(ctx, { game, market, side, current, error, units = 1 }) {
   const sport = SPORT[game.sport];
+  const picked = side === 'home' || side === 'away' ? game[side] : null;
   return layout(ctx, {
     title: 'Make a pick',
     active: 'games',
     body: html`
-      <p><a href="/games?sport=${sport.key}">← ${sport.short} games</a></p>
-      ${error ? html`<div class="flash err" role="alert">${error}</div>` : ''}
-      <div class="card slip">
-        <div class="muted small">${sport.short} · ${game.away.short} @ ${game.home.short} · ${at(game.start)}</div>
-        <div class="pickname">${selection(market, side, current.line, game)}</div>
-        <div class="muted">${formatOdds(current.odds)} · ${market === 'spread' ? sport.spread : MARKET_NAME[market]}${game.lines.book ? ` · ${game.lines.book} line via ESPN` : ''}</div>
-        <form method="post" action="/picks" class="stack" data-odds="${current.odds}">
-          ${csrfField(ctx)}
-          <input type="hidden" name="game" value="${game.id}">
-          <input type="hidden" name="market" value="${market}">
-          <input type="hidden" name="side" value="${side}">
-          <input type="hidden" name="line" value="${current.line ?? ''}">
-          <input type="hidden" name="odds" value="${current.odds}">
-          <fieldset class="stakes">
-            <legend>Stake</legend>
-            ${UNIT_CHOICES.map((u) => html`<label><input type="radio" name="units" value="${u}" ${u === units ? 'checked' : ''}><span>${formatUnits(u)}</span></label>`)}
-          </fieldset>
-          <p>To win <b data-to-win>${formatUnits(toWin(current.odds, units))}</b></p>
-          <button class="btn">Lock it in</button>
-        </form>
-        <p class="muted small">You can delete it until the game starts. After that it's on your record for good.</p>
+      <div class="narrow">
+        <a class="back" href="/games?sport=${sport.key}">← ${sport.short} games</a>
+        ${error ? html`<div class="flash err" role="alert">${error}</div>` : ''}
+        <div class="slip">
+          <div class="slip-head"><span>Pick slip</span><span>${sport.short} · ${at(game.start)}</span></div>
+          <div class="slip-body">
+            <div class="slip-sel">
+              <div class="team">
+                ${picked ? teamLogo(picked) : ''}
+                <div>
+                  <div class="pickname">${selection(market, side, current.line, game)}</div>
+                  <div class="slip-meta">${market === 'spread' ? sport.spread : MARKET_NAME[market]} · ${game.away.short} @ ${game.home.short}</div>
+                </div>
+              </div>
+              <span class="odds-pill">${minus(formatOdds(current.odds))}</span>
+            </div>
+            <form method="post" action="/picks" data-odds="${current.odds}">
+              ${csrfField(ctx)}
+              <input type="hidden" name="game" value="${game.id}">
+              <input type="hidden" name="market" value="${market}">
+              <input type="hidden" name="side" value="${side}">
+              <input type="hidden" name="line" value="${current.line ?? ''}">
+              <input type="hidden" name="odds" value="${current.odds}">
+              <fieldset class="stakes">
+                <legend>Stake</legend>
+                ${UNIT_CHOICES.map((u) => html`<label><input type="radio" name="units" value="${u}" ${u === units ? 'checked' : ''}><span>${formatUnits(u)}</span></label>`)}
+              </fieldset>
+              <div class="towin"><span>To win</span><b data-to-win>${formatUnits(toWin(current.odds, units))}</b></div>
+              <button class="btn block">Lock it in</button>
+            </form>
+            <p class="fine">You can delete it until the game starts. After that it's on your record for good.${game.lines.book ? ` Line from ${game.lines.book} via ESPN.` : ''}</p>
+          </div>
+        </div>
       </div>
     `,
   });
@@ -102,18 +115,18 @@ export function myPicks(ctx, { open, graded, record }) {
       ${statStrip(record)}
       <h2>Open</h2>
       ${open.length
-        ? html`<div class="card"><ul class="picks">${open.map((p) =>
+        ? html`<ul class="tickets">${open.map((p) =>
             pickItem(p, {
               actions:
                 p.game.state === 'pre' && new Date(p.game.start) > ctx.now
                   ? html`<form method="post" action="/picks/${p.id}/delete" data-confirm="Delete this pick?">${csrfField(ctx)}<button class="btn danger small">Delete</button></form>`
                   : null,
             }),
-          )}</ul></div>`
+          )}</ul>`
         : html`<div class="card empty">Nothing open. <a href="/games">Find a game</a>.</div>`}
       <h2>Graded</h2>
       ${graded.length
-        ? html`<div class="card"><ul class="picks">${graded.map((p) => pickItem(p))}</ul></div>`
+        ? html`<ul class="tickets">${graded.map((p) => pickItem(p))}</ul>`
         : html`<div class="card empty">Your graded picks land here once games go final.</div>`}
     `,
   });

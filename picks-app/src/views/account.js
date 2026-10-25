@@ -1,4 +1,5 @@
 import { html } from '../html.js';
+import { icons } from './icons.js';
 import { csrfField, layout } from './layout.js';
 import { boardTable } from './parts.js';
 
@@ -6,18 +7,19 @@ export function home(ctx, { top }) {
   return layout(ctx, {
     body: html`
       <section class="hero">
+        <span class="eyebrow">${icons.lock} Picks lock at kickoff</span>
         <h1>Every pick on the record.</h1>
         <p>Make your picks before the game. They lock at the start, get graded off the final score, and nobody can edit them. Not even you.</p>
         <div class="row">
           <a class="btn" href="/signup">Start your record</a>
-          <a class="btn quiet" href="/leaderboard">See the leaderboard</a>
+          <a class="btn ghost" href="/leaderboard">See the leaderboard</a>
         </div>
       </section>
       <div class="rules">
-        <div class="card"><h3>Locked at the start</h3><p>Picks close the second a game starts. Change your mind before then and you can delete it. After that, it's on the record.</p></div>
-        <div class="card"><h3>The real number</h3><p>Every pick takes the line ESPN is showing right then. Nobody types in a better number than the one that was out there.</p></div>
-        <div class="card"><h3>Graded for you</h3><p>Final scores come straight from ESPN. Wins, losses and pushes add up on their own, units and all.</p></div>
-        <div class="card"><h3>Bring your people</h3><p>Climb the big board, a single sport's board, or start a group for your friends with an invite code.</p></div>
+        <div class="rule"><span class="icon">${icons.lock}</span><h3>Locked at the start</h3><p>Picks close the second a game starts. Change your mind before then and you can delete it. After that, it's on the record.</p></div>
+        <div class="rule"><span class="icon">${icons.line}</span><h3>The real number</h3><p>Every pick takes the line ESPN is showing right then. Nobody types in a better number than the one that was out there.</p></div>
+        <div class="rule"><span class="icon">${icons.grade}</span><h3>Graded for you</h3><p>Final scores come straight from ESPN. Wins, losses and pushes add up on their own, units and all.</p></div>
+        <div class="rule"><span class="icon">${icons.groups}</span><h3>Bring your people</h3><p>Climb the big board, a single sport's board, or start a group for your friends with an invite code.</p></div>
       </div>
       <h2>Top 10, last 30 days</h2>
       ${boardTable(top)}
@@ -30,18 +32,20 @@ export function signup(ctx, { email = '', error, next }) {
     title: 'Sign up',
     active: 'signup',
     body: html`
-      <h1>Start your record</h1>
-      <p class="lede">Email and a password. You'll pick a screen name next.</p>
-      ${error ? html`<div class="flash err" role="alert">${error}</div>` : ''}
-      <form class="form" method="post" action="/signup">
-        ${csrfField(ctx)}
-        ${next ? html`<input type="hidden" name="next" value="${next}">` : ''}
-        <label>Email<input type="email" name="email" value="${email}" autocomplete="email" required maxlength="254"></label>
-        <label>Password <span class="hint">At least 8 characters.</span>
-          <input type="password" name="password" autocomplete="new-password" required minlength="8" maxlength="200"></label>
-        <button class="btn">Create account</button>
-      </form>
-      <p class="muted small">Already have one? <a href="/login${next ? `?next=${encodeURIComponent(next)}` : ''}">Log in</a></p>
+      <div class="auth">
+        <h1>Start your record</h1>
+        <p class="lede">Email and a password. You'll pick a screen name next.</p>
+        ${error ? html`<div class="flash err" role="alert">${error}</div>` : ''}
+        <form class="form" method="post" action="/signup">
+          ${csrfField(ctx)}
+          ${next ? html`<input type="hidden" name="next" value="${next}">` : ''}
+          <label>Email<input type="email" name="email" value="${email}" autocomplete="email" required maxlength="254"></label>
+          <label>Password <span class="hint">At least 8 characters.</span>
+            <input type="password" name="password" autocomplete="new-password" required minlength="8" maxlength="200"></label>
+          <button class="btn block">Create account</button>
+        </form>
+        <p class="fine">Already have one? <a href="/login${next ? `?next=${encodeURIComponent(next)}` : ''}">Log in</a></p>
+      </div>
     `,
   });
 }
@@ -51,16 +55,19 @@ export function login(ctx, { email = '', error, next }) {
     title: 'Log in',
     active: 'login',
     body: html`
-      <h1>Welcome back</h1>
-      ${error ? html`<div class="flash err" role="alert">${error}</div>` : ''}
-      <form class="form" method="post" action="/login">
-        ${csrfField(ctx)}
-        ${next ? html`<input type="hidden" name="next" value="${next}">` : ''}
-        <label>Email<input type="email" name="email" value="${email}" autocomplete="email" required maxlength="254"></label>
-        <label>Password<input type="password" name="password" autocomplete="current-password" required maxlength="200"></label>
-        <button class="btn">Log in</button>
-      </form>
-      <p class="muted small">New here? <a href="/signup${next ? `?next=${encodeURIComponent(next)}` : ''}">Make an account</a></p>
+      <div class="auth">
+        <h1>Welcome back</h1>
+        <p class="lede">Log in to make your picks.</p>
+        ${error ? html`<div class="flash err" role="alert">${error}</div>` : ''}
+        <form class="form" method="post" action="/login">
+          ${csrfField(ctx)}
+          ${next ? html`<input type="hidden" name="next" value="${next}">` : ''}
+          <label>Email<input type="email" name="email" value="${email}" autocomplete="email" required maxlength="254"></label>
+          <label>Password<input type="password" name="password" autocomplete="current-password" required maxlength="200"></label>
+          <button class="btn block">Log in</button>
+        </form>
+        <p class="fine">New here? <a href="/signup${next ? `?next=${encodeURIComponent(next)}` : ''}">Make an account</a></p>
+      </div>
     `,
   });
 }
@@ -69,16 +76,18 @@ export function welcome(ctx, { name = '', error, next }) {
   return layout(ctx, {
     title: 'Pick a screen name',
     body: html`
-      <h1>Pick your screen name</h1>
-      <p class="lede">It's how you show up on leaderboards and in groups. It stays with your record, so pick one you'll want to keep.</p>
-      ${error ? html`<div class="flash err" role="alert">${error}</div>` : ''}
-      <form class="form" method="post" action="/welcome">
-        ${csrfField(ctx)}
-        ${next ? html`<input type="hidden" name="next" value="${next}">` : ''}
-        <label>Screen name <span class="hint">3 to 20 letters, numbers or underscores.</span>
-          <input type="text" name="screen_name" value="${name}" autocomplete="nickname" required minlength="3" maxlength="20" pattern="[A-Za-z0-9_]{3,20}" autocapitalize="off" spellcheck="false"></label>
-        <button class="btn">Lock it in</button>
-      </form>
+      <div class="auth">
+        <h1>Pick your screen name</h1>
+        <p class="lede">It's how you show up on leaderboards and in groups. It stays with your record, so pick one you'll want to keep.</p>
+        ${error ? html`<div class="flash err" role="alert">${error}</div>` : ''}
+        <form class="form" method="post" action="/welcome">
+          ${csrfField(ctx)}
+          ${next ? html`<input type="hidden" name="next" value="${next}">` : ''}
+          <label>Screen name <span class="hint">3 to 20 letters, numbers or underscores.</span>
+            <input type="text" name="screen_name" value="${name}" autocomplete="nickname" required minlength="3" maxlength="20" pattern="[A-Za-z0-9_]{3,20}" autocapitalize="off" spellcheck="false"></label>
+          <button class="btn block">Lock it in</button>
+        </form>
+      </div>
     `,
   });
 }
