@@ -8,14 +8,13 @@ Usage (run inside the drop folder, next to listings.csv and prints/):
   python3 printify_mugs.py --publish     # same, then pushes each product to the connected sales channel
   python3 printify_mugs.py --only BB-DROP7-M01,BB-DROP7-M05
 
-Re-running is safe: finished SKUs are saved in progress.json and skipped.
+Re-running is safe: finished SKUs are saved in progress-<shop id>.json and skipped.
 Standard library only.
 """
 import argparse, base64, csv, json, os, struct, sys, time, urllib.error, urllib.request
 
 API = "https://api.printify.com/v1"
 HERE = os.getcwd()
-PROGRESS = os.path.join(HERE, "progress.json")
 PROVIDER_PREF = [99, 410, 48, 1, 39, 94, 29]   # Printify Choice, Printful, Colorway, SPOKE, SwiftPOD, Harrier, Monster Digital
 
 
@@ -109,6 +108,7 @@ def main():
         keep = set(a.only.split(",")); rows = [r for r in rows if r["sku"] in keep]
     shop = pick_shop(a.shop_id)
     blanks = {bp: pick_provider(bp) for bp in sorted({int(r["blueprint"]) for r in rows})}
+    PROGRESS = os.path.join(HERE, f"progress-{shop}.json")  # per shop, so a new shop never skips SKUs made elsewhere
     done = json.load(open(PROGRESS)) if os.path.exists(PROGRESS) else {}
     failed = []
 
