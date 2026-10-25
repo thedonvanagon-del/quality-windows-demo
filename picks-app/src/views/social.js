@@ -117,6 +117,18 @@ export function join(ctx, { group, members, already }) {
   });
 }
 
+const COLORS = { ember: 'Ember', teal: 'Teal', violet: 'Violet' };
+
+/** Three swatches; the player's pick colors the app on every device they use. */
+function colorPicker(ctx) {
+  const current = ctx.user.theme ?? ctx.app.theme;
+  return html`<h2>App color</h2>
+    <form class="swatches" method="post" action="/theme">
+      ${csrfField(ctx)}
+      ${Object.entries(COLORS).map(([key, label]) => html`<button name="theme" value="${key}" class="swatch ${key} ${key === current ? 'on' : ''}" ${key === current ? html`aria-pressed="true"` : html`aria-pressed="false"`}><span></span>${label}</button>`)}
+    </form>`;
+}
+
 export function profile(ctx, { player, record, bySport, picks, hidden }) {
   return layout(ctx, {
     title: player.screen_name,
@@ -126,6 +138,7 @@ export function profile(ctx, { player, record, bySport, picks, hidden }) {
       <div class="team"><span class="avatar big">${player.screen_name[0]}</span><h1>${player.screen_name}</h1></div>
       <p class="lede">On the record since ${joined(player.created_at)}. ${record.graded} graded ${record.graded === 1 ? 'pick' : 'picks'}, every one locked before its game.</p>
       ${statStrip(record)}
+      ${ctx.user?.id === player.id ? colorPicker(ctx) : ''}
       ${bySport.length
         ? html`<h2>By sport</h2>
           <div class="table"><table>

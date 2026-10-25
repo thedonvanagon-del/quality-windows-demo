@@ -421,6 +421,16 @@ tr.me td { background: var(--accent-soft); }
 .members li { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--line); }
 .members li:last-child { border-bottom: 0; }
 
+/* ---- Color picker ------------------------------------------------------ */
+
+.swatches { display: flex; gap: 8px; flex-wrap: wrap; }
+.swatch { display: inline-flex; align-items: center; gap: 8px; font: inherit; font-weight: 700; font-size: 0.9rem; color: var(--ink); background: var(--card); border: 1px solid var(--line); border-radius: 999px; padding: 6px 14px 6px 6px; cursor: pointer; }
+.swatch span { width: 22px; height: 22px; border-radius: 50%; }
+.swatch.ember span { background: #ff8f45; }
+.swatch.teal span { background: #22d3b0; }
+.swatch.violet span { background: #a78bfa; }
+.swatch.on { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+
 /* ---- Footer ------------------------------------------------------------- */
 
 footer { border-top: 1px solid var(--line); padding: 20px 0 32px; color: var(--faint); font-size: 0.82rem; }

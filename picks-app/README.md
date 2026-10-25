@@ -54,8 +54,8 @@ five.
 | `/u/<name>` | A player's public record: overall, by sport, and every pick with when it was locked. |
 
 It looks like a sportsbook: dark, with odds tiles, team logos from ESPN's
-image server, and an app-style tab bar on phones. `THEME` picks the accent
-color.
+image server, and an app-style tab bar on phones. Players pick their accent
+color (orange, teal or violet) on their profile.
 
 Sports: NFL, college football, NBA, college basketball, MLB and NHL. Run lines
 and puck lines only go up when ESPN posts a price for them.
@@ -76,7 +76,7 @@ npm start       # the real thing, against ESPN, with the database in data/receip
 | `PORT` | `3000` | Where it listens. |
 | `DATABASE_PATH` | `data/receipts.db` | The SQLite file. This holds every account and every record. |
 | `APP_NAME` | `Receipts` | The name in the header and the page titles. |
-| `THEME` | `teal` | The accent color: `teal`, `violet` or `ember`. Everything else stays dark and neutral. |
+| `THEME` | `ember` | The accent color for visitors and new players: `ember` (orange), `teal` or `violet`. Each player can switch on their own profile. |
 | `TRUST_PROXY` | off | Turn on behind a host's proxy (Fly, Render, Railway) so it reads the real visitor IP and knows the site is on https. |
 | `DEMO` | off | Fake games and players. Never in production. |
 

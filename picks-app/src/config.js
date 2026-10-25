@@ -1,4 +1,5 @@
-export const THEMES = ['teal', 'violet', 'ember'];
+// The first is the default. Each player can switch on their profile.
+export const THEMES = ['ember', 'teal', 'violet'];
 
 export function loadConfig(env = process.env) {
   return {
@@ -6,7 +7,7 @@ export function loadConfig(env = process.env) {
     host: env.HOST || '0.0.0.0',
     databasePath: env.DATABASE_PATH || 'data/receipts.db',
     appName: env.APP_NAME || 'Receipts',
-    // The accent color: teal, violet or ember. See public/style.css.
+    // The accent color for visitors and new players: ember, teal or violet.
     theme: THEMES.includes(env.THEME) ? env.THEME : THEMES[0],
     // Fake games and players, so the app can be clicked through with no
     // network. Never set this in production.

@@ -9,6 +9,7 @@ import { fileURLToPath } from 'node:url';
 import * as auth from './auth.js';
 import { createGroup, deleteGroup, findByCode, groupFor, groupsOf, joinGroup, leaveGroup, membersOf } from './groups.js';
 import { groupFeed, ownPicks, picksOnGames, publicPicks } from './history.js';
+import { THEMES } from './config.js';
 import { LOGO_HOST } from './espn.js';
 import { deletePick, formatLine, formatUnits, isLocked, makePick, MARKETS, price } from './picks.js';
 import { SPORT } from './sports.js';
@@ -32,7 +33,7 @@ const SECURITY_HEADERS = {
 
 export function createApp({ store, games, config, now = () => new Date(), log = console }) {
   const assets = loadAssets();
-  const app = { name: config.appName, theme: config.theme ?? 'teal', assets: { css: assets.url('style.css'), js: assets.url('app.js') } };
+  const app = { name: config.appName, theme: config.theme ?? THEMES[0], assets: { css: assets.url('style.css'), js: assets.url('app.js') } };
   const loginLimit = auth.rateLimiter({ limit: 10, windowMs: 15 * 60_000 });
   const signupLimit = auth.rateLimiter({ limit: 10, windowMs: 60 * 60_000 });
   const joinLimit = auth.rateLimiter({ limit: 30, windowMs: 60 * 60_000 });
@@ -357,6 +358,13 @@ export function createApp({ store, games, config, now = () => new Date(), log = 
     }));
   }
 
+  function themePost(ctx) {
+    if (!signedIn(ctx)) return;
+    const theme = ctx.form.get('theme');
+    if (THEMES.includes(theme)) store.run('UPDATE users SET theme = ? WHERE id = ?', theme, ctx.user.id);
+    redirect(ctx, `/u/${encodeURIComponent(ctx.user.screenName)}`);
+  }
+
   function asset(ctx, { name }) {
     const file = assets.files.get(name);
     if (!file) return notFound(ctx);
@@ -403,6 +411,7 @@ export function createApp({ store, games, config, now = () => new Date(), log = 
     ['GET', '/join/:code', joinPage],
     ['POST', '/join/:code', joinPost],
     ['GET', '/u/:name', profilePage],
+    ['POST', '/theme', themePost],
   ].map(([method, pattern, handler]) => {
     const keys = [];
     const regex = new RegExp(`^${pattern.replace(/:(\w+)/g, (_, key) => (keys.push(key), '([^/]+)'))}$`);

@@ -9,6 +9,7 @@ const FAVICON_COLOR = { teal: '%2322d3b0', violet: '%23a78bfa', ember: '%23ff8f4
  */
 export function layout(ctx, { title, active, body, description }) {
   const { user, flash, app } = ctx;
+  const theme = user?.theme ?? app.theme;
   const playing = Boolean(user?.screenName);
   const profile = playing ? `/u/${encodeURIComponent(user.screenName)}` : null;
   const nav = playing
@@ -21,10 +22,10 @@ export function layout(ctx, { title, active, body, description }) {
     : [['board', '/leaderboard', 'Leaderboard', icons.board]];
   const link = ([key, href, label, icon]) =>
     html`<a href="${href}" class="${key === active ? 'on' : ''}" ${key === active ? html`aria-current="page"` : ''}>${icon}<span>${label}</span></a>`;
-  const favicon = `data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='${FAVICON_COLOR[app.theme] ?? FAVICON_COLOR.teal}'/%3E%3Cpath d='M9 17l5 5 9-12' stroke='%230b0f15' stroke-width='4' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E`;
+  const favicon = `data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='${FAVICON_COLOR[theme] ?? FAVICON_COLOR.teal}'/%3E%3Cpath d='M9 17l5 5 9-12' stroke='%230b0f15' stroke-width='4' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E`;
 
   return html`<!doctype html>
-<html lang="en" data-theme="${app.theme}">
+<html lang="en" data-theme="${theme}">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">

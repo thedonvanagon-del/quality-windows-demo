@@ -75,6 +75,17 @@ describe('accounts', () => {
     assert.match((await b.get('/picks')).location, /^\/login/);
   });
 
+  test('pick an app color that sticks to the account', async () => {
+    const b = await player('ann@example.com', 'Ann');
+    assert.match((await b.get('/games')).text, /data-theme="ember"/, 'orange by default');
+    await b.get('/u/Ann');
+    assert.equal((await b.post('/theme', { theme: 'violet' })).location, '/u/Ann');
+    assert.match((await b.get('/games')).text, /data-theme="violet"/);
+    await b.post('/theme', { theme: 'hotpink' });
+    assert.match((await b.get('/games')).text, /data-theme="violet"/, 'unknown colors are ignored');
+    assert.match((await app.browser().get('/')).text, /data-theme="ember"/, 'visitors see the default');
+  });
+
   test('never send someone off-site after login', async () => {
     await app.browser().join('ann@example.com', 'Ann');
     const b = app.browser();

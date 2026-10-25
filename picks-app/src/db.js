@@ -86,6 +86,9 @@ const MIGRATIONS = [
   ALTER TABLE games ADD COLUMN home_logo TEXT;
   ALTER TABLE games ADD COLUMN away_logo TEXT;
   `,
+  `
+  ALTER TABLE users ADD COLUMN theme TEXT;
+  `,
 ];
 
 export function openStore(file) {
