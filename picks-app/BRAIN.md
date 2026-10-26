@@ -27,6 +27,11 @@ dollars stay private and nothing is paid out.
   site, S3 + CloudFront, built from the `bookie-bullies` repo) stays as it is.
   Briefly considered "Strong Lean" the same day; "Receipts" was the working
   name before that.
+- **2026-10-26:** www.bookiebullies.com gets a **Pick'em** tab and page
+  (`pickem.html`) that sends people to the app:
+  [thedonvanagon-del/bookie-bullies#3](https://github.com/thedonvanagon-del/bookie-bullies/pull/3).
+  Merge it after the app is live. The main site's template hides its top tabs
+  on phones (under 900px) and has no phone menu yet.
 - **2026-10-26:** Uses the Bookie Bullies bull crest (`assets/logo.png` in the
   bookie-bullies repo) for the header, the browser tab and the phone icons.
 
@@ -100,8 +105,10 @@ not merged yet.
    "Putting it online". About 20 minutes.
 4. **Pick the sending email** (like hello@bookiebullies.com) and make a Google
    app password for it, for reset emails.
-5. **A "Play" button on www.bookiebullies.com** pointing to the app? That
-   change goes in the bookie-bullies repo.
+5. **Merge the Pick'em tab** on www.bookiebullies.com
+   ([bookie-bullies#3](https://github.com/thedonvanagon-del/bookie-bullies/pull/3)),
+   after the app is live.
+6. **A phone menu for www.bookiebullies.com?** Its tabs disappear under 900px.
 
 ## Ideas, not built yet
 
