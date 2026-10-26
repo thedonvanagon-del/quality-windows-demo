@@ -59,6 +59,10 @@ dollars stay private and nothing is paid out.
   any amount). Each player sets what one unit is worth (starts at $100), and the
   record counts the wager in units, so a $10 bettor and a $1,000 bettor compete
   on skill. **Dollar amounts only ever show to the bettor.**
+- **2026-10-26:** Profiles can carry **one outside link** (Telegram, Instagram,
+  X, Discord, a website) as a button, for players who sell picks. A **Share
+  profile** button uses the phone's share sheet. A shared profile link previews
+  as "Name · 47-31 · +17.5u" with the crest.
 - **2026-10-25:** Profiles have a short bio, up to 160 characters.
 
 ### Hosting and money
@@ -85,7 +89,8 @@ not merged yet.
 - My bets: open (wager, to win, countdown, delete) and settled (won or lost in dollars)
 - Leaderboards: everyone or one sport, 7 days, 30 days or all time
 - Groups: create, invite code and link, group board, members' picks feed
-- Profiles: record, by sport, every pick with its lock time, bio, unit size, color
+- Profiles: record, by sport, every pick with its lock time, bio, unit size,
+  color, an outside link button, Share, and a record preview when shared
 - More tab with Live games (scores now, your bets on them)
 - Installable on phones (manifest, icons, iPhone full-screen)
 - Automatic grading every 10 minutes, with voids for postponed games
@@ -114,8 +119,8 @@ not merged yet.
 
 In rough order of value:
 
-1. **Share cards.** A shared profile link shows a card with the record and units.
-2. **"Hire me" link** on profiles: website, Telegram, Instagram or Discord.
+1. ~~Share cards~~ and ~~"hire me" link~~: built 2026-10-26 (text preview with
+   the crest; a picture card with the record drawn on it would be the next step).
 3. **The Bookie Bullies model as a player.** The site's own daily picks posted
    into the app under an official account, with a public record.
 4. **cfb-bot as a player**, same idea, for college football and the NFL.

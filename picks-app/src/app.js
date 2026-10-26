@@ -11,6 +11,7 @@ import { createGroup, deleteGroup, findByCode, groupFor, groupsOf, joinGroup, le
 import { groupFeed, ownPicks, picksOnGames, publicPicks } from './history.js';
 import { THEMES } from './config.js';
 import { LOGO_HOST } from './espn.js';
+import { cleanLink } from './links.js';
 import { createMailer } from './mail.js';
 import { deletePick, formatLine, formatMoney, isLocked, makePick, MARKETS, price, toWin, WAGER_MAX, WAGER_MIN } from './picks.js';
 import { SPORT } from './sports.js';
@@ -440,7 +441,7 @@ export function createApp({ store, games, config, mailer = createMailer({ log: {
   }
 
   function profilePage(ctx, { name }) {
-    const player = store.get('SELECT id, screen_name, created_at, bio FROM users WHERE screen_name = ?', name);
+    const player = store.get('SELECT id, screen_name, created_at, bio, link_url, link_label FROM users WHERE screen_name = ?', name);
     if (!player) return notFound(ctx);
     if (player.screen_name !== name) return redirect(ctx, `/u/${encodeURIComponent(player.screen_name)}`);
     const { picks, hidden } = publicPicks(store, player.id, { viewerId: ctx.user?.id, now: ctx.now });
@@ -457,6 +458,18 @@ export function createApp({ store, games, config, mailer = createMailer({ log: {
     if (!signedIn(ctx)) return;
     const theme = ctx.form.get('theme');
     if (THEMES.includes(theme)) store.run('UPDATE users SET theme = ? WHERE id = ?', theme, ctx.user.id);
+    redirect(ctx, `/u/${encodeURIComponent(ctx.user.screenName)}`);
+  }
+
+  function linkPost(ctx) {
+    if (!signedIn(ctx)) return;
+    const link = cleanLink(ctx.form.get('link_url'), ctx.form.get('link_label'));
+    if (link.error) {
+      flash(ctx, 'error', link.error);
+    } else {
+      store.run('UPDATE users SET link_url = ?, link_label = ? WHERE id = ?', link.url, link.label, ctx.user.id);
+      flash(ctx, 'ok', link.url ? `Your ${link.label} button is on your profile.` : 'Link removed.');
+    }
     redirect(ctx, `/u/${encodeURIComponent(ctx.user.screenName)}`);
   }
 
@@ -527,6 +540,7 @@ export function createApp({ store, games, config, mailer = createMailer({ log: {
     ['GET', '/live', livePage],
     ['POST', '/theme', themePost],
     ['POST', '/bio', bioPost],
+    ['POST', '/link', linkPost],
     ['POST', '/unit', unitPost],
   ].map(([method, pattern, handler]) => {
     const keys = [];
@@ -551,8 +565,9 @@ export function createApp({ store, games, config, mailer = createMailer({ log: {
 
   return async function handle(req, res) {
     const url = new URL(req.url, 'http://local');
-    const ctx = { req, res, app, url, query: url.searchParams, now: now(), cookies: [], user: null, session: null, flash: null, form: null };
+    const ctx = { req, res, app, url, query: url.searchParams, now: now(), origin: null, cookies: [], user: null, session: null, flash: null, form: null };
     try {
+      ctx.origin = config.appUrl ?? origin(ctx);
       const route = match(req.method, url.pathname);
       if (!route) return notFound(ctx);
 

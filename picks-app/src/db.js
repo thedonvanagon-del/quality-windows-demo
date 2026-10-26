@@ -110,6 +110,11 @@ const MIGRATIONS = [
   );
   CREATE INDEX password_resets_user ON password_resets(user_id);
   `,
+  `
+  -- One outside link on a profile: where a player sells picks or posts.
+  ALTER TABLE users ADD COLUMN link_url TEXT;
+  ALTER TABLE users ADD COLUMN link_label TEXT;
+  `,
 ];
 
 export function openStore(file) {

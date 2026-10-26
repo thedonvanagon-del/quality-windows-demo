@@ -93,6 +93,37 @@ describe('accounts', () => {
     assert.doesNotMatch((await app.browser().get('/u/Ann')).text, /class="bio"/);
   });
 
+  test('put one outside link on a profile', async () => {
+    const b = await player('ann@example.com', 'Ann');
+    await b.get('/u/Ann');
+    await b.post('/link', { link_url: 't.me/annpicks', link_label: '' });
+    const page = (await app.browser().get('/u/Ann')).text;
+    assert.match(page, /<a class="btn small" href="https:\/\/t\.me\/annpicks" target="_blank" rel="nofollow noopener noreferrer ugc">Telegram ↗<\/a>/);
+
+    await b.get('/u/Ann');
+    await b.post('/link', { link_url: 'javascript:alert(1)' });
+    assert.match(visible((await b.get('/u/Ann')).text), /regular web address/);
+    assert.match((await app.browser().get('/u/Ann')).text, /t\.me\/annpicks/, 'a bad link leaves the old one');
+
+    await b.get('/u/Ann');
+    await b.post('/link', { link_url: '' });
+    assert.doesNotMatch((await app.browser().get('/u/Ann')).text, /annpicks/);
+  });
+
+  test('show the record when a profile link is shared', async () => {
+    const ann = await player('ann@example.com', 'Ann');
+    await ann.post('/picks', { ...BILLS_PLUS, wager: '200' });
+    setFinal(game, 27, 24);
+    time.set('2026-10-25T21:00:00.000Z');
+    await app.games.checkFinals();
+    const page = (await app.browser().get('/u/Ann')).text;
+    assert.match(page, /<meta property="og:title" content="Ann · 1-0 · \+1\.82u">/);
+    assert.match(page, /<meta property="og:description" content="1 graded pick, 100% winners, \+91% ROI\./);
+    assert.match(page, /<meta property="og:url" content="https:\/\/app\.example\.test\/u\/Ann">/);
+    assert.match(page, /<meta property="og:image" content="https:\/\/app\.example\.test\/static\/icon-512\.png">/);
+    assert.match(page, /data-share="https:\/\/app\.example\.test\/u\/Ann"/);
+  });
+
   test('pick an app color that sticks to the account', async () => {
     const b = await player('ann@example.com', 'Ann');
     assert.match((await b.get('/games')).text, /data-theme="ember"/, 'orange by default');

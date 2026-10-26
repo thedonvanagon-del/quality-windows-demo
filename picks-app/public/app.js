@@ -42,6 +42,28 @@ if (slip) {
   update();
 }
 
+// Share a profile: the phone's share sheet where there is one, else copy the link.
+for (const button of document.querySelectorAll('[data-share]')) {
+  button.hidden = false;
+  button.addEventListener('click', async () => {
+    const url = button.dataset.share;
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: button.dataset.shareText, url });
+        return;
+      } catch (err) {
+        if (err.name === 'AbortError') return;
+      }
+    }
+    try {
+      await navigator.clipboard.writeText(url);
+      button.textContent = 'Link copied';
+    } catch {
+      button.textContent = url;
+    }
+  });
+}
+
 // Copy an invite link.
 for (const button of document.querySelectorAll('[data-copy]')) {
   button.hidden = false;

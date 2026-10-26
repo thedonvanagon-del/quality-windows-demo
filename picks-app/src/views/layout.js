@@ -5,7 +5,7 @@ import { icons } from './icons.js';
  * The page shell. `ctx` carries the app name, the signed-in player, the
  * flash message and the asset URLs; `active` lights up a nav link.
  */
-export function layout(ctx, { title, active, body, description }) {
+export function layout(ctx, { title, active, body, description, share }) {
   const { user, flash, app } = ctx;
   const theme = user?.theme ?? app.theme;
   const playing = Boolean(user?.screenName);
@@ -31,6 +31,13 @@ export function layout(ctx, { title, active, body, description }) {
 <title>${title ? `${title} · ${app.name}` : app.name}</title>
 <meta name="description" content="${description ?? 'Make your picks before kickoff. They lock, they get graded off the final score, and nobody can edit them.'}">
 <meta name="theme-color" content="#0f141b">
+<meta property="og:site_name" content="${app.name}">
+<meta property="og:type" content="${share ? 'profile' : 'website'}">
+<meta property="og:title" content="${share?.title ?? (title ? `${title} · ${app.name}` : app.name)}">
+<meta property="og:description" content="${share?.description ?? description ?? 'Make your picks before kickoff. They lock, they get graded off the final score, and nobody can edit them.'}">
+<meta property="og:url" content="${ctx.origin}${ctx.url.pathname}">
+<meta property="og:image" content="${ctx.origin}/static/icon-512.png">
+<meta name="twitter:card" content="summary">
 <link rel="icon" type="image/png" href="${app.assets.logo}">
 <link rel="apple-touch-icon" href="${app.assets.touchIcon}">
 <link rel="manifest" href="${app.assets.manifest}">

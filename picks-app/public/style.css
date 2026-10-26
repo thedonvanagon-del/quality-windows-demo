@@ -485,6 +485,9 @@ tr.me td { background: var(--accent-soft); }
 .yours div { display: flex; justify-content: space-between; gap: 10px; font-size: 0.88rem; font-weight: 700; }
 .yours .tag { color: var(--accent); font-size: 0.72rem; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; }
 
+.profile-actions { margin-top: 14px; }
+.link-form { max-width: 560px; }
+
 /* ---- Bio ---------------------------------------------------------------- */
 
 .bio { font-size: 1.02rem; margin: 12px 0 0; max-width: 40em; overflow-wrap: anywhere; }

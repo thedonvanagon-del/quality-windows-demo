@@ -127,6 +127,30 @@ function bioForm(ctx, player) {
     </form>`;
 }
 
+/** The headline a shared profile link shows: name, record, units. */
+function shareCard(player, record) {
+  const u = `${record.units > 0 ? '+' : ''}${record.units}u`;
+  return {
+    title: record.graded ? `${player.screen_name} · ${recordText(record)} · ${u}` : `${player.screen_name} on Bookie Bullies`,
+    description: record.graded
+      ? `${record.graded} graded ${record.graded === 1 ? 'pick' : 'picks'}, ${pct(record.winPct)} winners, ${signedPct(record.roi)} ROI. Every pick locked before the game and graded off the final score. No edits.`
+      : 'A Bookie Bullies record: every pick locked before the game and graded off the final score. No edits.',
+  };
+}
+
+/** One button on the profile to wherever the player sells picks or posts. */
+function linkForm(ctx, player) {
+  return html`<h2>Your link</h2>
+    <form class="form link-form" method="post" action="/link">
+      ${csrfField(ctx)}
+      <label>Link <span class="hint">Where people can follow you or buy your picks: Telegram, Instagram, X, Discord, a website.</span>
+        <input type="text" name="link_url" value="${player.link_url ?? ''}" inputmode="url" autocomplete="url" placeholder="https://t.me/yourname" maxlength="200"></label>
+      <label>Button label <span class="hint">Optional. Leave it blank and we'll name the site.</span>
+        <input type="text" name="link_label" value="${player.link_label ?? ''}" maxlength="30" placeholder="Get my picks"></label>
+      <div class="row"><button class="btn small">Save link</button><span class="muted small">Clear the link and save to remove the button.</span></div>
+    </form>`;
+}
+
 /** What one unit is worth to this player, so a dollar wager becomes units on the record. */
 function unitForm(ctx) {
   return html`<h2>Your unit</h2>
@@ -155,12 +179,17 @@ export function profile(ctx, { player, record, bySport, picks, hidden }) {
     title: player.screen_name,
     active: ctx.user?.id === player.id ? 'me' : null,
     description: `${player.screen_name}: ${recordText(record)}, ${record.units > 0 ? '+' : ''}${record.units} units. Every pick locked before the game and graded off the final.`,
+    share: shareCard(player, record),
     body: html`
       <div class="team"><span class="avatar big">${player.screen_name[0]}</span><h1>${player.screen_name}</h1></div>
       ${player.bio ? html`<p class="bio">${player.bio}</p>` : ''}
+      <div class="row profile-actions">
+        ${player.link_url ? html`<a class="btn small" href="${player.link_url}" target="_blank" rel="nofollow noopener noreferrer ugc">${player.link_label} ↗</a>` : ''}
+        <button class="btn ghost small" type="button" data-share="${ctx.origin}/u/${encodeURIComponent(player.screen_name)}" data-share-text="${shareCard(player, record).title}" hidden>Share profile</button>
+      </div>
       <p class="lede">On the record since ${joined(player.created_at)}. ${record.graded} graded ${record.graded === 1 ? 'pick' : 'picks'}, every one locked before its game.</p>
       ${statStrip(record)}
-      ${ctx.user?.id === player.id ? html`${bioForm(ctx, player)}${unitForm(ctx)}${colorPicker(ctx)}` : ''}
+      ${ctx.user?.id === player.id ? html`${bioForm(ctx, player)}${linkForm(ctx, player)}${unitForm(ctx)}${colorPicker(ctx)}` : ''}
       ${bySport.length
         ? html`<h2>By sport</h2>
           <div class="table"><table>
