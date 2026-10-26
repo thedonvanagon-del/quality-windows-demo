@@ -11,6 +11,7 @@ import { createGroup, deleteGroup, findByCode, groupFor, groupsOf, joinGroup, le
 import { groupFeed, ownPicks, picksOnGames, publicPicks } from './history.js';
 import { THEMES } from './config.js';
 import { LOGO_HOST } from './espn.js';
+import { createMailer } from './mail.js';
 import { deletePick, formatLine, formatMoney, isLocked, makePick, MARKETS, price, toWin, WAGER_MAX, WAGER_MIN } from './picks.js';
 import { SPORT } from './sports.js';
 import { leaderboard, PERIODS, record, recordBySport } from './stats.js';
@@ -33,7 +34,7 @@ const SECURITY_HEADERS = {
   'Permissions-Policy': 'camera=(), microphone=(), geolocation=()',
 };
 
-export function createApp({ store, games, config, now = () => new Date(), log = console }) {
+export function createApp({ store, games, config, mailer = createMailer({ log: { log() {} } }), now = () => new Date(), log = console }) {
   const assets = loadAssets();
   const app = {
     name: config.appName,
@@ -49,6 +50,7 @@ export function createApp({ store, games, config, now = () => new Date(), log = 
   const loginLimit = auth.rateLimiter({ limit: 10, windowMs: 15 * 60_000 });
   const signupLimit = auth.rateLimiter({ limit: 10, windowMs: 60 * 60_000 });
   const joinLimit = auth.rateLimiter({ limit: 30, windowMs: 60 * 60_000 });
+  const forgotLimit = auth.rateLimiter({ limit: 5, windowMs: 60 * 60_000 });
 
   // ---- helpers --------------------------------------------------------------
 
@@ -169,6 +171,53 @@ export function createApp({ store, games, config, now = () => new Date(), log = 
     startSession(ctx, user.id);
     const query = next ? `?next=${encodeURIComponent(next)}` : '';
     redirect(ctx, user.screen_name ? next ?? '/games' : `/welcome${query}`);
+  }
+
+  function forgotForm(ctx) {
+    send(ctx, 200, account.forgot(ctx, {}));
+  }
+
+  async function forgot(ctx) {
+    const email = auth.normalizeEmail(ctx.form.get('email'));
+    if (!auth.validEmail(email)) return send(ctx, 400, account.forgot(ctx, { email, error: "That email doesn't look right." }));
+    const allowed = forgotLimit.allow(`ip ${clientIp(ctx)}`, ctx.now) && forgotLimit.allow(`email ${email}`, ctx.now);
+    if (!allowed) return send(ctx, 429, account.forgot(ctx, { email, error: 'Too many tries. Wait an hour and try again.' }));
+    const user = store.get('SELECT id FROM users WHERE email = ?', email);
+    if (user) {
+      const token = auth.createReset(store, user.id, ctx.now);
+      const link = `${config.appUrl ?? origin(ctx)}/reset?token=${token}`;
+      try {
+        await mailer.send({
+          to: email,
+          subject: `Reset your ${config.appName} password`,
+          text: `Someone asked to reset the password for this email on ${config.appName}.\n\nSet a new one here (the link works once, for the next ${auth.RESET_MINUTES} minutes):\n${link}\n\nIf that wasn't you, ignore this email. Your password stays the same.\n`,
+        });
+      } catch (err) {
+        log.error(`reset email to ${email}: ${err.message}`);
+      }
+    }
+    // The same answer either way, so this page can't be used to find out who has an account.
+    send(ctx, 200, account.forgot(ctx, { sent: true, email }));
+  }
+
+  function resetForm(ctx) {
+    const token = ctx.query.get('token') ?? '';
+    if (!auth.findReset(store, token, ctx.now)) return send(ctx, 400, account.resetDead(ctx));
+    send(ctx, 200, account.reset(ctx, { token }));
+  }
+
+  async function reset(ctx) {
+    const token = ctx.form.get('token') ?? '';
+    const password = ctx.form.get('password') ?? '';
+    const found = auth.findReset(store, token, ctx.now);
+    if (!found) return send(ctx, 400, account.resetDead(ctx));
+    if (password.length < auth.MIN_PASSWORD) return send(ctx, 400, account.reset(ctx, { token, error: `Use at least ${auth.MIN_PASSWORD} characters for your password.` }));
+    if (password.length > 200) return send(ctx, 400, account.reset(ctx, { token, error: 'That password is too long. Keep it under 200 characters.' }));
+    auth.finishReset(store, found, await auth.hashPassword(password), ctx.now);
+    startSession(ctx, found.user_id);
+    flash(ctx, 'ok', 'Password changed. Every other device was signed out.');
+    const user = store.get('SELECT screen_name FROM users WHERE id = ?', found.user_id);
+    redirect(ctx, user?.screen_name ? '/games' : '/welcome');
   }
 
   function logout(ctx) {
@@ -453,6 +502,10 @@ export function createApp({ store, games, config, now = () => new Date(), log = 
     ['GET', '/login', loginForm],
     ['POST', '/login', login],
     ['POST', '/logout', logout],
+    ['GET', '/forgot', forgotForm],
+    ['POST', '/forgot', forgot],
+    ['GET', '/reset', resetForm],
+    ['POST', '/reset', reset],
     ['GET', '/welcome', welcomeForm],
     ['POST', '/welcome', welcome],
     ['GET', '/games', gamesPage],

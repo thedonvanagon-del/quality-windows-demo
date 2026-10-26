@@ -96,6 +96,35 @@ export function pruneSessions(store, now) {
   store.run('DELETE FROM sessions WHERE expires_at <= ?', now.toISOString());
 }
 
+export const RESET_MINUTES = 60;
+
+/** A one-time password reset token for this user, good for an hour. */
+export function createReset(store, userId, now) {
+  const token = crypto.randomBytes(32).toString('base64url');
+  const expires = new Date(now.getTime() + RESET_MINUTES * 60_000);
+  store.run('INSERT INTO password_resets (token_hash, user_id, created_at, expires_at) VALUES (?, ?, ?, ?)',
+    sha256(token), userId, now.toISOString(), expires.toISOString());
+  return token;
+}
+
+/** The reset this token names, if it's unused and not expired. */
+export function findReset(store, token, now) {
+  if (!token) return null;
+  return store.get(
+    'SELECT token_hash, user_id FROM password_resets WHERE token_hash = ? AND used_at IS NULL AND expires_at > ?',
+    sha256(String(token)), now.toISOString(),
+  ) ?? null;
+}
+
+/** Set the new password, spend every open reset link, and sign out every device. */
+export function finishReset(store, reset, passwordHash, now) {
+  store.tx(() => {
+    store.run('UPDATE users SET password_hash = ? WHERE id = ?', passwordHash, reset.user_id);
+    store.run('UPDATE password_resets SET used_at = ? WHERE user_id = ? AND used_at IS NULL', now.toISOString(), reset.user_id);
+    store.run('DELETE FROM sessions WHERE user_id = ?', reset.user_id);
+  });
+}
+
 /** Fixed-window counter: `limit` tries per key per window. */
 export function rateLimiter({ limit, windowMs }) {
   const hits = new Map();

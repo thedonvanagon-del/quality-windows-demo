@@ -98,6 +98,18 @@ const MIGRATIONS = [
   ALTER TABLE users ADD COLUMN unit_size REAL;
   ALTER TABLE picks ADD COLUMN wager REAL;
   `,
+  `
+  -- One-time links for a forgotten password. Only a hash of the token is
+  -- kept, so a copy of the database can't be used to take over accounts.
+  CREATE TABLE password_resets (
+    token_hash TEXT PRIMARY KEY,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    created_at TEXT NOT NULL,
+    expires_at TEXT NOT NULL,
+    used_at TEXT
+  );
+  CREATE INDEX password_resets_user ON password_resets(user_id);
+  `,
 ];
 
 export function openStore(file) {

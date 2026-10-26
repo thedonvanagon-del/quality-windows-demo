@@ -104,6 +104,47 @@ describe('accounts', () => {
     assert.match((await app.browser().get('/')).text, /data-theme="ember"/, 'visitors see the default');
   });
 
+  test('reset a forgotten password by email', async () => {
+    const old = await player('ann@example.com', 'Ann');
+    const b = app.browser();
+    await b.get('/forgot');
+    const asked = await b.post('/forgot', { email: 'Ann@Example.com' });
+    assert.match(visible(asked.text), /a link to set a new password is on its way/);
+    assert.equal(app.outbox.length, 1);
+    const [mail] = app.outbox;
+    assert.equal(mail.to, 'ann@example.com');
+    const link = /https:\/\/app\.example\.test\/reset\?token=([\w-]+)/.exec(mail.text);
+    assert.ok(link, 'the link uses APP_URL, never the request host');
+
+    await b.get(`/reset?token=${link[1]}`);
+    assert.match(visible((await b.post('/reset', { token: link[1], password: 'short' })).text), /at least 8/);
+    const done = await b.post('/reset', { token: link[1], password: 'brand new pass' });
+    assert.equal(done.location, '/games');
+    assert.match(visible((await b.get('/games')).text), /Password changed/);
+
+    assert.match((await old.get('/picks')).location, /^\/login/, 'old sessions are signed out');
+    assert.match(visible((await app.browser().post('/login', { email: 'ann@example.com', password: 'correct horse' })).text), /don't match/);
+    assert.equal((await app.browser().post('/login', { email: 'ann@example.com', password: 'brand new pass' })).location, '/games');
+    assert.match(visible((await app.browser().get(`/reset?token=${link[1]}`)).text), /That link has expired/, 'a link works once');
+  });
+
+  test('say the same thing for an email with no account, and send nothing', async () => {
+    const b = app.browser();
+    await b.get('/forgot');
+    assert.match(visible((await b.post('/forgot', { email: 'nobody@example.com' })).text), /If nobody@example\.com has an account/);
+    assert.equal(app.outbox.length, 0);
+  });
+
+  test('expire a reset link after an hour', async () => {
+    await player('ann@example.com', 'Ann');
+    const b = app.browser();
+    await b.get('/forgot');
+    await b.post('/forgot', { email: 'ann@example.com' });
+    const token = /token=([\w-]+)/.exec(app.outbox[0].text)[1];
+    time.advance(61 * 60_000);
+    assert.equal((await b.get(`/reset?token=${token}`)).status, 400);
+  });
+
   test('never send someone off-site after login', async () => {
     await app.browser().join('ann@example.com', 'Ann');
     const b = app.browser();

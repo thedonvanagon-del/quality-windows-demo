@@ -15,6 +15,19 @@ export function loadConfig(env = process.env) {
     // Behind a host's proxy (Fly, Render, Railway), trust X-Forwarded-* for
     // the client IP and for whether the request came in over https.
     trustProxy: truthy(env.TRUST_PROXY),
+    // The public address, for links in emails. Required once email is on:
+    // without it a reset link would be built from whatever host a request
+    // claimed to be for.
+    appUrl: (env.APP_URL || '').replace(/\/+$/, '') || null,
+    // Outgoing email for password resets. For Google Workspace:
+    // SMTP_HOST=smtp.gmail.com, SMTP_USER=you@yourdomain, SMTP_PASS=an app password.
+    smtp: {
+      host: env.SMTP_HOST || null,
+      port: Number(env.SMTP_PORT) || 465,
+      user: env.SMTP_USER || null,
+      pass: env.SMTP_PASS || null,
+      from: env.MAIL_FROM || (env.SMTP_USER ? `Bookie Bullies <${env.SMTP_USER}>` : null),
+    },
   };
 }
 

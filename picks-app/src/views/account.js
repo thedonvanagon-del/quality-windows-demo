@@ -66,7 +66,63 @@ export function login(ctx, { email = '', error, next }) {
           <label>Password<input type="password" name="password" autocomplete="current-password" required maxlength="200"></label>
           <button class="btn block">Log in</button>
         </form>
+        <p class="fine"><a href="/forgot">Forgot your password?</a></p>
         <p class="fine">New here? <a href="/signup${next ? `?next=${encodeURIComponent(next)}` : ''}">Make an account</a></p>
+      </div>
+    `,
+  });
+}
+
+export function forgot(ctx, { email = '', error, sent }) {
+  return layout(ctx, {
+    title: 'Forgot password',
+    body: html`
+      <div class="auth">
+        <h1>Forgot your password?</h1>
+        ${sent
+          ? html`<p class="lede">If ${email} has an account, a link to set a new password is on its way. It works once, for the next hour. Check spam if it doesn't show up in a few minutes.</p>
+            <a class="btn ghost block" href="/login">Back to log in</a>`
+          : html`<p class="lede">Put in the email you signed up with and we'll send a link to set a new one.</p>
+            ${error ? html`<div class="flash err" role="alert">${error}</div>` : ''}
+            <form class="form" method="post" action="/forgot">
+              ${csrfField(ctx)}
+              <label>Email<input type="email" name="email" value="${email}" autocomplete="email" required maxlength="254"></label>
+              <button class="btn block">Send the link</button>
+            </form>
+            <p class="fine"><a href="/login">Back to log in</a></p>`}
+      </div>
+    `,
+  });
+}
+
+export function reset(ctx, { token, error }) {
+  return layout(ctx, {
+    title: 'New password',
+    body: html`
+      <div class="auth">
+        <h1>Set a new password</h1>
+        <p class="lede">This signs you out everywhere else.</p>
+        ${error ? html`<div class="flash err" role="alert">${error}</div>` : ''}
+        <form class="form" method="post" action="/reset">
+          ${csrfField(ctx)}
+          <input type="hidden" name="token" value="${token}">
+          <label>New password <span class="hint">At least 8 characters.</span>
+            <input type="password" name="password" autocomplete="new-password" required minlength="8" maxlength="200"></label>
+          <button class="btn block">Save password</button>
+        </form>
+      </div>
+    `,
+  });
+}
+
+export function resetDead(ctx) {
+  return layout(ctx, {
+    title: 'Link expired',
+    body: html`
+      <div class="auth">
+        <h1>That link has expired</h1>
+        <p class="lede">Reset links work once, for an hour. Ask for a fresh one.</p>
+        <a class="btn block" href="/forgot">Send a new link</a>
       </div>
     `,
   });

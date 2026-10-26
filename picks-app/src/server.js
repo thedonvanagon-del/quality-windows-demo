@@ -6,6 +6,7 @@ import { openStore } from './db.js';
 import { createDemoEspn, DEMO_LOGIN, seedDemo } from './demo.js';
 import { createEspn } from './espn.js';
 import { createGames } from './games.js';
+import { createMailer } from './mail.js';
 
 const GRADE_EVERY = 10 * 60_000;
 
@@ -16,7 +17,12 @@ const espn = config.demo ? createDemoEspn({ anchor }) : createEspn();
 const games = createGames({ store, espn });
 if (config.demo && !store.get('SELECT 1 FROM users LIMIT 1')) await seedDemo({ store, games, espn });
 
-const server = http.createServer(createApp({ store, games, config }));
+const mailer = createMailer(config.smtp);
+if (mailer.configured && !config.appUrl) {
+  console.error('Set APP_URL (like https://app.bookiebullies.com) before turning on email.');
+  process.exit(1);
+}
+const server = http.createServer(createApp({ store, games, config, mailer }));
 server.listen(config.port, config.host, () => {
   console.log(`${config.appName} is up on http://localhost:${config.port}`);
   if (config.demo) console.log(`Demo mode. Log in as ${DEMO_LOGIN.email} / ${DEMO_LOGIN.password}`);
