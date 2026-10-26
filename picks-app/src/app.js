@@ -15,6 +15,7 @@ import { deletePick, formatLine, formatMoney, isLocked, makePick, MARKETS, price
 import { SPORT } from './sports.js';
 import { leaderboard, PERIODS, record, recordBySport } from './stats.js';
 import * as account from './views/account.js';
+import * as moreViews from './views/more.js';
 import * as play from './views/play.js';
 import * as social from './views/social.js';
 
@@ -263,6 +264,27 @@ export function createApp({ store, games, config, now = () => new Date(), log = 
     send(ctx, 200, play.myPicks(ctx, { open, graded, tab, record: record(store, ctx.user.id) }));
   }
 
+  async function morePage(ctx) {
+    if (!signedIn(ctx)) return;
+    const liveCount = store.get("SELECT COUNT(*) AS n FROM games WHERE state = 'in'").n;
+    send(ctx, 200, moreViews.more(ctx, { liveCount }));
+  }
+
+  async function livePage(ctx) {
+    if (!signedIn(ctx)) return;
+    const list = await games.live();
+    const mine = new Map();
+    if (list.length) {
+      const rows = store.all(
+        `SELECT game_id, market, side, line, odds, units, wager FROM picks
+          WHERE user_id = ? AND game_id IN (${list.map(() => '?').join(',')})`,
+        ctx.user.id, ...list.map((g) => g.id),
+      );
+      for (const r of rows) mine.set(r.game_id, [...(mine.get(r.game_id) ?? []), r]);
+    }
+    send(ctx, 200, moreViews.live(ctx, { list, mine }));
+  }
+
   function unitPost(ctx) {
     if (!signedIn(ctx)) return;
     const size = Number(String(ctx.form.get('unit_size') ?? '').replace(/[$,\s]/g, ''));
@@ -438,6 +460,8 @@ export function createApp({ store, games, config, now = () => new Date(), log = 
     ['GET', '/join/:code', joinPage],
     ['POST', '/join/:code', joinPost],
     ['GET', '/u/:name', profilePage],
+    ['GET', '/more', morePage],
+    ['GET', '/live', livePage],
     ['POST', '/theme', themePost],
     ['POST', '/bio', bioPost],
     ['POST', '/unit', unitPost],

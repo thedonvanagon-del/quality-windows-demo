@@ -77,16 +77,26 @@ export function createGames({ store, espn, now = () => new Date(), log = console
     return [today, addDays(today, sport.days - 1)];
   }
 
+  async function freshBoard(sport) {
+    const [from, to] = boardRange(sport);
+    const age = now().getTime() - (fetchedAt.get(`${sport.key} ${from}-${to}`) ?? 0);
+    if (age > BOARD_MAX_AGE) await refresh(sport, from, to);
+  }
+
   return {
     save,
+
+    /** Every game in progress right now, across all sports, scores at most two minutes old. */
+    async live() {
+      await Promise.all(SPORTS.map(freshBoard));
+      return store.all(`SELECT * FROM games WHERE state = 'in' ORDER BY start_time, sport, home_name`).map(toGame);
+    },
     problem: (sportKey) => problems.get(sportKey) ?? null,
 
     /** Games still to start in the sport's window, freshest lines first fetched if stale. */
     async upcoming(sportKey) {
       const sport = SPORT[sportKey];
-      const [from, to] = boardRange(sport);
-      const age = now().getTime() - (fetchedAt.get(`${sport.key} ${from}-${to}`) ?? 0);
-      if (age > BOARD_MAX_AGE) await refresh(sport, from, to);
+      await freshBoard(sport);
       const until = new Date(now().getTime() + sport.days * 86_400_000).toISOString();
       return store
         .all(

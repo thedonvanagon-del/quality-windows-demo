@@ -126,7 +126,7 @@ main p a, .fine a, .empty a { color: var(--accent); font-weight: 600; }
   body.signed-in { padding-bottom: 76px; }
   .tabbar {
     display: grid;
-    grid-template-columns: repeat(5, 1fr);
+    grid-template-columns: repeat(6, 1fr);
     position: fixed;
     inset: auto 0 0;
     z-index: 20;
@@ -134,7 +134,8 @@ main p a, .fine a, .empty a { color: var(--accent); font-weight: 600; }
     border-top: 1px solid var(--line);
     padding: 6px 4px calc(6px + env(safe-area-inset-bottom));
   }
-  .tabbar a { display: grid; justify-items: center; gap: 3px; padding: 4px 0; font-size: 0.68rem; font-weight: 700; color: var(--muted); }
+  .tabbar a { display: grid; justify-items: center; gap: 3px; padding: 4px 0; font-size: 0.64rem; font-weight: 700; color: var(--muted); min-width: 0; }
+  .tabbar a > span:last-child { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .tabbar a svg { width: 22px; height: 22px; }
   .tabbar a.on { color: var(--accent); }
 }
@@ -459,6 +460,29 @@ tr.me td { background: var(--accent-soft); }
 .unit-form { display: flex; gap: 8px; align-items: center; max-width: 320px; }
 .unit-form .money-input { flex: 1; }
 .unit-form .money-input input { font-size: 1rem; padding: 9px 12px 9px 6px; }
+
+/* ---- More and Live ------------------------------------------------------ */
+
+.menu { list-style: none; margin: 0; padding: 0; background: var(--card); border: 1px solid var(--line); border-radius: var(--r); overflow: hidden; }
+.menu li + li { border-top: 1px solid var(--line); }
+.menu a, .menu button { display: flex; align-items: center; gap: 14px; width: 100%; padding: 15px 16px; font: inherit; font-weight: 700; color: var(--ink); background: none; border: 0; cursor: pointer; text-align: left; }
+.menu a:hover, .menu button:hover { background: var(--raised); }
+.menu .icon { width: 34px; height: 34px; flex: none; border-radius: 9px; background: var(--accent-soft); color: var(--accent); display: grid; place-items: center; }
+.menu .icon svg, .menu .go svg { width: 18px; height: 18px; }
+.menu .text { flex: 1; min-width: 0; }
+.menu .text small { display: block; color: var(--muted); font-weight: 500; font-size: 0.84rem; }
+.menu .go { color: var(--faint); }
+.menu .count { background: var(--accent); color: var(--accent-ink); font-size: 0.72rem; font-weight: 800; border-radius: 999px; padding: 2px 8px; font-variant-numeric: tabular-nums; }
+
+.live-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; font-size: 0.78rem; font-weight: 700; color: var(--muted); }
+.live-tag { display: inline-flex; align-items: center; gap: 6px; color: var(--loss); font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; font-size: 0.7rem; }
+.live-tag::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--loss); }
+@media (prefers-reduced-motion: no-preference) { .live-tag::before { animation: pulse 1.6s ease-in-out infinite; } @keyframes pulse { 50% { opacity: 0.3; } } }
+.scoreline { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 4px 0; }
+.scoreline .score { font-size: 1.25rem; font-weight: 800; font-variant-numeric: tabular-nums; }
+.yours { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--line); display: grid; gap: 4px; }
+.yours div { display: flex; justify-content: space-between; gap: 10px; font-size: 0.88rem; font-weight: 700; }
+.yours .tag { color: var(--accent); font-size: 0.72rem; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; }
 
 /* ---- Bio ---------------------------------------------------------------- */
 

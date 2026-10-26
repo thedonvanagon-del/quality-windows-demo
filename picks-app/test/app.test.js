@@ -254,6 +254,27 @@ describe('picks', () => {
   });
 });
 
+describe('more and live', () => {
+  test('list games in progress with your bets on them', async () => {
+    const ann = await player('ann@example.com', 'Ann');
+    await ann.post('/picks', { ...BILLS_PLUS, wager: '40' });
+    assert.match(visible((await ann.get('/live')).text), /Nothing on right now/);
+
+    time.set('2026-10-25T17:30:00.000Z');
+    setLive(game);
+    game.competitions[0].competitors[0].score = '7';
+    game.competitions[0].competitors[1].score = '3';
+    const page = visible((await ann.get('/live')).text);
+    assert.match(page, /Live NFL · 2nd Qtr BUF Bills 3 KC Chiefs 7/);
+    assert.match(page, /Your bet Bills \+3\.5 −110 \$40/);
+    assert.match(visible((await ann.get('/more')).text), /Live games Scores right now, with your bets on them 1 live/);
+
+    const bob = await player('bob@example.com', 'Bob');
+    assert.doesNotMatch(visible((await bob.get('/live')).text), /Your bet/, 'only your own bets');
+    assert.match((await app.browser().get('/live')).location, /^\/login/);
+  });
+});
+
 describe('grading and boards', () => {
   test('grade off the final and rank by units', async () => {
     const ann = await player('ann@example.com', 'Ann');
