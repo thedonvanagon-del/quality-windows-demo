@@ -1,5 +1,7 @@
 # Bookie Bullies app
 
+Start with [BRAIN.md](BRAIN.md): every decision so far, what is built, and what is next.
+
 A pick'em app where every record is real. People sign up with an email and a
 password, choose a screen name, and make picks on real games. Picks lock when
 the game starts, get graded off the final score, and nobody can edit them
@@ -82,25 +84,51 @@ npm start       # the real thing, against ESPN, with the database in data/bookie
 
 ## Putting it online
 
-It needs a host that runs a Docker container and keeps a disk between deploys,
-because the database is a file. Fly.io, Railway and Render (with a paid disk)
-all work. On Fly:
+It runs at **app.bookiebullies.com** on one small Amazon Lightsail server
+(about $5 a month), next to the existing www.bookiebullies.com site, which
+stays as it is. `aws/stacks/bookie-bullies-app` builds the server; the
+`picks-app deploy` workflow ships the code on every merge to `main`.
 
-```
-fly launch --no-deploy                      # from this folder; it finds the Dockerfile
-fly volumes create receipts_data --size 1
-```
+One-time setup, from AWS CloudShell (the >_ icon in the AWS console, Ohio region):
 
-Add this to the `fly.toml` it wrote, then `fly deploy`:
+1. **Make the deploy key.**
+   ```
+   ssh-keygen -t ed25519 -N "" -f bb-deploy
+   cat bb-deploy.pub
+   ```
+2. **Build the server.** Clone this repo in CloudShell, then:
+   ```
+   cd aws/stacks/bookie-bullies-app
+   cp terraform.tfvars.example terraform.tfvars   # paste bb-deploy.pub's contents in
+   terraform init && terraform apply
+   ```
+   It prints the server's static IP. The first boot takes about five
+   minutes to install Node and Caddy.
+3. **Point the domain.** Wherever bookiebullies.com's DNS lives, add an A
+   record: `app` → the static IP. (If it's Route 53, set `route53_zone_id` in
+   step 2 and Terraform adds it.)
+4. **Connect GitHub.** In this repo: Settings → Secrets and variables →
+   Actions. Add the variable `APP_HOST` (the static IP) and the secret
+   `APP_SSH_KEY` (the whole contents of `bb-deploy`, the private half).
+5. **Deploy.** Actions → picks-app deploy → Run workflow. It runs the tests,
+   copies the app over, restarts it, and checks that
+   https://app.bookiebullies.com/healthz answers. Caddy gets the https
+   certificate on the first visit.
+6. **Turn on reset emails.** In Google Workspace, make an app password for
+   the sending address (Google Account → Security → 2-Step Verification →
+   App passwords). Then on the server (`ssh -i bb-deploy ubuntu@<ip>`):
+   ```
+   sudo nano /etc/bookie-bullies-app.env        # fill in the SMTP_ lines
+   sudo systemctl restart bookie-bullies-app
+   ```
 
-```
-[mounts]
-  source = "receipts_data"
-  destination = "/data"
-```
+On the server: the code is in `/opt/bookie-bullies-app`, the database in
+`/var/lib/bookie-bullies-app/bookiebullies.db`, settings in
+`/etc/bookie-bullies-app.env`, and logs from
+`sudo journalctl -u bookie-bullies-app`. Lightsail snapshots the whole server
+every night; restoring one brings back every account and record as of then.
 
-Back up `/data/bookiebullies.db`. Losing that file loses every account and every
-record.
+There's also a Dockerfile, for any host that runs containers and keeps a disk.
 
 ## Security
 
