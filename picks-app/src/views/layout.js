@@ -1,7 +1,5 @@
-import { html, raw } from '../html.js';
+import { html } from '../html.js';
 import { icons } from './icons.js';
-
-const FAVICON_COLOR = { teal: '%2322d3b0', violet: '%23a78bfa', ember: '%23ff8f45' };
 
 /**
  * The page shell. `ctx` carries the app name, the signed-in player, the
@@ -24,7 +22,6 @@ export function layout(ctx, { title, active, body, description }) {
   const count = (key) => (key === 'picks' && ctx.openBets ? html`<b class="badge" aria-label="${ctx.openBets} open">${ctx.openBets > 99 ? '99+' : ctx.openBets}</b>` : '');
   const link = ([key, href, label, icon]) =>
     html`<a href="${href}" class="${key === active ? 'on' : ''}" ${key === active ? html`aria-current="page"` : ''}><span class="ic">${icon}${count(key)}</span><span>${label}</span></a>`;
-  const favicon = `data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='${FAVICON_COLOR[theme] ?? FAVICON_COLOR.teal}'/%3E%3Cpath d='M9 17l5 5 9-12' stroke='%230b0f15' stroke-width='4' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E`;
 
   return html`<!doctype html>
 <html lang="en" data-theme="${theme}">
@@ -34,14 +31,20 @@ export function layout(ctx, { title, active, body, description }) {
 <title>${title ? `${title} · ${app.name}` : app.name}</title>
 <meta name="description" content="${description ?? 'Make your picks before kickoff. They lock, they get graded off the final score, and nobody can edit them.'}">
 <meta name="theme-color" content="#0f141b">
-<link rel="icon" href="${raw(favicon)}">
+<link rel="icon" type="image/png" href="${app.assets.logo}">
+<link rel="apple-touch-icon" href="${app.assets.touchIcon}">
+<link rel="manifest" href="${app.assets.manifest}">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="${app.name}">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
 <link rel="stylesheet" href="${app.assets.css}">
 <script src="${app.assets.js}" defer></script>
 </head>
 <body class="${playing ? 'signed-in' : ''}">
 <header class="top">
   <div class="wrap">
-    <a class="brand" href="/"><span class="brand-mark">${icons.check}</span>${app.name}</a>
+    <a class="brand" href="/"><img class="brand-logo" src="${app.assets.logo}" alt="" width="34" height="34">${app.name}</a>
     <nav class="nav" aria-label="Main">${nav.map(link)}</nav>
     <div class="top-right">
       ${playing

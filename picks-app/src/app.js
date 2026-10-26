@@ -35,7 +35,17 @@ const SECURITY_HEADERS = {
 
 export function createApp({ store, games, config, now = () => new Date(), log = console }) {
   const assets = loadAssets();
-  const app = { name: config.appName, theme: config.theme ?? THEMES[0], assets: { css: assets.url('style.css'), js: assets.url('app.js') } };
+  const app = {
+    name: config.appName,
+    theme: config.theme ?? THEMES[0],
+    assets: {
+      css: assets.url('style.css'),
+      js: assets.url('app.js'),
+      logo: assets.url('logo.png'),
+      touchIcon: assets.url('icon-180.png'),
+      manifest: assets.url('manifest.webmanifest'),
+    },
+  };
   const loginLimit = auth.rateLimiter({ limit: 10, windowMs: 15 * 60_000 });
   const signupLimit = auth.rateLimiter({ limit: 10, windowMs: 60 * 60_000 });
   const joinLimit = auth.rateLimiter({ limit: 30, windowMs: 60 * 60_000 });
@@ -587,7 +597,12 @@ function periodOf(query) {
 }
 
 function loadAssets() {
-  const types = { '.css': 'text/css; charset=utf-8', '.js': 'text/javascript; charset=utf-8' };
+  const types = {
+    '.css': 'text/css; charset=utf-8',
+    '.js': 'text/javascript; charset=utf-8',
+    '.png': 'image/png',
+    '.webmanifest': 'application/manifest+json',
+  };
   const files = new Map();
   for (const name of fs.readdirSync(PUBLIC_DIR)) {
     const body = fs.readFileSync(path.join(PUBLIC_DIR, name));

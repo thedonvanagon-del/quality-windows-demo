@@ -98,7 +98,7 @@ export function setStatus(e, state, name) {
 export async function startApp({ time, espn = fakeEspn() }) {
   const store = openStore(':memory:');
   const games = createGames({ store, espn, now: time.now, log: quiet });
-  const handler = createApp({ store, games, config: { appName: 'Receipts', trustProxy: false }, now: time.now, log: quiet });
+  const handler = createApp({ store, games, config: { appName: 'Bookie Bullies', trustProxy: false }, now: time.now, log: quiet });
   const server = http.createServer(handler);
   await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
   const base = `http://127.0.0.1:${server.address().port}`;

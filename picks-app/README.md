@@ -1,4 +1,4 @@
-# Receipts
+# Bookie Bullies app
 
 A pick'em app where every record is real. People sign up with an email and a
 password, choose a screen name, and make picks on real games. Picks lock when
@@ -68,14 +68,14 @@ and SQLite.
 ```
 npm test        # ESPN parsing, grading math, and the whole app end to end
 npm run demo    # fake games and players, on http://localhost:3000
-npm start       # the real thing, against ESPN, with the database in data/receipts.db
+npm start       # the real thing, against ESPN, with the database in data/bookiebullies.db
 ```
 
 | Setting | Default | What it does |
 |---|---|---|
 | `PORT` | `3000` | Where it listens. |
-| `DATABASE_PATH` | `data/receipts.db` | The SQLite file. This holds every account and every record. |
-| `APP_NAME` | `Receipts` | The name in the header and the page titles. |
+| `DATABASE_PATH` | `data/bookiebullies.db` | The SQLite file. This holds every account and every record. |
+| `APP_NAME` | `Bookie Bullies` | The name in the header and the page titles. |
 | `THEME` | `ember` | The accent color for visitors and new players: `ember` (orange), `teal` or `violet`. Each player can switch on their own profile. |
 | `TRUST_PROXY` | off | Turn on behind a host's proxy (Fly, Render, Railway) so it reads the real visitor IP and knows the site is on https. |
 | `DEMO` | off | Fake games and players. Never in production. |
@@ -99,7 +99,7 @@ Add this to the `fly.toml` it wrote, then `fly deploy`:
   destination = "/data"
 ```
 
-Back up `/data/receipts.db`. Losing that file loses every account and every
+Back up `/data/bookiebullies.db`. Losing that file loses every account and every
 record.
 
 ## Security

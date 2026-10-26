@@ -14,7 +14,7 @@ export function createEspn({ fetch = globalThis.fetch, timeoutMs = 8000 } = {}) 
     async scoreboard(sport, from, to = from) {
       const query = new URLSearchParams({ dates: from === to ? from : `${from}-${to}`, limit: '1000', ...sport.params });
       const res = await fetch(`${BASE}/${sport.espnPath}/scoreboard?${query}`, {
-        headers: { accept: 'application/json', 'user-agent': 'receipts/0.1' },
+        headers: { accept: 'application/json', 'user-agent': 'bookiebullies-app/0.1' },
         signal: AbortSignal.timeout(timeoutMs),
       });
       if (!res.ok) throw new Error(`ESPN ${sport.key} scoreboard answered ${res.status}`);

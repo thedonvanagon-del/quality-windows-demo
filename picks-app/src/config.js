@@ -5,8 +5,8 @@ export function loadConfig(env = process.env) {
   return {
     port: Number(env.PORT) || 3000,
     host: env.HOST || '0.0.0.0',
-    databasePath: env.DATABASE_PATH || 'data/receipts.db',
-    appName: env.APP_NAME || 'Receipts',
+    databasePath: env.DATABASE_PATH || 'data/bookiebullies.db',
+    appName: env.APP_NAME || 'Bookie Bullies',
     // The accent color for visitors and new players: ember, teal or violet.
     theme: THEMES.includes(env.THEME) ? env.THEME : THEMES[0],
     // Fake games and players, so the app can be clicked through with no

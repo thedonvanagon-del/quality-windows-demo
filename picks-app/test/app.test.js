@@ -375,6 +375,17 @@ describe('form safety', () => {
     assert.match(page.text, /&lt;script&gt;alert\(1\)&lt;\/script&gt;/);
   });
 
+  test('install on a phone home screen', async () => {
+    const home = (await app.browser().get('/')).text;
+    const manifest = /<link rel="manifest" href="([^"]+)"/.exec(home)[1];
+    assert.match(home, /<link rel="apple-touch-icon" href="\/static\/icon-180\.png\?v=/);
+    const res = await fetch(app.base + manifest);
+    assert.equal(res.headers.get('content-type'), 'application/manifest+json');
+    const json = await res.json();
+    assert.equal(json.display, 'standalone');
+    for (const icon of json.icons) assert.equal((await fetch(app.base + icon.src)).status, 200, icon.src);
+  });
+
   test('send security headers', async () => {
     const res = await fetch(`${app.base}/leaderboard`);
     assert.match(res.headers.get('content-security-policy'), /script-src 'self'/);

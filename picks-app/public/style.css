@@ -71,6 +71,7 @@ main p a, .fine a, .empty a { color: var(--accent); font-weight: 600; }
 .top .wrap { display: flex; align-items: center; gap: 28px; height: 60px; }
 
 .brand { display: flex; align-items: center; gap: 10px; font-weight: 800; font-size: 1.12rem; letter-spacing: -0.01em; white-space: nowrap; }
+.brand-logo { width: 34px; height: 34px; object-fit: contain; flex: none; }
 .brand-mark { width: 28px; height: 28px; border-radius: 8px; background: var(--accent); color: var(--accent-ink); display: grid; place-items: center; }
 .brand-mark svg { width: 16px; height: 16px; }
 

@@ -16,7 +16,7 @@ const KEYLEN = 32;
 export const SESSION_DAYS = 30;
 export const MIN_PASSWORD = 8;
 export const SCREEN_NAME = /^[A-Za-z0-9_]{3,20}$/;
-const RESERVED = new Set(['admin', 'administrator', 'support', 'staff', 'mod', 'moderator', 'system', 'receipts', 'null', 'undefined', 'me']);
+const RESERVED = new Set(['admin', 'administrator', 'support', 'staff', 'mod', 'moderator', 'system', 'bookiebullies', 'bookie_bullies', 'null', 'undefined', 'me']);
 
 export async function hashPassword(password) {
   const salt = crypto.randomBytes(16);
