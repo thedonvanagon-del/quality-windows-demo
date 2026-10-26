@@ -59,6 +59,11 @@ dollars stay private and nothing is paid out.
   any amount). Each player sets what one unit is worth (starts at $100), and the
   record counts the wager in units, so a $10 bettor and a $1,000 bettor compete
   on skill. **Dollar amounts only ever show to the bettor.**
+- **2026-10-26:** The profile link button goes **anywhere the player chooses**
+  (Whop, Patreon, a paid Telegram, their own site). Any payment happens there,
+  not in the app: Bookie Bullies is the proof, the capper handles the sale.
+  Paid picks inside the app (with a cut for us) waits until cappers show
+  traction through their links.
 - **2026-10-26:** Profiles can carry **one outside link** (Telegram, Instagram,
   X, Discord, a website) as a button, for players who sell picks. A **Share
   profile** button uses the phone's share sheet. A shared profile link previews
@@ -121,6 +126,11 @@ In rough order of value:
 
 1. ~~Share cards~~ and ~~"hire me" link~~: built 2026-10-26 (text preview with
    the crest; a picture card with the record drawn on it would be the next step).
+2. **Paid picks in the app.** Cappers set a monthly price, subscribers see their
+   picks before games start, Bookie Bullies keeps 10 to 20% and Stripe Connect
+   pays out the rest. Needs payouts, refunds and tax forms; Apple takes up to
+   30% of digital subscriptions sold in an iPhone app; no "guaranteed win"
+   claims allowed. Build once cappers are clearly selling through their links.
 3. **The Bookie Bullies model as a player.** The site's own daily picks posted
    into the app under an official account, with a public record.
 4. **cfb-bot as a player**, same idea, for college football and the NFL.
