@@ -17,6 +17,7 @@ pip install playwright
 
 ```bash
 python3 studio.py build examples/storyboard.example.json   # MP4 + SRT + thumbnail in ./out
+python3 studio.py build examples/how-coffee-is-roasted.json --format 9:16   # same storyboard, other aspect ratio
 python3 studio.py lint  examples/storyboard.example.json   # health-claim wording check
 python3 studio.py reframe in.mp4 out.mp4 --format 9:16     # footage to vertical/square
 python3 studio.py contact out/video.mp4 out/sheet.png      # contact sheet for review
@@ -35,7 +36,7 @@ Or in Claude Code: ask for a video and the `video-producer` agent runs the whole
 | Captions | lower-third burned into the scene, plus an `.srt` sidecar |
 | Copy check | blocks flagged health-claim words unless `--force` |
 
-Formats: `9:16`, `16:9`, `1:1`, `4:5`. Scene types: `title`, `bullets`, `quote`, `image`, `clip`, `outro`. The field list is in `.claude/skills/video-storyboard/SKILL.md`.
+Formats: `9:16`, `16:9`, `1:1`, `4:5`. Scene types: `title`, `bullets`, `stat`, `roastbar`, `quote`, `image`, `clip`, `outro`. The field list is in `.claude/skills/video-storyboard/SKILL.md`.
 
 ## Speed
 

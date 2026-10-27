@@ -242,10 +242,13 @@ def write_srt(scenes, starts, path):
     def ts(s):
         return f"{int(s // 3600):02}:{int(s % 3600 // 60):02}:{int(s % 60):02},{int(s % 1 * 1000):03}"
     lines, n = [], 0
-    for sc, st in zip(scenes, starts):
+    for i, (sc, st) in enumerate(zip(scenes, starts)):
         if sc.get("caption"):
             n += 1
-            lines += [str(n), f"{ts(st + 0.25)} --> {ts(st + sc['duration'] - 0.1)}", sc["caption"], ""]
+            end = st + sc["duration"] - 0.1
+            if i + 1 < len(starts):  # crossfades overlap scenes; end before the next cue begins
+                end = min(end, starts[i + 1] + 0.25 - 0.05)
+            lines += [str(n), f"{ts(st + 0.25)} --> {ts(end)}", sc["caption"], ""]
     if n:
         path.write_text("\n".join(lines))
     return n

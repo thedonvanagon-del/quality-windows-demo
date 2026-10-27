@@ -43,6 +43,8 @@ Scene types and their fields:
 - `quote`: `text`, `attribution`. Real reviews only.
 - `image`: `image` (path), `text` (optional). Slow zoom over a still.
 - `clip`: `clip` (path), `start`, `text` (optional). Trims real footage and fills the frame.
+- `stat`: `text` (the big number, e.g. `~385°F`), `sub` (what it is). One number per scene.
+- `roastbar`: `text` (heading), `labels` (stops left to right along a green-to-dark roast gradient)
 - `outro`: `text`, `sub`. Adds the site URL automatically.
 
 Every scene takes `duration` (seconds) and an optional `caption`. Captions burn in as a lower third and also export to the `.srt`.
