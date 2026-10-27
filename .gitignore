@@ -33,3 +33,7 @@ __pycache__/
 
 # The picks app's database: every account and record. Never in git.
 picks-app/data/
+
+# video-studio renders
+video-studio/out/
+__pycache__/

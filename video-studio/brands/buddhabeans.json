@@ -1,0 +1,16 @@
+{
+  "name": "Buddha Beans Coffee",
+  "url": "buddhabeanscoffee.com",
+  "colors": {
+    "bg": "#1f1611",
+    "fg": "#f6efe4",
+    "accent": "#d9a441",
+    "muted": "#c9b9a3"
+  },
+  "fonts": {
+    "display": "'Inter Display', 'Inter', 'DejaVu Serif', serif",
+    "body": "'Inter', 'DejaVu Sans', sans-serif"
+  },
+  "voice": "Direct. Specific. Laid back. Warm, not soft. Plain verbs, short sentences. State things, don't puff them up. Coffee: lead with taste, smell, feel. CBD/CBG: factual, conversational, no medical claims, no miracle language.",
+  "_note": "Colors are placeholders chosen to feel like roasted beans and crema. Swap in the real brand hex values and fonts."
+}

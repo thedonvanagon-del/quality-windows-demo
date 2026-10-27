@@ -1,0 +1,52 @@
+# video-studio
+
+Storyboard JSON in, finished MP4 out. This is the engine behind the `video-producer` agent in `.claude/agents/`.
+
+## Setup
+
+Needs `ffmpeg`, Python 3.10+, and Playwright with Chromium.
+
+```bash
+pip install playwright
+# Locally, also: playwright install chromium
+# In the cloud container Chromium is already at /opt/pw-browsers/chromium and gets picked up automatically.
+# Override with CHROMIUM_PATH=/path/to/chrome.
+```
+
+## Use
+
+```bash
+python3 studio.py build examples/storyboard.example.json   # MP4 + SRT + thumbnail in ./out
+python3 studio.py lint  examples/storyboard.example.json   # health-claim wording check
+python3 studio.py reframe in.mp4 out.mp4 --format 9:16     # footage to vertical/square
+python3 studio.py contact out/video.mp4 out/sheet.png      # contact sheet for review
+```
+
+Or in Claude Code: ask for a video and the `video-producer` agent runs the whole workflow.
+
+## What it does
+
+| Stage | How |
+|---|---|
+| Motion graphics scenes | HTML/CSS per scene, animations seeked frame by frame in headless Chromium, encoded with x264 |
+| Footage scenes | ffmpeg trim, fill-crop to target format, optional text overlay |
+| Transitions | `xfade` crossfade between scenes |
+| Audio | voiceover + music with sidechain ducking, fade out, loudnorm to -14 LUFS |
+| Captions | lower-third burned into the scene, plus an `.srt` sidecar |
+| Copy check | blocks flagged health-claim words unless `--force` |
+
+Formats: `9:16`, `16:9`, `1:1`, `4:5`. Scene types: `title`, `bullets`, `quote`, `image`, `clip`, `outro`. The field list is in `.claude/skills/video-storyboard/SKILL.md`.
+
+## Speed
+
+Motion graphics render at roughly 5 to 7 seconds per second of 1080x1920 output on a small container. Drop `fps` to 24 for drafts.
+
+## Not included
+
+- **Voiceover generation.** No TTS engine is bundled. Pass a recording in `audio.voiceover`.
+- **Music.** Supply licensed tracks.
+- **Auto-captions from speech.** Captions come from the `caption` field per scene, not transcription.
+
+## Brand
+
+`brands/buddhabeans.json` holds colors, fonts, and voice notes. The colors are placeholders. Replace them with the real hex values. Add another brand by dropping a new JSON file next to it and setting `"brand"` in the storyboard.
