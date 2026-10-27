@@ -19,6 +19,8 @@ export function loadConfig(env = process.env) {
     // without it a reset link would be built from whatever host a request
     // claimed to be for.
     appUrl: (env.APP_URL || '').replace(/\/+$/, '') || null,
+    // Where the Terms and Privacy pages tell people to write.
+    contactEmail: env.CONTACT_EMAIL || 'hello@bookiebullies.com',
     // Outgoing email for password resets. For Google Workspace:
     // SMTP_HOST=smtp.gmail.com, SMTP_USER=you@yourdomain, SMTP_PASS=an app password.
     smtp: {

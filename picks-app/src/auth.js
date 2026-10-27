@@ -72,7 +72,7 @@ export function createSession(store, userId, now) {
 export function readSession(store, token, now) {
   if (!token) return null;
   const row = store.get(
-    `SELECT s.token_hash, s.csrf, s.expires_at, u.id, u.email, u.screen_name, u.created_at, u.theme, u.unit_size
+    `SELECT s.token_hash, s.csrf, s.expires_at, u.id, u.email, u.screen_name, u.created_at, u.theme, u.unit_size, u.email_verified_at
        FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.token_hash = ?`,
     sha256(token),
   );
@@ -84,7 +84,7 @@ export function readSession(store, token, now) {
   return {
     tokenHash: row.token_hash,
     csrf: row.csrf,
-    user: { id: row.id, email: row.email, screenName: row.screen_name, createdAt: row.created_at, theme: row.theme, unitSize: row.unit_size ?? 100 },
+    user: { id: row.id, email: row.email, screenName: row.screen_name, createdAt: row.created_at, theme: row.theme, unitSize: row.unit_size ?? 100, verified: Boolean(row.email_verified_at) },
   };
 }
 
@@ -123,6 +123,40 @@ export function finishReset(store, reset, passwordHash, now) {
     store.run('UPDATE password_resets SET used_at = ? WHERE user_id = ? AND used_at IS NULL', now.toISOString(), reset.user_id);
     store.run('DELETE FROM sessions WHERE user_id = ?', reset.user_id);
   });
+}
+
+export const VERIFY_DAYS = 7;
+export const NAME_MAX = 40;
+
+/** A link to confirm this user's email, good for a week. */
+export function createVerify(store, userId, now) {
+  const token = crypto.randomBytes(32).toString('base64url');
+  const expires = new Date(now.getTime() + VERIFY_DAYS * 86_400_000);
+  store.run('INSERT INTO email_verifications (token_hash, user_id, created_at, expires_at) VALUES (?, ?, ?, ?)',
+    sha256(token), userId, now.toISOString(), expires.toISOString());
+  return token;
+}
+
+/** Confirm the email a link was sent for. Returns the user id, or null for a dead link. */
+export function useVerify(store, token, now) {
+  if (!token) return null;
+  const row = store.get(
+    'SELECT user_id FROM email_verifications WHERE token_hash = ? AND used_at IS NULL AND expires_at > ?',
+    sha256(String(token)), now.toISOString(),
+  );
+  if (!row) return null;
+  store.tx(() => {
+    store.run('UPDATE users SET email_verified_at = COALESCE(email_verified_at, ?) WHERE id = ?', now.toISOString(), row.user_id);
+    store.run('UPDATE email_verifications SET used_at = ? WHERE user_id = ? AND used_at IS NULL', now.toISOString(), row.user_id);
+  });
+  return row.user_id;
+}
+
+/** A first or last name as typed: trimmed, single-spaced, no control characters. Empty means none. */
+export function cleanName(value) {
+  const name = String(value ?? '').replace(/[\p{Cc}\p{Cf}]/gu, '').replace(/\s+/g, ' ').trim();
+  if (name.length > NAME_MAX) return { error: `Keep each name to ${NAME_MAX} characters.` };
+  return { name: name || null };
 }
 
 /** Fixed-window counter: `limit` tries per key per window. */

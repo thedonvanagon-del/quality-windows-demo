@@ -193,7 +193,11 @@ export async function seedDemo({ store, games, espn, now = () => new Date() }) {
     const email = name === 'SharpShooter' ? DEMO_LOGIN.email : `${name.toLowerCase()}@example.com`;
     const hash = await hashPassword(name === 'SharpShooter' ? DEMO_LOGIN.password : `${name}-demo`);
     const created = new Date(at.getTime() - (PAST_DAYS + 3) * 86_400_000).toISOString();
-    ids[name] = Number(store.run('INSERT INTO users (email, password_hash, screen_name, created_at, bio) VALUES (?, ?, ?, ?, ?)', email, hash, name, created, BIOS[name] ?? null).lastInsertRowid);
+    ids[name] = Number(store.run(
+      `INSERT INTO users (email, password_hash, screen_name, created_at, bio, age_confirmed_at, terms_accepted_at, email_verified_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      email, hash, name, created, BIOS[name] ?? null, created, created, created,
+    ).lastInsertRowid);
     if (name === 'SharpShooter') store.run("UPDATE users SET link_url = 'https://t.me/example', link_label = 'Get my picks' WHERE id = ?", ids[name]);
   }
 

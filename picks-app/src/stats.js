@@ -44,7 +44,7 @@ export function leaderboard(store, scope, now, limit = 100) {
     .all(
       `SELECT u.id, u.screen_name, ${TOTALS}
          FROM picks p JOIN users u ON u.id = p.user_id
-        WHERE ${where} AND u.screen_name IS NOT NULL
+        WHERE ${where} AND u.screen_name IS NOT NULL AND u.email_verified_at IS NOT NULL
         GROUP BY u.id
         ORDER BY units DESC, wins DESC, u.screen_name
         LIMIT ?`,

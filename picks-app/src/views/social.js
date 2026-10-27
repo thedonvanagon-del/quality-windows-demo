@@ -138,6 +138,34 @@ function shareCard(player, record) {
   };
 }
 
+/** First and last name, both optional. */
+function nameForm(ctx, player) {
+  return html`<h2>Your name</h2>
+    <form class="form name-form" method="post" action="/name">
+      ${csrfField(ctx)}
+      <div class="pair">
+        <label>First name <span class="hint">Optional</span>
+          <input type="text" name="first_name" value="${player.first_name ?? ''}" autocomplete="given-name" maxlength="40"></label>
+        <label>Last name <span class="hint">Optional</span>
+          <input type="text" name="last_name" value="${player.last_name ?? ''}" autocomplete="family-name" maxlength="40"></label>
+      </div>
+      <div class="row"><button class="btn small">Save name</button><span class="muted small">Shows on your profile. Leave both blank to hide it.</span></div>
+    </form>`;
+}
+
+/** Account deletion, behind the password. */
+function deleteForm(ctx) {
+  return html`<details class="danger-zone">
+      <summary>Delete account</summary>
+      <form class="form" method="post" action="/account/delete" data-confirm="Delete your account and every pick on it? This can't be undone.">
+        ${csrfField(ctx)}
+        <p class="muted small">This deletes your account, your record and every pick. It can't be undone.</p>
+        <label>Your password<input type="password" name="password" autocomplete="current-password" required maxlength="200"></label>
+        <button class="btn danger">Delete my account</button>
+      </form>
+    </details>`;
+}
+
 /** One button on the profile to wherever the player sells picks or posts. */
 function linkForm(ctx, player) {
   return html`<h2>Your link</h2>
@@ -182,6 +210,7 @@ export function profile(ctx, { player, record, bySport, picks, hidden }) {
     share: shareCard(player, record),
     body: html`
       <div class="team"><span class="avatar big">${player.screen_name[0]}</span><h1>${player.screen_name}</h1></div>
+      ${player.first_name || player.last_name ? html`<p class="real-name">${[player.first_name, player.last_name].filter(Boolean).join(' ')}</p>` : ''}
       ${player.bio ? html`<p class="bio">${player.bio}</p>` : ''}
       <div class="row profile-actions">
         ${player.link_url ? html`<a class="btn small" href="${player.link_url}" target="_blank" rel="nofollow noopener noreferrer ugc">${player.link_label} ↗</a>` : ''}
@@ -189,7 +218,7 @@ export function profile(ctx, { player, record, bySport, picks, hidden }) {
       </div>
       <p class="lede">On the record since ${joined(player.created_at)}. ${record.graded} graded ${record.graded === 1 ? 'pick' : 'picks'}, every one locked before its game.</p>
       ${statStrip(record)}
-      ${ctx.user?.id === player.id ? html`${bioForm(ctx, player)}${linkForm(ctx, player)}${unitForm(ctx)}${colorPicker(ctx)}` : ''}
+      ${ctx.user?.id === player.id ? html`${nameForm(ctx, player)}${bioForm(ctx, player)}${linkForm(ctx, player)}${unitForm(ctx)}${colorPicker(ctx)}` : ''}
       ${bySport.length
         ? html`<h2>By sport</h2>
           <div class="table"><table>
@@ -206,6 +235,7 @@ export function profile(ctx, { player, record, bySport, picks, hidden }) {
       ${picks.length
         ? html`<ul class="tickets">${picks.map((p) => pickItem(p))}</ul>`
         : html`<div class="card empty">No picks on the record yet.</div>`}
+      ${ctx.user?.id === player.id ? deleteForm(ctx) : ''}
     `,
   });
 }

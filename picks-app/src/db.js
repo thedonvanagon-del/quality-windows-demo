@@ -115,6 +115,23 @@ const MIGRATIONS = [
   ALTER TABLE users ADD COLUMN link_url TEXT;
   ALTER TABLE users ADD COLUMN link_label TEXT;
   `,
+  `
+  -- Signup requirements: 21 or older, the Terms, and a confirmed email
+  -- before a record shows on leaderboards. A name is optional.
+  ALTER TABLE users ADD COLUMN first_name TEXT;
+  ALTER TABLE users ADD COLUMN last_name TEXT;
+  ALTER TABLE users ADD COLUMN age_confirmed_at TEXT;
+  ALTER TABLE users ADD COLUMN terms_accepted_at TEXT;
+  ALTER TABLE users ADD COLUMN email_verified_at TEXT;
+  CREATE TABLE email_verifications (
+    token_hash TEXT PRIMARY KEY,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    created_at TEXT NOT NULL,
+    expires_at TEXT NOT NULL,
+    used_at TEXT
+  );
+  CREATE INDEX email_verifications_user ON email_verifications(user_id);
+  `,
 ];
 
 export function openStore(file) {

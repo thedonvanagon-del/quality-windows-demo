@@ -62,6 +62,12 @@ export function layout(ctx, { title, active, body, description, share }) {
     </div>
   </div>
 </header>
+${user && !user.verified
+  ? html`<div class="verify-bar"><div class="wrap">
+      <span>Confirm your email to put your record on the leaderboards. Check ${user.email}.</span>
+      <form method="post" action="/verify/resend">${csrfField(ctx)}<input type="hidden" name="next" value="${ctx.url.pathname}"><button class="btn small ghost">Send a new link</button></form>
+    </div></div>`
+  : ''}
 <main class="wrap">
   ${flash ? html`<div class="flash ${flash.type === 'error' ? 'err' : 'ok'}" role="status">${flash.text}</div>` : ''}
   ${body}
@@ -71,6 +77,7 @@ export function layout(ctx, { title, active, body, description, share }) {
     ${user ? html`<form method="post" action="/logout" class="logout">${csrfField(ctx)}<button class="btn quiet small">Log out</button></form>` : ''}
     <p>Picks lock at kickoff and grade off ESPN's final scores. Nothing gets edited after the fact.</p>
     <p>Just picks, no betting here. 21+. If gambling stops being fun, call 1-800-GAMBLER.</p>
+    <p><a href="/terms">Terms</a> · <a href="/privacy">Privacy</a></p>
   </div>
 </footer>
 ${playing

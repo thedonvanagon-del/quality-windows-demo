@@ -33,7 +33,7 @@ async function player(email, name) {
 describe('accounts', () => {
   test('sign up, pick a screen name, land on the games', async () => {
     const b = app.browser();
-    const signup = await b.post('/signup', { email: 'Ann@Example.com', password: 'correct horse' });
+    const signup = await b.post('/signup', { email: 'Ann@Example.com', password: 'correct horse' , adult: 'on', terms: 'on' });
     assert.equal(signup.status, 303);
     assert.equal(signup.location, '/welcome');
     await b.get('/welcome');
@@ -48,13 +48,13 @@ describe('accounts', () => {
 
   test('turn away bad signups and taken names', async () => {
     const b = app.browser();
-    assert.match((await b.post('/signup', { email: 'nope', password: 'correct horse' })).text, /doesn&#39;t look right/);
-    assert.match((await b.post('/signup', { email: 'a@b.co', password: 'short' })).text, /at least 8/);
+    assert.match((await b.post('/signup', { email: 'nope', password: 'correct horse' , adult: 'on', terms: 'on' })).text, /doesn&#39;t look right/);
+    assert.match((await b.post('/signup', { email: 'a@b.co', password: 'short' , adult: 'on', terms: 'on' })).text, /at least 8/);
     await b.join('ann@example.com', 'Ann');
 
     const c = app.browser();
-    assert.match((await c.post('/signup', { email: 'ANN@example.com', password: 'correct horse' })).text, /already an account/);
-    await c.post('/signup', { email: 'cat@example.com', password: 'correct horse' });
+    assert.match((await c.post('/signup', { email: 'ANN@example.com', password: 'correct horse' , adult: 'on', terms: 'on' })).text, /already an account/);
+    await c.post('/signup', { email: 'cat@example.com', password: 'correct horse' , adult: 'on', terms: 'on' });
     await c.get('/welcome');
     assert.match((await c.post('/welcome', { screen_name: 'ann' })).text, /already has that name/);
     assert.match((await c.post('/welcome', { screen_name: 'a b' })).text, /3 to 20 letters/);
@@ -141,8 +141,9 @@ describe('accounts', () => {
     await b.get('/forgot');
     const asked = await b.post('/forgot', { email: 'Ann@Example.com' });
     assert.match(visible(asked.text), /a link to set a new password is on its way/);
-    assert.equal(app.outbox.length, 1);
-    const [mail] = app.outbox;
+    const resets = app.outbox.filter((m) => /reset/i.test(m.subject));
+    assert.equal(resets.length, 1);
+    const [mail] = resets;
     assert.equal(mail.to, 'ann@example.com');
     const link = /https:\/\/app\.example\.test\/reset\?token=([\w-]+)/.exec(mail.text);
     assert.ok(link, 'the link uses APP_URL, never the request host');
@@ -171,9 +172,84 @@ describe('accounts', () => {
     const b = app.browser();
     await b.get('/forgot');
     await b.post('/forgot', { email: 'ann@example.com' });
-    const token = /token=([\w-]+)/.exec(app.outbox[0].text)[1];
+    const token = /reset\?token=([\w-]+)/.exec(app.outbox.find((m) => /reset/i.test(m.subject)).text)[1];
     time.advance(61 * 60_000);
     assert.equal((await b.get(`/reset?token=${token}`)).status, 400);
+  });
+
+  test('require 21+ and the Terms to sign up', async () => {
+    const b = app.browser();
+    await b.get('/signup');
+    const base = { email: 'ann@example.com', password: 'correct horse' };
+    assert.match(visible((await b.post('/signup', { ...base, terms: 'on' })).text), /21 or older/);
+    assert.match(visible((await b.post('/signup', { ...base, adult: 'on' })).text), /Agree to the Terms/);
+    assert.equal(app.store.get('SELECT COUNT(*) AS n FROM users').n, 0);
+    assert.equal((await b.post('/signup', { ...base, adult: 'on', terms: 'on' })).status, 303);
+    const row = app.store.get('SELECT age_confirmed_at, terms_accepted_at, email_verified_at FROM users');
+    assert.equal(row.age_confirmed_at, MORNING);
+    assert.equal(row.terms_accepted_at, MORNING);
+    assert.equal(row.email_verified_at, null);
+    assert.equal((await app.browser().get('/terms')).status, 200);
+    assert.match(visible((await app.browser().get('/privacy')).text), /Deleting your account/);
+  });
+
+  test('keep unconfirmed emails off the leaderboards', async () => {
+    const ann = app.browser();
+    await ann.join('ann@example.com', 'Ann', 'correct horse', { confirm: false });
+    assert.match(visible((await ann.get('/games')).text), /Confirm your email to put your record on the leaderboards/);
+    await ann.post('/picks', { ...BILLS_PLUS, wager: '100' });
+    setFinal(game, 27, 24);
+    time.set('2026-10-25T21:00:00.000Z');
+    await app.games.checkFinals();
+    assert.doesNotMatch(visible((await app.browser().get('/leaderboard')).text), /Ann/);
+    assert.match(visible((await app.browser().get('/u/Ann')).text), /1-0/, 'the record itself still counts');
+
+    await ann.get('/games');
+    await ann.post('/verify/resend', { next: '/games' });
+    assert.equal(app.outbox.filter((m) => /Confirm/.test(m.subject)).length, 2);
+    const done = await ann.get(ann.verifyLink('ann@example.com'));
+    assert.equal(done.location, '/games');
+    assert.doesNotMatch(visible((await ann.get('/games')).text), /Confirm your email to put/);
+    assert.match(visible((await app.browser().get('/leaderboard')).text), /Ann 1-0/);
+    assert.equal((await app.browser().get(ann.verifyLink('ann@example.com'))).status, 400, 'a link works once');
+  });
+
+  test('take an optional name, last name and all', async () => {
+    const b = app.browser();
+    await b.post('/signup', { email: 'ann@example.com', password: 'correct horse', adult: 'on', terms: 'on' });
+    await b.get('/welcome');
+    await b.post('/welcome', { screen_name: 'Ann', first_name: '  Ann  ', last_name: '' });
+    assert.match((await app.browser().get('/u/Ann')).text, /<p class="real-name">Ann<\/p>/);
+    await b.get('/u/Ann');
+    await b.post('/name', { first_name: 'Ann', last_name: 'Lee' });
+    assert.match((await app.browser().get('/u/Ann')).text, /<p class="real-name">Ann Lee<\/p>/);
+    await b.get('/u/Ann');
+    await b.post('/name', { first_name: '', last_name: '' });
+    assert.doesNotMatch((await app.browser().get('/u/Ann')).text, /real-name/);
+    await b.get('/u/Ann');
+    await b.post('/name', { first_name: 'x'.repeat(41) });
+    assert.match(visible((await b.get('/u/Ann')).text), /40 characters/);
+  });
+
+  test('delete an account, behind the password', async () => {
+    const ann = await player('ann@example.com', 'Ann');
+    await ann.post('/picks', BILLS_PLUS);
+    await ann.get('/groups');
+    await ann.post('/groups', { name: 'Sunday Squad', sport: '' });
+    const code = /class="code">([A-Z0-9]{8})</.exec((await ann.get('/groups/1')).text)[1];
+    const bob = await player('bob@example.com', 'Bob');
+    await bob.get('/groups');
+    await bob.post('/groups/join', { code });
+
+    await ann.get('/u/Ann');
+    await ann.post('/account/delete', { password: 'wrong one' });
+    assert.match(visible((await ann.get('/u/Ann')).text), /didn't match, so nothing was deleted/);
+    await ann.post('/account/delete', { password: 'correct horse' });
+    assert.equal(app.store.get("SELECT COUNT(*) AS n FROM users WHERE email = 'ann@example.com'").n, 0);
+    assert.equal(picks().length, 0);
+    assert.equal((await app.browser().get('/u/Ann')).status, 404);
+    assert.match((await ann.get('/picks')).location, /^\/login/, 'signed out');
+    assert.equal(app.store.get('SELECT owner_id FROM friend_groups').owner_id, app.store.get("SELECT id FROM users WHERE screen_name = 'Bob'").id, 'the group passes to Bob');
   });
 
   test('never send someone off-site after login', async () => {

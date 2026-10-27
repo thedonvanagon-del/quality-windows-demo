@@ -46,6 +46,20 @@ dollars stay private and nothing is paid out.
 - **2026-10-26:** The More tab holds everything that doesn't fit in the bar.
   New features get a row there. First one: **Live games**.
 
+### Signing up
+- **2026-10-27:** Signup asks for email, password, **"I'm 21 or older"** and
+  **agree to the Terms and Privacy Policy** (both required checkboxes, with the
+  time stored). Then a screen name, plus an **optional first and last name**
+  (neither required). A name shows on the profile when given.
+- **2026-10-27:** **No ID check**, since no money changes hands. No phone number.
+- **2026-10-27:** People **confirm their email** by link. They can pick right
+  away, but only show on leaderboards once confirmed; a banner reminds them.
+- **2026-10-27:** Players can **delete their account** from their profile
+  (needs the password). Apple requires this for App Store apps.
+- **2026-10-27:** Terms of Use and Privacy Policy pages (`/terms`, `/privacy`)
+  are plain-language first drafts. **Have a lawyer read them before launch.**
+  They name hello@bookiebullies.com as the contact (setting: CONTACT_EMAIL).
+
 ### How picks work
 - **2026-10-19:** Games, lines, scores and logos come from ESPN's free public
   scoreboard, the same feed Bookie Bullies and cfb-bot use. No paid odds API.
@@ -87,7 +101,9 @@ All of it is in `picks-app/` on PR
 [thedonvanagon-del/quality-windows-demo#15](https://github.com/thedonvanagon-del/quality-windows-demo/pull/15),
 not merged yet.
 
-- Email and password signup, screen name, login, logout, password reset by email
+- Email and password signup with 21+ and Terms checkboxes, email confirmation,
+  optional first and last name, screen name, login, logout, password reset by
+  email, account deletion, Terms and Privacy pages
 - Games board for NFL, college football, NBA, college basketball, MLB, NHL
   (spread, total, moneyline)
 - Pick slip with dollar wagers and live "to win"

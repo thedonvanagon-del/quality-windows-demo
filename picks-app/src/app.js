@@ -17,6 +17,7 @@ import { deletePick, formatLine, formatMoney, isLocked, makePick, MARKETS, price
 import { SPORT } from './sports.js';
 import { leaderboard, PERIODS, record, recordBySport } from './stats.js';
 import * as account from './views/account.js';
+import * as legal from './views/legal.js';
 import * as moreViews from './views/more.js';
 import * as play from './views/play.js';
 import * as social from './views/social.js';
@@ -52,6 +53,23 @@ export function createApp({ store, games, config, mailer = createMailer({ log: {
   const signupLimit = auth.rateLimiter({ limit: 10, windowMs: 60 * 60_000 });
   const joinLimit = auth.rateLimiter({ limit: 30, windowMs: 60 * 60_000 });
   const forgotLimit = auth.rateLimiter({ limit: 5, windowMs: 60 * 60_000 });
+  const resendLimit = auth.rateLimiter({ limit: 5, windowMs: 60 * 60_000 });
+  const contact = config.contactEmail ?? 'hello@bookiebullies.com';
+
+  /** Email a link that confirms this address. Mail trouble is logged, never shown. */
+  async function sendVerify(ctx, userId, email) {
+    const token = auth.createVerify(store, userId, ctx.now);
+    const link = `${config.appUrl ?? origin(ctx)}/verify?token=${token}`;
+    try {
+      await mailer.send({
+        to: email,
+        subject: `Confirm your ${config.appName} email`,
+        text: `Welcome to ${config.appName}.\n\nConfirm this email to put your record on the leaderboards (the link works for ${auth.VERIFY_DAYS} days):\n${link}\n\nIf you didn't sign up, ignore this email.\n`,
+      });
+    } catch (err) {
+      log.error(`verify email to ${email}: ${err.message}`);
+    }
+  }
 
   // ---- helpers --------------------------------------------------------------
 
@@ -133,9 +151,13 @@ export function createApp({ store, games, config, mailer = createMailer({ log: {
     const email = auth.normalizeEmail(ctx.form.get('email'));
     const password = ctx.form.get('password') ?? '';
     const next = safeNext(ctx.form.get('next'));
-    const again = (status, error) => send(ctx, status, account.signup(ctx, { email, error, next }));
+    const adult = ctx.form.get('adult') === 'on';
+    const terms = ctx.form.get('terms') === 'on';
+    const again = (status, error) => send(ctx, status, account.signup(ctx, { email, error, next, adult, terms }));
     if (!signupLimit.allow(clientIp(ctx), ctx.now)) return again(429, 'Too many new accounts from here. Try again in an hour.');
     if (!auth.validEmail(email)) return again(400, "That email doesn't look right.");
+    if (!adult) return again(400, "You have to be 21 or older to play. Check the box if you are.");
+    if (!terms) return again(400, 'Agree to the Terms and Privacy Policy to make an account.');
     if (password.length < auth.MIN_PASSWORD) return again(400, `Use at least ${auth.MIN_PASSWORD} characters for your password.`);
     if (password.length > 200) return again(400, 'That password is too long. Keep it under 200 characters.');
     const taken = () => again(400, "There's already an account with that email. Log in instead?");
@@ -143,13 +165,37 @@ export function createApp({ store, games, config, mailer = createMailer({ log: {
     const hash = await auth.hashPassword(password);
     let id;
     try {
-      id = Number(store.run('INSERT INTO users (email, password_hash, created_at) VALUES (?, ?, ?)', email, hash, ctx.now.toISOString()).lastInsertRowid);
+      const at = ctx.now.toISOString();
+      id = Number(store.run(
+        'INSERT INTO users (email, password_hash, created_at, age_confirmed_at, terms_accepted_at) VALUES (?, ?, ?, ?, ?)',
+        email, hash, at, at, at,
+      ).lastInsertRowid);
     } catch (err) {
       if (/UNIQUE/.test(err.message)) return taken();
       throw err;
     }
     startSession(ctx, id);
+    await sendVerify(ctx, id, email);
     redirect(ctx, `/welcome${next ? `?next=${encodeURIComponent(next)}` : ''}`);
+  }
+
+  function verify(ctx) {
+    const userId = auth.useVerify(store, ctx.query.get('token'), ctx.now);
+    if (!userId) return send(ctx, 400, account.verifyDead(ctx));
+    flash(ctx, 'ok', "Email confirmed. Your record shows on the leaderboards now.");
+    redirect(ctx, ctx.user ? '/games' : '/login');
+  }
+
+  async function verifyResend(ctx) {
+    if (!signedIn(ctx)) return;
+    if (ctx.user.verified) return redirect(ctx, '/games');
+    if (!resendLimit.allow(`user ${ctx.user.id}`, ctx.now)) {
+      flash(ctx, 'error', 'We already sent a few. Give them a few minutes, and check spam.');
+    } else {
+      await sendVerify(ctx, ctx.user.id, ctx.user.email);
+      flash(ctx, 'ok', `Sent a new link to ${ctx.user.email}.`);
+    }
+    redirect(ctx, safeNext(ctx.form.get('next')) ?? '/games');
   }
 
   function loginForm(ctx) {
@@ -239,12 +285,17 @@ export function createApp({ store, games, config, mailer = createMailer({ log: {
     const next = safeNext(ctx.form.get('next'));
     if (ctx.user.screenName) return redirect(ctx, next ?? '/games');
     const name = String(ctx.form.get('screen_name') ?? '').trim();
-    const again = (error) => send(ctx, 400, account.welcome(ctx, { name, error, next }));
+    const first = auth.cleanName(ctx.form.get('first_name'));
+    const last = auth.cleanName(ctx.form.get('last_name'));
+    const again = (error) => send(ctx, 400, account.welcome(ctx, {
+      name, error, next, firstName: ctx.form.get('first_name') ?? '', lastName: ctx.form.get('last_name') ?? '',
+    }));
     const problem = auth.screenNameProblem(name);
     if (problem) return again(problem);
+    if (first.error || last.error) return again(first.error ?? last.error);
     if (store.get('SELECT 1 FROM users WHERE screen_name = ?', name)) return again('Someone already has that name. Try another.');
     try {
-      store.run('UPDATE users SET screen_name = ? WHERE id = ? AND screen_name IS NULL', name, ctx.user.id);
+      store.run('UPDATE users SET screen_name = ?, first_name = ?, last_name = ? WHERE id = ? AND screen_name IS NULL', name, first.name, last.name, ctx.user.id);
     } catch (err) {
       if (/UNIQUE/.test(err.message)) return again('Someone already has that name. Try another.');
       throw err;
@@ -441,7 +492,7 @@ export function createApp({ store, games, config, mailer = createMailer({ log: {
   }
 
   function profilePage(ctx, { name }) {
-    const player = store.get('SELECT id, screen_name, created_at, bio, link_url, link_label FROM users WHERE screen_name = ?', name);
+    const player = store.get('SELECT id, screen_name, created_at, bio, link_url, link_label, first_name, last_name FROM users WHERE screen_name = ?', name);
     if (!player) return notFound(ctx);
     if (player.screen_name !== name) return redirect(ctx, `/u/${encodeURIComponent(player.screen_name)}`);
     const { picks, hidden } = publicPicks(store, player.id, { viewerId: ctx.user?.id, now: ctx.now });
@@ -459,6 +510,37 @@ export function createApp({ store, games, config, mailer = createMailer({ log: {
     const theme = ctx.form.get('theme');
     if (THEMES.includes(theme)) store.run('UPDATE users SET theme = ? WHERE id = ?', theme, ctx.user.id);
     redirect(ctx, `/u/${encodeURIComponent(ctx.user.screenName)}`);
+  }
+
+  function namePost(ctx) {
+    if (!signedIn(ctx)) return;
+    const first = auth.cleanName(ctx.form.get('first_name'));
+    const last = auth.cleanName(ctx.form.get('last_name'));
+    if (first.error || last.error) {
+      flash(ctx, 'error', first.error ?? last.error);
+    } else {
+      store.run('UPDATE users SET first_name = ?, last_name = ? WHERE id = ?', first.name, last.name, ctx.user.id);
+      flash(ctx, 'ok', first.name || last.name ? 'Name saved.' : 'Name removed.');
+    }
+    redirect(ctx, `/u/${encodeURIComponent(ctx.user.screenName)}`);
+  }
+
+  /** Delete the account and everything in it, after the password checks out. */
+  async function deleteAccount(ctx) {
+    if (!signedIn(ctx)) return;
+    const row = store.get('SELECT password_hash FROM users WHERE id = ?', ctx.user.id);
+    if (!(await auth.verifyPassword(ctx.form.get('password') ?? '', row.password_hash))) {
+      flash(ctx, 'error', "That password didn't match, so nothing was deleted.");
+      return redirect(ctx, `/u/${encodeURIComponent(ctx.user.screenName)}`);
+    }
+    // Hand any group this player owns to another member before the account goes.
+    for (const g of store.all('SELECT id FROM friend_groups WHERE owner_id = ?', ctx.user.id)) {
+      leaveGroup(store, { groupId: g.id, userId: ctx.user.id });
+    }
+    store.run('DELETE FROM users WHERE id = ?', ctx.user.id);
+    setCookie(ctx, 'sid', '', 0);
+    flash(ctx, 'ok', 'Your account and your picks are deleted.');
+    redirect(ctx, '/');
   }
 
   function linkPost(ctx) {
@@ -541,6 +623,12 @@ export function createApp({ store, games, config, mailer = createMailer({ log: {
     ['POST', '/theme', themePost],
     ['POST', '/bio', bioPost],
     ['POST', '/link', linkPost],
+    ['POST', '/name', namePost],
+    ['POST', '/account/delete', deleteAccount],
+    ['GET', '/verify', verify],
+    ['POST', '/verify/resend', verifyResend],
+    ['GET', '/terms', (ctx) => send(ctx, 200, legal.terms(ctx, { contact }))],
+    ['GET', '/privacy', (ctx) => send(ctx, 200, legal.privacy(ctx, { contact }))],
     ['POST', '/unit', unitPost],
   ].map(([method, pattern, handler]) => {
     const keys = [];

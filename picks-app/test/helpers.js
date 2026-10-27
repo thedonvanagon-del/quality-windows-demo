@@ -114,7 +114,7 @@ export async function startApp({ time, espn = fakeEspn() }) {
     games,
     espn,
     outbox,
-    browser: () => new Browser(base),
+    browser: () => new Browser(base, outbox),
     async close() {
       server.closeAllConnections();
       await new Promise((resolve) => server.close(resolve));
@@ -125,8 +125,9 @@ export async function startApp({ time, espn = fakeEspn() }) {
 
 /** Enough of a browser for these tests: a cookie jar and the page's form token. */
 export class Browser {
-  constructor(base) {
+  constructor(base, outbox = []) {
     this.base = base;
+    this.outbox = outbox;
     this.jar = new Map();
     this.csrf = null;
   }
@@ -164,14 +165,22 @@ export class Browser {
     });
   }
 
-  /** Sign up, pick a screen name, and end up on the games page. */
-  async join(email, name, password = 'correct horse') {
-    const signup = await this.post('/signup', { email, password });
+  /** Sign up, pick a screen name, confirm the email, and end up on the games page. */
+  async join(email, name, password = 'correct horse', { confirm = true } = {}) {
+    const signup = await this.post('/signup', { email, password, adult: 'on', terms: 'on' });
     if (signup.status !== 303) throw new Error(`signup answered ${signup.status}: ${signup.text.slice(0, 300)}`);
     await this.get(signup.location);
     const welcome = await this.post('/welcome', { screen_name: name });
     if (welcome.status !== 303) throw new Error(`welcome answered ${welcome.status}`);
+    if (confirm) await this.get(this.verifyLink(email));
     return welcome;
+  }
+
+  /** The path of the newest confirm-email link sent to this address. */
+  verifyLink(email) {
+    const mail = [...this.outbox].reverse().find((m) => m.to === email.toLowerCase() && /\/verify\?token=/.test(m.text));
+    if (!mail) throw new Error(`no confirm email for ${email}`);
+    return /\/verify\?token=[\w-]+/.exec(mail.text)[0];
   }
 }
 

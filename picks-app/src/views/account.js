@@ -27,7 +27,7 @@ export function home(ctx, { top }) {
   });
 }
 
-export function signup(ctx, { email = '', error, next }) {
+export function signup(ctx, { email = '', error, next, adult = false, terms = false }) {
   return layout(ctx, {
     title: 'Sign up',
     active: 'signup',
@@ -42,6 +42,8 @@ export function signup(ctx, { email = '', error, next }) {
           <label>Email<input type="email" name="email" value="${email}" autocomplete="email" required maxlength="254"></label>
           <label>Password <span class="hint">At least 8 characters.</span>
             <input type="password" name="password" autocomplete="new-password" required minlength="8" maxlength="200"></label>
+          <label class="check"><input type="checkbox" name="adult" required ${adult ? 'checked' : ''}><span>I'm 21 or older.</span></label>
+          <label class="check"><input type="checkbox" name="terms" required ${terms ? 'checked' : ''}><span>I agree to the <a href="/terms" target="_blank">Terms</a> and <a href="/privacy" target="_blank">Privacy Policy</a>.</span></label>
           <button class="btn block">Create account</button>
         </form>
         <p class="fine">Already have one? <a href="/login${next ? `?next=${encodeURIComponent(next)}` : ''}">Log in</a></p>
@@ -128,7 +130,7 @@ export function resetDead(ctx) {
   });
 }
 
-export function welcome(ctx, { name = '', error, next }) {
+export function welcome(ctx, { name = '', error, next, firstName = '', lastName = '' }) {
   return layout(ctx, {
     title: 'Pick a screen name',
     body: html`
@@ -141,8 +143,28 @@ export function welcome(ctx, { name = '', error, next }) {
           ${next ? html`<input type="hidden" name="next" value="${next}">` : ''}
           <label>Screen name <span class="hint">3 to 20 letters, numbers or underscores.</span>
             <input type="text" name="screen_name" value="${name}" autocomplete="nickname" required minlength="3" maxlength="20" pattern="[A-Za-z0-9_]{3,20}" autocapitalize="off" spellcheck="false"></label>
+          <div class="pair">
+            <label>First name <span class="hint">Optional</span>
+              <input type="text" name="first_name" value="${firstName}" autocomplete="given-name" maxlength="40"></label>
+            <label>Last name <span class="hint">Optional</span>
+              <input type="text" name="last_name" value="${lastName}" autocomplete="family-name" maxlength="40"></label>
+          </div>
+          <p class="muted small">A name shows on your profile next to your screen name. Leave it blank to go by your screen name alone.</p>
           <button class="btn block">Lock it in</button>
         </form>
+      </div>
+    `,
+  });
+}
+
+export function verifyDead(ctx) {
+  return layout(ctx, {
+    title: 'Link expired',
+    body: html`
+      <div class="auth">
+        <h1>That link has expired</h1>
+        <p class="lede">Confirm links work for a week, once. Log in and we'll send a fresh one from the banner at the top.</p>
+        <a class="btn block" href="/login">Log in</a>
       </div>
     `,
   });
