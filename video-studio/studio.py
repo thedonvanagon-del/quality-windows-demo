@@ -60,7 +60,7 @@ def load_brand(sb):
 
 def scene_text(scene):
     parts = [scene.get(k, "") for k in ("text", "sub", "caption", "attribution")]
-    parts += scene.get("bullets", [])
+    parts += scene.get("bullets", []) + scene.get("labels", [])
     return " ".join(p for p in parts if p)
 
 
@@ -88,7 +88,7 @@ def scene_html(sc, brand, w, h):
     text = html.escape(sc.get("text", ""))
     sub = html.escape(sc.get("sub", ""))
     cap = html.escape(sc.get("caption", ""))
-    unit = w / 1080  # scale type with width
+    unit = min(w, h) / 1080  # scale type off the short side
     img = sc.get("image")
     img_css = ""
     if t == "image" and img:
@@ -108,6 +108,14 @@ def scene_html(sc, brand, w, h):
                 f'<p class="rise d2">{html.escape(sc.get("attribution", ""))}</p>')
     elif t == "image":
         body = f'<h2 class="rise d1 shade">{text}</h2>' if text else ""
+    elif t == "stat":
+        body = (f'<div class="stat rise">{text}</div><h2 class="rise d1">{sub}</h2>')
+    elif t == "roastbar":
+        labels = "".join(
+            f'<span class="rise" style="animation-delay:{0.9 + 0.35 * i}s">{html.escape(b)}</span>'
+            for i, b in enumerate(sc.get("labels", [])))
+        body = (f'<h2 class="rise">{text}</h2><div class="bar"><i></i></div>'
+                f'<div class="labels">{labels}</div>')
     elif t == "outro":
         body = (f'<h1 class="rise">{text}</h1><p class="rise d1">{sub}</p>'
                 f'<div class="url rise d2">{html.escape(brand.get("url", ""))}</div>')
@@ -131,6 +139,15 @@ ul{{list-style:none;padding:0;display:flex;flex-direction:column;gap:{int(26*uni
 li{{font-size:{int(54*unit)}px;padding-left:{int(48*unit)}px;position:relative}}
 li::before{{content:"";position:absolute;left:0;top:.5em;width:{int(20*unit)}px;height:{int(20*unit)}px;
   border-radius:50%;background:var(--accent)}}
+.stat{{font-family:{f['display']};font-size:{int(260*unit)}px;line-height:1;color:var(--accent);
+  position:relative;z-index:1}}
+.bar{{height:{int(80*unit)}px;border-radius:{int(40*unit)}px;overflow:hidden;position:relative;z-index:1;
+  background:#2b2018}}
+.bar i{{display:block;height:100%;transform-origin:left;animation:grow 1.6s cubic-bezier(.3,.7,.2,1) .3s both;
+  background:linear-gradient(90deg,#7d8f4e,#c9b25a 22%,#b07a45 42%,#7a4a26 62%,#4b2c17 82%,#241209)}}
+.labels{{display:flex;justify-content:space-between;position:relative;z-index:1}}
+.labels span{{font-size:{int(44*unit)}px;color:var(--muted)}}
+@keyframes grow{{from{{transform:scaleX(0)}}to{{transform:scaleX(1)}}}}
 .url{{font-size:{int(52*unit)}px;color:var(--accent);letter-spacing:.04em;position:relative;z-index:1}}
 .shade{{text-shadow:0 2px 24px rgba(0,0,0,.6)}}
 .cap{{position:absolute;left:{int(70*unit)}px;right:{int(70*unit)}px;bottom:{int(h*0.12)}px;
@@ -239,12 +256,15 @@ def write_srt(scenes, starts, path):
 def cmd_build(a):
     sb = json.loads(Path(a.storyboard).read_text())
     brand = load_brand(sb)
-    w, h = FORMATS[sb.get("format", "9:16")]
+    fmt = a.format or sb.get("format", "9:16")
+    w, h = FORMATS[fmt]
     fps = sb.get("fps", 30)
     trans = sb.get("transition", 0.5)
     out_dir = Path(a.out or HERE / "out")
     out_dir.mkdir(parents=True, exist_ok=True)
     name = re.sub(r"[^a-z0-9]+", "-", sb.get("title", "video").lower()).strip("-")
+    if a.format:
+        name += "-" + fmt.replace(":", "x")
 
     print("copy check:")
     if lint(sb) and not a.force:
@@ -306,6 +326,7 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = ap.add_subparsers(dest="cmd", required=True)
     b = sub.add_parser("build"); b.add_argument("storyboard"); b.add_argument("--out")
+    b.add_argument("--format", choices=FORMATS, help="override storyboard format")
     b.add_argument("--force", action="store_true", help="ship even if copy lint flags words")
     b.set_defaults(fn=cmd_build)
     l = sub.add_parser("lint"); l.add_argument("storyboard"); l.set_defaults(fn=cmd_lint)
