@@ -1,0 +1,78 @@
+#!/bin/bash
+# First boot of the Bookie Bullies app server (Ubuntu 24.04 on Lightsail).
+# Installs Node 22 and Caddy, and sets the app up as a service. The app's
+# code arrives later, from the GitHub deploy workflow.
+set -euxo pipefail
+export DEBIAN_FRONTEND=noninteractive
+
+apt-get update
+apt-get install -y ca-certificates curl gnupg rsync sqlite3 debian-keyring debian-archive-keyring apt-transport-https
+
+# Node 22: the app uses its built-in SQLite.
+curl -fsSL https://deb.nodesource.com/setup_22.x | bash -
+apt-get install -y nodejs
+
+# Caddy: https certificates from Let's Encrypt, renewed on its own.
+curl -1sLf https://dl.cloudsmith.io/public/caddy/stable/gpg.key | gpg --dearmor -o /usr/share/keyrings/caddy-stable-archive-keyring.gpg
+curl -1sLf https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt -o /etc/apt/sources.list.d/caddy-stable.list
+apt-get update
+apt-get install -y caddy
+
+# The app runs as its own user. Code is deployed by ubuntu; data is the app's alone.
+id bbapp >/dev/null 2>&1 || useradd --system --home-dir /opt/bookie-bullies-app --shell /usr/sbin/nologin bbapp
+install -d -o ubuntu -g ubuntu /opt/bookie-bullies-app
+install -d -o bbapp -g bbapp -m 700 /var/lib/bookie-bullies-app
+
+# Settings. Fill in the SMTP lines to turn on password-reset email, then:
+#   sudo systemctl restart bookie-bullies-app
+if [ ! -f /etc/bookie-bullies-app.env ]; then
+  cat > /etc/bookie-bullies-app.env <<ENV
+PORT=3000
+HOST=127.0.0.1
+DATABASE_PATH=/var/lib/bookie-bullies-app/bookiebullies.db
+TRUST_PROXY=1
+APP_URL=https://${domain}
+# SMTP_HOST=smtp.gmail.com
+# SMTP_USER=hello@bookiebullies.com
+# SMTP_PASS=the-google-app-password
+# MAIL_FROM=Bookie Bullies <hello@bookiebullies.com>
+ENV
+  chown root:bbapp /etc/bookie-bullies-app.env
+  chmod 640 /etc/bookie-bullies-app.env
+fi
+
+cat > /etc/systemd/system/bookie-bullies-app.service <<'UNIT'
+[Unit]
+Description=Bookie Bullies app
+After=network-online.target
+Wants=network-online.target
+# Nothing to run until the first deploy lands.
+ConditionPathExists=/opt/bookie-bullies-app/src/server.js
+
+[Service]
+User=bbapp
+Group=bbapp
+WorkingDirectory=/opt/bookie-bullies-app
+EnvironmentFile=/etc/bookie-bullies-app.env
+ExecStart=/usr/bin/node --disable-warning=ExperimentalWarning src/server.js
+Restart=always
+RestartSec=3
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/var/lib/bookie-bullies-app
+
+[Install]
+WantedBy=multi-user.target
+UNIT
+systemctl daemon-reload
+systemctl enable bookie-bullies-app
+
+cat > /etc/caddy/Caddyfile <<CADDY
+${domain} {
+	encode zstd gzip
+	reverse_proxy 127.0.0.1:3000
+}
+CADDY
+systemctl reload caddy || systemctl restart caddy

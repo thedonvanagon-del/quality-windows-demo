@@ -1,0 +1,10 @@
+# Copy to terraform.tfvars and fill in before the first apply.
+
+# The contents of bb-deploy.pub (see variables.tf for how to make it).
+deploy_public_key = "ssh-ed25519 AAAA... bb-deploy"
+
+# domain_name = "app.bookiebullies.com"
+
+# If bookiebullies.com's DNS is in Route 53, its zone ID adds the record for you:
+#   aws route53 list-hosted-zones-by-name --dns-name bookiebullies.com
+# route53_zone_id = "Z0123456789ABC"
