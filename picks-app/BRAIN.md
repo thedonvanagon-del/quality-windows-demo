@@ -97,9 +97,9 @@ dollars stay private and nothing is paid out.
 
 ## What's built
 
-All of it is in `picks-app/` on PR
-[thedonvanagon-del/quality-windows-demo#15](https://github.com/thedonvanagon-del/quality-windows-demo/pull/15),
-not merged yet.
+All of it is in `picks-app/`, merged to `main` on 2026-10-27 through
+[thedonvanagon-del/quality-windows-demo#15](https://github.com/thedonvanagon-del/quality-windows-demo/pull/15).
+**Beta launch started 2026-10-27.** Not live yet: waiting on the server setup below.
 
 - Email and password signup with 21+ and Terms checkboxes, email confirmation,
   optional first and last name, screen name, login, logout, password reset by
@@ -124,17 +124,25 @@ not merged yet.
 
 ## Waiting on the owner
 
-1. **Merge the PR**, once happy with it.
-2. **Where is bookiebullies.com's DNS?** (Route 53, Namecheap, somewhere else?)
-   That's where the `app` record goes.
-3. **Run the one-time setup** in AWS CloudShell: `picks-app/README.md`,
-   "Putting it online". About 20 minutes.
-4. **Pick the sending email** (like hello@bookiebullies.com) and make a Google
-   app password for it, for reset emails.
-5. **Merge the Pick'em tab** on www.bookiebullies.com
+Beta launch checklist (2026-10-27). The app code is merged; these get it online.
+
+1. ~~Merge the PR~~: done 2026-10-27.
+2. **Run the one-time setup** in AWS CloudShell (`terraform apply` in
+   `aws/stacks/bookie-bullies-app`; steps in `picks-app/README.md`, "Putting it
+   online"). It prints the server's static IP.
+3. **Point `app.bookiebullies.com` at that IP**: an A record named `app` wherever
+   bookiebullies.com's DNS lives (Route 53, Namecheap, somewhere else?).
+4. **Add two GitHub settings** on this repo: variable `APP_HOST` (the IP) and
+   secret `APP_SSH_KEY` (the private deploy key from CloudShell). Then the
+   "picks-app deploy" workflow ships the app, and every merge after that.
+5. **Pick the sending email** (like hello@bookiebullies.com), make a Google app
+   password for it, and put the SMTP lines in `/etc/bookie-bullies-app.env` on
+   the server. Without it, signup still works but confirm and reset emails
+   don't go out, so nobody shows on leaderboards.
+6. **Merge the Pick'em tab** on www.bookiebullies.com
    ([bookie-bullies#3](https://github.com/thedonvanagon-del/bookie-bullies/pull/3)),
    after the app is live.
-6. **A phone menu for www.bookiebullies.com?** Its tabs disappear under 900px.
+7. **A phone menu for www.bookiebullies.com?** Its tabs disappear under 900px.
 
 ## Ideas, not built yet
 
