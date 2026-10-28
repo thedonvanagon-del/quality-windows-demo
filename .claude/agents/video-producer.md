@@ -31,5 +31,6 @@ Everything lives in `video-studio/`. Read `video-studio/README.md` once at the s
 - Say what you made and what you didn't. If a step was skipped or failed, say so with the error.
 - No voiceover engine ships in this container. For voice, use a recording the user supplies. Otherwise ship captions plus music and say so.
 - Music must be licensed or supplied by the user. Don't pull tracks from the web.
-- Brand colors in `brands/buddhabeans.json` are placeholders until the user confirms real ones. Mention that on a first run.
+- Brand fonts, logo and photos are private and git-ignored. If `video-studio/brands/buddhabeans/assets/` is missing, run `sync_brand.py` against the `buddhabeans-theme` repo (add it with add_repo and clone it) before rendering.
+- Masters are large. Re-encode the shareable copy with `ffmpeg -crf 26 -movflags +faststart` and keep the master.
 - Keep outputs in `video-studio/out/` (git-ignored). Don't commit rendered video.

@@ -22,6 +22,8 @@ import sys
 import tempfile
 from pathlib import Path
 
+import scenes
+
 HERE = Path(__file__).resolve().parent
 # Cloud containers ship a Chromium that the pip package may not match; use it when present.
 CHROMIUM = os.environ.get("CHROMIUM_PATH") or (
@@ -55,11 +57,13 @@ def load_brand(sb):
     p = HERE / "brands" / f"{name}.json"
     if not p.exists():
         sys.exit(f"brand file not found: {p}")
-    return json.loads(p.read_text())
+    brand = json.loads(p.read_text())
+    brand["_dir"] = str(p.parent / name)
+    return brand
 
 
 def scene_text(scene):
-    parts = [scene.get(k, "") for k in ("text", "sub", "caption", "attribution")]
+    parts = [scene.get(k, "") for k in ("text", "sub", "caption", "attribution", "eyebrow", "burst", "note")]
     parts += scene.get("bullets", []) + scene.get("labels", [])
     return " ".join(p for p in parts if p)
 
@@ -80,92 +84,12 @@ def lint(sb):
 
 # ---------------------------------------------------------------- HTML scenes
 
-def scene_html(sc, brand, w, h):
-    c = brand["colors"]
-    f = brand["fonts"]
-    dur = sc["duration"]
-    t = sc.get("type", "title")
-    text = html.escape(sc.get("text", ""))
-    sub = html.escape(sc.get("sub", ""))
-    cap = html.escape(sc.get("caption", ""))
-    unit = min(w, h) / 1080  # scale type off the short side
-    img = sc.get("image")
-    img_css = ""
-    if t == "image" and img:
-        img_css = (f"background-image:url('file://{Path(img).resolve()}');background-size:cover;"
-                   f"background-position:center;animation:kb {dur}s linear both;")
-
-    body = ""
-    if t == "title":
-        body = f'<h1 class="rise">{text}</h1><p class="rise d1">{sub}</p>'
-    elif t == "bullets":
-        lis = "".join(
-            f'<li class="rise" style="animation-delay:{0.35 + 0.45 * i}s">{html.escape(b)}</li>'
-            for i, b in enumerate(sc.get("bullets", [])))
-        body = f'<h2 class="rise">{text}</h2><ul>{lis}</ul>'
-    elif t == "quote":
-        body = (f'<blockquote class="rise">&ldquo;{text}&rdquo;</blockquote>'
-                f'<p class="rise d2">{html.escape(sc.get("attribution", ""))}</p>')
-    elif t == "image":
-        body = f'<h2 class="rise d1 shade">{text}</h2>' if text else ""
-    elif t == "stat":
-        body = (f'<div class="stat rise">{text}</div><h2 class="rise d1">{sub}</h2>')
-    elif t == "roastbar":
-        labels = "".join(
-            f'<span class="rise" style="animation-delay:{0.9 + 0.35 * i}s">{html.escape(b)}</span>'
-            for i, b in enumerate(sc.get("labels", [])))
-        body = (f'<h2 class="rise">{text}</h2><div class="bar"><i></i></div>'
-                f'<div class="labels">{labels}</div>')
-    elif t == "outro":
-        body = (f'<h1 class="rise">{text}</h1><p class="rise d1">{sub}</p>'
-                f'<div class="url rise d2">{html.escape(brand.get("url", ""))}</div>')
-    cap_html = f'<div class="cap rise d1">{cap}</div>' if cap else ""
-
-    return f"""<!doctype html><html><head><meta charset="utf-8"><style>
-:root{{--bg:{c['bg']};--fg:{c['fg']};--accent:{c['accent']};--muted:{c['muted']}}}
-*{{box-sizing:border-box;margin:0}}
-html,body{{width:{w}px;height:{h}px;overflow:hidden;background:var(--bg);color:var(--fg);
-  font-family:{f['body']};}}
-.stage{{position:absolute;inset:0;{img_css}display:flex;flex-direction:column;
-  justify-content:center;padding:{int(110*unit)}px {int(90*unit)}px;gap:{int(34*unit)}px}}
-.stage::before{{content:"";position:absolute;inset:0;
-  background:radial-gradient(120% 80% at 50% 0%,rgba(255,255,255,.06),transparent 60%)}}
-{"" if t != "image" else ".stage::after{content:'';position:absolute;inset:0;background:linear-gradient(transparent 45%,rgba(0,0,0,.65))}"}
-h1,h2,blockquote{{font-family:{f['display']};line-height:1.08;position:relative;z-index:1}}
-h1{{font-size:{int(118*unit)}px}} h2{{font-size:{int(84*unit)}px}}
-blockquote{{font-size:{int(76*unit)}px;font-style:italic}}
-p{{font-size:{int(44*unit)}px;color:var(--muted);line-height:1.3;position:relative;z-index:1}}
-ul{{list-style:none;padding:0;display:flex;flex-direction:column;gap:{int(26*unit)}px;position:relative;z-index:1}}
-li{{font-size:{int(54*unit)}px;padding-left:{int(48*unit)}px;position:relative}}
-li::before{{content:"";position:absolute;left:0;top:.5em;width:{int(20*unit)}px;height:{int(20*unit)}px;
-  border-radius:50%;background:var(--accent)}}
-.stat{{font-family:{f['display']};font-size:{int(260*unit)}px;line-height:1;color:var(--accent);
-  position:relative;z-index:1}}
-.bar{{height:{int(80*unit)}px;border-radius:{int(40*unit)}px;overflow:hidden;position:relative;z-index:1;
-  background:#2b2018}}
-.bar i{{display:block;height:100%;transform-origin:left;animation:grow 1.6s cubic-bezier(.3,.7,.2,1) .3s both;
-  background:linear-gradient(90deg,#7d8f4e,#c9b25a 22%,#b07a45 42%,#7a4a26 62%,#4b2c17 82%,#241209)}}
-.labels{{display:flex;justify-content:space-between;position:relative;z-index:1}}
-.labels span{{font-size:{int(44*unit)}px;color:var(--muted)}}
-@keyframes grow{{from{{transform:scaleX(0)}}to{{transform:scaleX(1)}}}}
-.url{{font-size:{int(52*unit)}px;color:var(--accent);letter-spacing:.04em;position:relative;z-index:1}}
-.shade{{text-shadow:0 2px 24px rgba(0,0,0,.6)}}
-.cap{{position:absolute;left:{int(70*unit)}px;right:{int(70*unit)}px;bottom:{int(h*0.12)}px;
-  text-align:center;font-size:{int(48*unit)}px;font-weight:600;color:#fff;z-index:2;
-  background:rgba(0,0,0,.55);padding:{int(18*unit)}px {int(28*unit)}px;border-radius:{int(18*unit)}px}}
-.rise{{animation:rise .8s cubic-bezier(.2,.7,.2,1) both}}
-.d1{{animation-delay:.25s}} .d2{{animation-delay:.5s}}
-@keyframes rise{{from{{opacity:0;transform:translateY({int(46*unit)}px)}}to{{opacity:1;transform:none}}}}
-@keyframes kb{{from{{transform:scale(1)}}to{{transform:scale(1.12)}}}}
-</style></head><body><div class="stage">{body}</div>{cap_html}</body></html>"""
-
-
 def render_html_scene(sc, brand, w, h, fps, out, tmp):
     from playwright.sync_api import sync_playwright  # imported late: only HTML scenes need it
     frames = Path(tmp) / f"frames_{out.stem}"
     frames.mkdir()
     page_file = Path(tmp) / f"{out.stem}.html"
-    page_file.write_text(scene_html(sc, brand, w, h))
+    page_file.write_text(scenes.build_html(sc, brand, w, h))
     n = int(round(sc["duration"] * fps))
     with sync_playwright() as p:
         b = p.chromium.launch(executable_path=CHROMIUM) if CHROMIUM else p.chromium.launch()
@@ -302,6 +226,31 @@ def cmd_build(a):
     print(f"thumbnail: {out_dir / (name + '.jpg')}" + (f"\ncaptions: {srt}" if n else ""))
 
 
+def cmd_still(a):
+    """One PNG per scene at time --t, for fast look-dev."""
+    from playwright.sync_api import sync_playwright
+    sb = json.loads(Path(a.storyboard).read_text())
+    brand = load_brand(sb)
+    w, h = FORMATS[a.format or sb.get("format", "9:16")]
+    out = Path(a.out or HERE / "out" / "stills")
+    out.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(prefix="vstudio_") as tmp, sync_playwright() as p:
+        b = p.chromium.launch(executable_path=CHROMIUM) if CHROMIUM else p.chromium.launch()
+        pg = b.new_page(viewport={"width": w, "height": h})
+        for i, sc in enumerate(sb["scenes"], 1):
+            if sc.get("type") == "clip":
+                continue
+            f = Path(tmp) / f"s{i}.html"
+            f.write_text(scenes.build_html(sc, brand, w, h))
+            pg.goto(f"file://{f}")
+            pg.wait_for_timeout(200)
+            t = min(a.t, sc["duration"] - 0.05) * 1000
+            pg.evaluate("t=>document.getAnimations().forEach(a=>{a.pause();a.currentTime=t})", t)
+            pg.screenshot(path=str(out / f"scene_{i:02}.png"))
+        b.close()
+    print(f"stills in {out}")
+
+
 def cmd_lint(a):
     sb = json.loads(Path(a.storyboard).read_text())
     sys.exit(1 if lint(sb) else 0)
@@ -332,6 +281,8 @@ def main():
     b.add_argument("--format", choices=FORMATS, help="override storyboard format")
     b.add_argument("--force", action="store_true", help="ship even if copy lint flags words")
     b.set_defaults(fn=cmd_build)
+    st = sub.add_parser("still"); st.add_argument("storyboard"); st.add_argument("--t", type=float, default=2.5)
+    st.add_argument("--format", choices=FORMATS); st.add_argument("--out"); st.set_defaults(fn=cmd_still)
     l = sub.add_parser("lint"); l.add_argument("storyboard"); l.set_defaults(fn=cmd_lint)
     r = sub.add_parser("reframe"); r.add_argument("src"); r.add_argument("dst")
     r.add_argument("--format", default="9:16", choices=FORMATS); r.set_defaults(fn=cmd_reframe)

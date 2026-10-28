@@ -1,16 +1,18 @@
 {
-  "name": "Buddha Beans Coffee",
+  "name": "Buddha Beans Coffee Co.",
   "url": "buddhabeanscoffee.com",
   "colors": {
-    "bg": "#1f1611",
-    "fg": "#f6efe4",
-    "accent": "#d9a441",
-    "muted": "#c9b9a3"
+    "kraft": "#e6d3ab",
+    "ink": "#1b1410",
+    "cream": "#f3e6c8",
+    "coral": "#f0795a",
+    "plum": "#4f1c3a",
+    "gold": "#a26b25"
   },
   "fonts": {
-    "display": "'Inter Display', 'Inter', 'DejaVu Serif', serif",
-    "body": "'Inter', 'DejaVu Sans', sans-serif"
+    "display": "Brothers (Regular, Medium, Bold, SuperSlant)",
+    "mono": "IBM Plex Mono 400 and 500"
   },
   "voice": "Direct. Specific. Laid back. Warm, not soft. Plain verbs, short sentences. State things, don't puff them up. Coffee: lead with taste, smell, feel. CBD/CBG: factual, conversational, no medical claims, no miracle language.",
-  "_note": "Colors are placeholders chosen to feel like roasted beans and crema. Swap in the real brand hex values and fonts."
+  "_note": "Fonts, logo, mascot and bag photo are not in this public repo. Run `python3 sync_brand.py /path/to/buddhabeans-theme` to build brands/buddhabeans/assets/. Without them scenes fall back to system fonts and no images. Colors come from the theme repo (plum, gold) and the bag label (coral)."
 }

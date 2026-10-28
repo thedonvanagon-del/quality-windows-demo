@@ -37,3 +37,4 @@ picks-app/data/
 # video-studio renders
 video-studio/out/
 __pycache__/
+video-studio/brands/buddhabeans/assets/

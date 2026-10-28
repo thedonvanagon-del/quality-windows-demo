@@ -38,14 +38,19 @@ Structure that works: **hook** (a taste or a question) → **2-3 specifics** →
 
 Scene types and their fields:
 
+- `logo`: brand logo on a sunburst. `sub` (tagline). Use as the opener.
 - `title`: `text`, `sub`
-- `bullets`: `text` (heading), `bullets` (list, 2-4 items)
+- `beans`: illustrated beans. `text`, `eyebrow`, `sub`, `from` and `to` (roast colors the beans shift between: green, yellow, light, medium, mediumdark, dark), `steam` (true for rising steam)
+- `bullets`: `text` (heading), `eyebrow`, `bullets` (2-4 items), plus the bean fields above for the art beside it
+- `pop`: big number with a starburst. `text` (e.g. `~385°F`), `sub`, `burst` (the word in the burst: POP!, CRACK!), `to` (bean color)
+- `roastline`: a row of beans from green to dark. `text`, `labels` (5 names)
+- `photo`: tilted polaroid. `image` (defaults to the bag photo), `note` (handwritten label), `text`, `bullets`
 - `quote`: `text`, `attribution`. Real reviews only.
-- `image`: `image` (path), `text` (optional). Slow zoom over a still.
+- `image`: `image` (path), full-bleed with a slow zoom
 - `clip`: `clip` (path), `start`, `text` (optional). Trims real footage and fills the frame.
-- `stat`: `text` (the big number, e.g. `~385°F`), `sub` (what it is). One number per scene.
-- `roastbar`: `text` (heading), `labels` (stops left to right along a green-to-dark roast gradient)
-- `outro`: `text`, `sub`. Adds the site URL automatically.
+- `outro`: `text`. Logo, line, and the site URL.
+
+Any scene takes `theme`: `kraft` (default, tan paper), `ink` (dark) or `coral`. Alternate them so the video doesn't feel flat.
 
 Every scene takes `duration` (seconds) and an optional `caption`. Captions burn in as a lower third and also export to the `.srt`.
 

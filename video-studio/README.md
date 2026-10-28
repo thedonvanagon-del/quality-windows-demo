@@ -36,11 +36,15 @@ Or in Claude Code: ask for a video and the `video-producer` agent runs the whole
 | Captions | lower-third burned into the scene, plus an `.srt` sidecar |
 | Copy check | blocks flagged health-claim words unless `--force` |
 
-Formats: `9:16`, `16:9`, `1:1`, `4:5`. Scene types: `title`, `bullets`, `stat`, `roastbar`, `quote`, `image`, `clip`, `outro`. The field list is in `.claude/skills/video-storyboard/SKILL.md`.
+Brand assets: `python3 sync_brand.py /path/to/buddhabeans-theme` copies the Brothers and IBM Plex Mono fonts, the bag photo, and ink and cream versions of the logo and mascot into `brands/buddhabeans/assets/`. That folder is git-ignored because this repo is public. Without it, scenes fall back to system fonts and no images.
+
+`python3 studio.py still <storyboard> --t 3` writes one PNG per scene for quick look-dev without a full render.
+
+Formats: `9:16`, `16:9`, `1:1`, `4:5`. Scene types: `logo`, `title`, `beans`, `bullets`, `pop`, `roastline`, `photo`, `quote`, `image`, `clip`, `outro`. The field list is in `.claude/skills/video-storyboard/SKILL.md`.
 
 ## Speed
 
-Motion graphics render at roughly 5 to 7 seconds per second of 1080x1920 output on a small container. Drop `fps` to 24 for drafts.
+Motion graphics render at roughly 10 to 12 seconds per second of output on a 4-core container. Drop `fps` to 24 for drafts. Masters come out around 43MB for 50 seconds because of the paper grain; re-encode with `-crf 26` for sharing (about 14MB).
 
 ## Not included
 
@@ -50,4 +54,4 @@ Motion graphics render at roughly 5 to 7 seconds per second of 1080x1920 output 
 
 ## Brand
 
-`brands/buddhabeans.json` holds colors, fonts, and voice notes. The colors are placeholders. Replace them with the real hex values. Add another brand by dropping a new JSON file next to it and setting `"brand"` in the storyboard.
+`brands/buddhabeans.json` holds colors, font names, and voice notes. The scene themes live in `scenes.py`. Add another brand by dropping a new JSON file next to it and setting `"brand"` in the storyboard.
