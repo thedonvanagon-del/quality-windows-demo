@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { american, parseLines, parseScoreboard } from '../src/espn.js';
+import { american, createEspn, parseLines, parseScoreboard } from '../src/espn.js';
 import { SPORT } from '../src/sports.js';
 import { event, setFinal, setStatus } from './helpers.js';
 
@@ -88,4 +88,23 @@ test("keeps team logos only from ESPN's image server", () => {
   const [game] = parseScoreboard(SPORT.nfl, { events: [e] });
   assert.equal(game.home.logo, 'https://a.espncdn.com/i/teamlogos/nfl/500/kc.png');
   assert.equal(game.away.logo, null);
+});
+
+test('asks ESPN for one day at a time and drops repeats', async () => {
+  const urls = [];
+  const fetch = async (url) => {
+    urls.push(new URL(url));
+    // The same game on both days, the way a late start can show up.
+    const events = [event({ id: '7', start: '2026-10-31T00:30Z' })];
+    return new Response(JSON.stringify({ events }));
+  };
+  const games = await createEspn({ fetch }).scoreboard(SPORT.ncaaf, '20261030', '20261031');
+  assert.deepEqual(urls.map((u) => u.searchParams.get('dates')), ['20261030', '20261031']);
+  assert.ok(urls.every((u) => u.searchParams.get('limit') === '400' && u.searchParams.get('groups') === '80'));
+  assert.equal(games.length, 1);
+});
+
+test('a refused request is an error, not an empty board', async () => {
+  const fetch = async () => new Response('bad', { status: 400 });
+  await assert.rejects(createEspn({ fetch }).scoreboard(SPORT.nba, '20261030'), /answered 400/);
 });

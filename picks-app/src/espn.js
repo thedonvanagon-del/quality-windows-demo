@@ -2,6 +2,8 @@
 // Bookie Bullies and cfb-bot read. It needs no key, but ESPN doesn't document
 // it, so everything here reads it defensively.
 
+import { addDays } from './time.js';
+
 const BASE = 'https://site.api.espn.com/apis/site/v2/sports';
 
 // Statuses that end a game without a result. Sportsbooks void these, so the
@@ -9,16 +11,26 @@ const BASE = 'https://site.api.espn.com/apis/site/v2/sports';
 export const VOID_STATUSES = new Set(['STATUS_POSTPONED', 'STATUS_CANCELED', 'STATUS_FORFEIT', 'STATUS_ABANDONED']);
 
 export function createEspn({ fetch = globalThis.fetch, timeoutMs = 8000 } = {}) {
+  async function day(sport, date) {
+    // One day per request, with the same limit cfb-bot uses: ESPN answers 400
+    // to the date-range and limit=1000 form.
+    const query = new URLSearchParams({ dates: date, limit: '400', ...sport.params });
+    const res = await fetch(`${BASE}/${sport.espnPath}/scoreboard?${query}`, {
+      headers: { accept: 'application/json', 'user-agent': 'bookiebullies-app/0.1' },
+      signal: AbortSignal.timeout(timeoutMs),
+    });
+    if (!res.ok) throw new Error(`ESPN ${sport.key} scoreboard answered ${res.status}`);
+    return parseScoreboard(sport, await res.json());
+  }
+
   return {
     /** Every game on the Eastern days `from` to `to` ("20261019"). */
     async scoreboard(sport, from, to = from) {
-      const query = new URLSearchParams({ dates: from === to ? from : `${from}-${to}`, limit: '1000', ...sport.params });
-      const res = await fetch(`${BASE}/${sport.espnPath}/scoreboard?${query}`, {
-        headers: { accept: 'application/json', 'user-agent': 'bookiebullies-app/0.1' },
-        signal: AbortSignal.timeout(timeoutMs),
-      });
-      if (!res.ok) throw new Error(`ESPN ${sport.key} scoreboard answered ${res.status}`);
-      return parseScoreboard(sport, await res.json());
+      const dates = [];
+      for (let d = from; d <= to; d = addDays(d, 1)) dates.push(d);
+      const days = await Promise.all(dates.map((date) => day(sport, date)));
+      // A game can show on two days' boards (late starts, ESPN's own day cutoff).
+      return [...new Map(days.flat().map((g) => [g.id, g])).values()];
     },
   };
 }

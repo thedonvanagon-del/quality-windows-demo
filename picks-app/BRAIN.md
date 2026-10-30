@@ -110,6 +110,9 @@ Launch log:
   browser is signed in as **NFTrapper**, a second GitHub account, and only
   **thedonvanagon-del** (the repo owner) can see Settings. Until that login is
   sorted, deploys go straight from CloudShell (`picks-app/README.md`).
+- **2026-10-30:** App running on the server (`/healthz` ok). No games showed:
+  ESPN answered 400 to the week-at-once request (`dates=FROM-TO`, `limit=1000`).
+  Now asks one day at a time with `limit=400`, the way cfb-bot does.
 
 - Email and password signup with 21+ and Terms checkboxes, email confirmation,
   optional first and last name, screen name, login, logout, password reset by
