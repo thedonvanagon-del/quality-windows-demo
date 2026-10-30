@@ -3,10 +3,13 @@
 // Show game times in the viewer's own time zone. The server writes Eastern.
 const short = new Intl.DateTimeFormat(undefined, { weekday: 'short', hour: 'numeric', minute: '2-digit' });
 const long = new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
-for (const el of document.querySelectorAll('time[data-local]')) {
-  const at = new Date(el.getAttribute('datetime'));
-  if (!Number.isNaN(+at)) el.textContent = (el.dataset.local === 'long' ? long : short).format(at);
+function localTimes(root) {
+  for (const el of root.querySelectorAll('time[data-local]')) {
+    const at = new Date(el.getAttribute('datetime'));
+    if (!Number.isNaN(+at)) el.textContent = (el.dataset.local === 'long' ? long : short).format(at);
+  }
 }
+localTimes(document);
 
 // Ask before anything that can't be undone.
 for (const form of document.querySelectorAll('form[data-confirm]')) {
@@ -16,8 +19,7 @@ for (const form of document.querySelectorAll('form[data-confirm]')) {
 }
 
 // Keep "to win" on the pick slip in step with the units.
-const slip = document.querySelector('form[data-odds]');
-if (slip) {
+function initSlip(slip) {
   const odds = Number(slip.dataset.odds);
   const input = slip.querySelector('input[name="units"]');
   const chips = slip.querySelector('.chips');
@@ -37,6 +39,45 @@ if (slip) {
   });
   input.addEventListener('input', update);
   update();
+}
+const pageSlip = document.querySelector('form[data-odds]');
+if (pageSlip) initSlip(pageSlip);
+
+// On the games board, a tapped line opens its slip in a sheet that slides up
+// over the board instead of a new page. Anything off and it's a normal link.
+const board = document.querySelector('.event') && window.HTMLDialogElement && window.DOMParser;
+if (board) {
+  const sheet = document.createElement('dialog');
+  sheet.className = 'sheet';
+  sheet.setAttribute('aria-label', 'Pick slip');
+  document.body.append(sheet);
+  sheet.addEventListener('click', (event) => {
+    if (event.target === sheet || event.target.closest('[data-close]')) sheet.close();
+  });
+  document.addEventListener('click', async (event) => {
+    const link = event.target.closest('a.cell[href^="/pick?"]');
+    if (!link || event.metaKey || event.ctrlKey || event.shiftKey) return;
+    event.preventDefault();
+    try {
+      const res = await fetch(link.href, { credentials: 'same-origin', headers: { accept: 'text/html' } });
+      if (!res.ok || res.redirected) throw new Error('no slip');
+      const doc = new DOMParser().parseFromString(await res.text(), 'text/html');
+      const slip = doc.querySelector('.slip');
+      if (!slip) throw new Error('no slip');
+      const close = document.createElement('button');
+      close.type = 'button';
+      close.className = 'sheet-close';
+      close.dataset.close = '';
+      close.setAttribute('aria-label', 'Close');
+      close.textContent = '×';
+      sheet.replaceChildren(close, document.adoptNode(slip));
+      initSlip(sheet.querySelector('form[data-odds]'));
+      localTimes(sheet);
+      sheet.showModal();
+    } catch {
+      window.location.href = link.href;
+    }
+  });
 }
 
 // Share a profile: the phone's share sheet where there is one, else copy the link.

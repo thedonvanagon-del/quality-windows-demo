@@ -671,3 +671,70 @@ svg.stripe { background: none; }
 .rc-stats > div { background: var(--raised); border-radius: 6px; padding: 8px 10px; }
 .rc-stats b { display: block; font-family: var(--cond); font-weight: 800; font-size: 1.3rem; font-variant-numeric: tabular-nums; }
 .rc-share { justify-self: start; }
+
+/* ---- Pick slip sheet and the LOCKED ticket ------------------------------ */
+
+dialog.sheet {
+  margin: auto auto 0;
+  width: min(100%, 480px);
+  max-height: 92vh;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  overflow: visible;
+}
+dialog.sheet[open] { animation: sheet-up 0.22s ease-out; }
+dialog.sheet::backdrop { background: rgba(3, 6, 15, 0.66); }
+dialog.sheet .slip-head { padding-right: 52px; }
+dialog.sheet .slip { border-radius: 14px 14px 0 0; border-bottom: 0; padding-bottom: env(safe-area-inset-bottom); max-height: 92vh; overflow-y: auto; }
+.sheet-close {
+  position: absolute;
+  top: 6px;
+  right: 8px;
+  z-index: 1;
+  width: 44px;
+  height: 44px;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font-size: 1.6rem;
+  line-height: 1;
+  cursor: pointer;
+}
+.sheet-close:hover { color: var(--ink); }
+@media (min-width: 761px) {
+  dialog.sheet { margin: auto; }
+  dialog.sheet .slip { border-radius: 14px; border-bottom: 1px solid var(--line); }
+}
+@keyframes sheet-up { from { transform: translateY(40px); opacity: 0; } to { transform: none; opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { dialog.sheet[open], .locked-ticket .stamp { animation: none; } }
+
+.locked-ticket {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 16px;
+  padding: 14px 16px;
+  border-radius: var(--r);
+  background: var(--card);
+  border: 1px dashed color-mix(in srgb, #ffd257 60%, transparent);
+}
+.locked-ticket .stamp {
+  flex: none;
+  font-family: var(--cond);
+  font-weight: 800;
+  font-size: 1.35rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #ffd257;
+  border: 3px solid #ffd257;
+  border-radius: 6px;
+  padding: 2px 10px;
+  transform: rotate(-6deg);
+  animation: stamp 0.35s cubic-bezier(0.2, 1.6, 0.4, 1);
+}
+.lt-body { display: grid; gap: 2px; min-width: 0; }
+.lt-body b { font-family: var(--cond); font-size: 1.2rem; font-weight: 800; }
+.lt-body span { color: var(--muted); font-size: 0.85rem; }
+@keyframes stamp { from { transform: rotate(-6deg) scale(1.8); opacity: 0; } to { transform: rotate(-6deg) scale(1); opacity: 1; } }

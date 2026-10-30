@@ -92,8 +92,8 @@ export function createApp({ store, games, config, mailer = createMailer({ log: {
     ctx.cookies.push(parts.join('; '));
   }
 
-  function flash(ctx, type, text) {
-    setCookie(ctx, 'flash', Buffer.from(JSON.stringify({ type, text })).toString('base64url'), 60);
+  function flash(ctx, type, text, at) {
+    setCookie(ctx, 'flash', Buffer.from(JSON.stringify({ type, text, at })).toString('base64url'), 60);
   }
 
   function headers(ctx, extra) {
@@ -354,7 +354,7 @@ export function createApp({ store, games, config, mailer = createMailer({ log: {
       flash(ctx, 'error', result.error);
       return redirect(ctx, back);
     }
-    flash(ctx, 'ok', `Locked in: ${formatLine(market, side, current, game)}, ${formatUnits(result.units)} to win ${formatUnits(toWin(current.odds, result.units))}.`);
+    flash(ctx, 'locked', `${formatLine(market, side, current, game)}, ${formatUnits(result.units)} to win ${formatUnits(toWin(current.odds, result.units))}`, ctx.now.toISOString());
     redirect(ctx, back);
   }
 
@@ -689,8 +689,10 @@ function parseCookies(header = '') {
 
 function readFlash(value) {
   try {
-    const { type, text } = JSON.parse(Buffer.from(value, 'base64url').toString('utf8'));
-    return typeof text === 'string' && text.length < 300 ? { type: type === 'error' ? 'error' : 'ok', text } : null;
+    const { type, text, at } = JSON.parse(Buffer.from(value, 'base64url').toString('utf8'));
+    if (typeof text !== 'string' || text.length >= 300) return null;
+    const time = typeof at === 'string' && !Number.isNaN(Date.parse(at)) ? new Date(at).toISOString() : null;
+    return { type: ['error', 'locked'].includes(type) ? type : 'ok', text, at: time };
   } catch {
     return null;
   }

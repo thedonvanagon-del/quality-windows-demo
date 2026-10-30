@@ -1,5 +1,6 @@
 import { THEMES } from '../config.js';
 import { html } from '../html.js';
+import { when } from '../time.js';
 import { icons } from './icons.js';
 
 /**
@@ -71,7 +72,7 @@ ${user && !user.verified
     </div></div>`
   : ''}
 <main class="wrap">
-  ${flash ? html`<div class="flash ${flash.type === 'error' ? 'err' : 'ok'}" role="status">${flash.text}</div>` : ''}
+  ${flash?.type === 'locked' ? lockedTicket(flash) : flash ? html`<div class="flash ${flash.type === 'error' ? 'err' : 'ok'}" role="status">${flash.text}</div>` : ''}
   ${body}
 </main>
 <footer>
@@ -93,4 +94,15 @@ ${playing
 
 export function csrfField(ctx) {
   return ctx.session ? html`<input type="hidden" name="_csrf" value="${ctx.session.csrf}">` : '';
+}
+
+/** The receipt a pick gets the moment it goes in: the bet, a LOCKED stamp and the exact time. */
+function lockedTicket(flash) {
+  return html`<div class="locked-ticket" role="status">
+    <span class="stamp">Locked</span>
+    <div class="lt-body">
+      <b>${flash.text}</b>
+      ${flash.at ? html`<span>On the record <time datetime="${flash.at}" data-local="long">${when(flash.at)}</time>. It can't be edited after the game starts.</span>` : ''}
+    </div>
+  </div>`;
 }

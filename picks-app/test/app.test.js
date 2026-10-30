@@ -268,7 +268,7 @@ describe('picks', () => {
 
     const res = await b.post('/picks', { ...BILLS_PLUS, units: '2' });
     assert.equal(res.location, '/games?sport=nfl');
-    assert.match(visible((await b.get(res.location)).text), /Locked in: Bills \+3\.5 \(-110\), 2u to win 1\.82u\./);
+    assert.match(visible((await b.get(res.location)).text), /Locked Bills \+3\.5 \(-110\), 2u to win 1\.82u On the record Oct 25, 8:00 AM ET/);
     const [p] = picks();
     assert.equal(p.line, 3.5);
     assert.equal(p.odds, -110);
