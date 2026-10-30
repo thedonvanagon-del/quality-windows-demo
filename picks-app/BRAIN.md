@@ -36,6 +36,20 @@ not dollars, and nothing is paid out.
   bookie-bullies repo) for the header, the browser tab and the phone icons.
 
 ### Look
+- **2026-10-30: The Scoreboard look** (option 2 of five mockups at
+  https://claude.ai/artifact/Anh377HozoaDPqYiL36388): navy, amber, tall condensed
+  type (Barlow Condensed, served from the app), team colors down each game,
+  a live-score strip on the board. Players can switch to **Bull Market** (black
+  and green, option 4) or **Ember** (the first orange look). Teal and violet are
+  retired; anyone on them gets the default.
+- **2026-10-30:** Game cards show the TV channel when ESPN lists one, each
+  team's record, a Fav tag, and logos (ESPN's standard logo address when the
+  feed sends none).
+- **2026-10-30:** Profiles open with a **record card**: record, units, a 30-day
+  units line, win rate, ROI, last 10, rank, and **Share as image** (a picture
+  made in the phone, for posting). ROI matters to the owner; it stays up front.
+- **2026-10-30:** Tapping a line slides the pick slip up over the board. A
+  locked pick gets a gold **LOCKED** stamp with the exact time.
 - **2026-10-25:** Dark and clean, like BetMGM, with our own colors. Odds
   tiles show the line in white and the price in the accent color.
 - **2026-10-25:** Orange ("ember") is the default because it's the easiest to
@@ -98,6 +112,13 @@ not dollars, and nothing is paid out.
   as "Name · 47-31 · +17.5u" with the crest.
 - **2026-10-25:** Profiles have a short bio, up to 160 characters.
 
+### Chat
+- **2026-10-30: Game chat**, one public thread per game (`/games/:id`, hub at
+  `/chat`, linked from every game card and More). Plain text, 280 characters,
+  confirmed emails only, eight messages a minute. Picks show next to names once
+  the game starts. People delete their own; three reports hide a message.
+  No admin screen yet: hidden messages are looked at in the database.
+
 ### Hosting and money
 - **2026-10-26:** Host on **AWS Lightsail** (we already use AWS), one small
   server in Ohio (us-east-2), about $5 a month plus about $1 for nightly
@@ -139,7 +160,10 @@ Launch log:
 - Groups: create, invite code and link, group board, members' picks feed
 - Profiles: record, by sport, every pick with its lock time, bio,
   color, an outside link button, Share, and a record preview when shared
-- More tab with Live games (scores now, your bets on them)
+- More tab with Live games (scores now, your bets on them) and Game chat
+- Scoreboard look with three color choices, TV channel and team records on
+  cards, live-score strip, slide-up pick slip, LOCKED confirmation
+- Profile record card with a units line, ROI, last 10, rank, Share as image
 - Installable on phones (manifest, icons, iPhone full-screen)
 - Automatic grading every 10 minutes, with voids for postponed games
 - Demo mode: `npm run demo`, log in as demo@example.com / letmein123
