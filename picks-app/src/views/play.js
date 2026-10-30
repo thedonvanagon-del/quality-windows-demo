@@ -1,5 +1,5 @@
 import { html } from '../html.js';
-import { formatMoney, formatOdds, formatSpread, formatUnits, MARKET_NAME, price, selection, toWin, unitsFor, WAGER_CHIPS, WAGER_MAX, WAGER_MIN } from '../picks.js';
+import { formatMoney, formatOdds, formatSpread, formatUnits, MARKET_NAME, MAX_UNITS, price, selection, toWin, unitsFor, WAGER_CHIPS, WAGER_MAX, WAGER_MIN } from '../picks.js';
 import { SPORT } from '../sports.js';
 import { dayLabel, etDay } from '../time.js';
 import { csrfField, layout } from './layout.js';
@@ -96,10 +96,10 @@ export function slip(ctx, { game, market, side, current, error, wager }) {
                 <span class="money-input"><span>$</span><input type="text" name="wager" value="${wager}" inputmode="decimal" autocomplete="off" required aria-describedby="wager-units"></span>
               </label>
               <div class="chips" hidden>
-                ${WAGER_CHIPS.map((n) => html`<button type="button" class="chip" data-wager="${n}">${formatMoney(n)}</button>`)}
+                ${WAGER_CHIPS.filter((n) => n <= MAX_UNITS * unitSize).map((n) => html`<button type="button" class="chip" data-wager="${n}">${formatMoney(n)}</button>`)}
               </div>
               <div class="towin"><span>To win</span><b data-to-win>${formatMoney(toWin(current.odds, wager))}</b></div>
-              <p class="muted small" id="wager-units">Counts as <span data-units>${formatUnits(unitsFor(wager, unitSize))}</span> on your record at ${formatMoney(unitSize)} a unit. Only you see dollar amounts.</p>
+              <p class="muted small" id="wager-units">Counts as <span data-units>${formatUnits(unitsFor(wager, unitSize))}</span> on your record at ${formatMoney(unitSize)} a unit, up to ${MAX_UNITS} units (${formatMoney(MAX_UNITS * unitSize)}) a pick. Only you see dollar amounts.</p>
               <button class="btn block">Lock it in</button>
             </form>
             <p class="fine">You can delete it until the game starts. After that it's on your record for good.${game.lines.book ? ` Line from ${game.lines.book} via ESPN.` : ''}</p>

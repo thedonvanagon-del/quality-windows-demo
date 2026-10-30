@@ -14,6 +14,9 @@ export const DEFAULT_UNIT = 100;
 export const WAGER_MIN = 1;
 export const WAGER_MAX = 100_000;
 export const WAGER_CHIPS = [10, 25, 50, 100, 250];
+// The biggest play a pick can be, in units: a capper's "max play". Without it,
+// a $1 unit and a big wager would turn one pick into hundreds of units.
+export const MAX_UNITS = 5;
 
 /** Units for a dollar wager at a unit size, never below a hundredth. */
 export function unitsFor(wager, unitSize = DEFAULT_UNIT) {
@@ -71,6 +74,9 @@ export function makePick(store, { userId, game, market, side, wager, unitSize = 
   }
   wager = round2(wager);
   const units = unitsFor(wager, unitSize);
+  if (units > MAX_UNITS) {
+    return { error: `${MAX_UNITS} units is the max on one pick. At ${formatMoney(unitSize)} a unit, that's ${formatMoney(MAX_UNITS * unitSize)}.` };
+  }
   if (isLocked(game, now)) return { error: 'That game has started. Picks lock at kickoff.' };
   const current = price(game, market, side);
   if (!current) return { error: 'That line is off the board right now.' };

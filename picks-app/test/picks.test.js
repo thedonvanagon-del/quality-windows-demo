@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import { openStore } from '../src/db.js';
-import { grade, gradeFinished, price, profit, toWin } from '../src/picks.js';
+import { grade, gradeFinished, makePick, MAX_UNITS, price, profit, toWin } from '../src/picks.js';
 
 test('grades spreads from the picked side', () => {
   assert.equal(grade({ market: 'spread', side: 'home', line: -3.5 }, 27, 24), 'loss');
@@ -87,4 +87,15 @@ test('voids a game that never finished only on ESPN saying so days later', () =>
   store.run("UPDATE games SET updated_at = '2026-10-29T17:00:00.000Z'");
   gradeFinished(store, new Date('2026-11-05T00:00Z'));
   assert.equal(pick(store).result, 'void');
+});
+
+test('caps a pick at the max units, whatever the unit size', () => {
+  const store = openStore(':memory:');
+  seed(store, { start: '2026-10-25T17:00:00.000Z', state: 'pre', status: 'STATUS_SCHEDULED', updated: '2026-10-25T12:00:00.000Z' });
+  const game = { id: 'nfl:1', sport: 'nfl', start: '2026-10-25T17:00:00.000Z', state: 'pre', lines: { ml: { home: -170, away: 150 } } };
+  const at = { userId: 1, game, market: 'ml', side: 'home', now: new Date('2026-10-25T12:00Z') };
+  // A $1 unit can't turn a $1,000 bet into 1,000 units.
+  assert.match(makePick(store, { ...at, wager: 1000, unitSize: 1 }).error, /5 units is the max on one pick\. At \$1 a unit, that's \$5\./);
+  assert.equal(MAX_UNITS, 5);
+  assert.deepEqual(makePick(store, { ...at, wager: 500, unitSize: 100 }).units, 5);
 });

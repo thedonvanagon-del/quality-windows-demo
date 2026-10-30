@@ -69,6 +69,13 @@ dollars stay private and nothing is paid out.
 - **2026-10-19:** Other people's open picks stay hidden until the game starts.
 - **2026-10-19:** One record per person. Sport boards and groups all read it.
 - **2026-10-19:** Leaderboards rank by units won, not win rate.
+- **2026-10-30:** **Max 5 units on one pick**, whatever the unit size (the
+  capper's "max play"). Without it, a $1 unit plus a $1,000 bet counted as
+  1,000 units and one lucky hit owned the leaderboard. A dollar cap ($1,000 a
+  day was floated) wouldn't fix that, since units are relative, so dollars stay
+  open. No daily cap for now; add one if someone games it with volume.
+- **2026-10-30:** Home page leads with a gold check and **"Trust Your Bets"**.
+  Our own mark, styled after Trustpilot's tiles, gold in every theme.
 - **2026-10-25:** Players wager **dollars** on the pick slip ($10 to $250 chips or
   any amount). Each player sets what one unit is worth (starts at $100), and the
   record counts the wager in units, so a $10 bettor and a $1,000 bettor compete
