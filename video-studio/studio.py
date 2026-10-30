@@ -23,6 +23,7 @@ import tempfile
 from pathlib import Path
 
 import scenes
+import sound
 
 HERE = Path(__file__).resolve().parent
 # Cloud containers ship a Chromium that the pip package may not match; use it when present.
@@ -157,7 +158,7 @@ def mix_audio(video, out, total, audio_cfg):
     else:
         ins += ["-stream_loop", "-1", "-i", music]
         fc = [f"[1:a]volume={vol * 2.5}[mix]"]
-    fc.append(f"[mix]afade=t=out:st={max(total - 1.5, 0)}:d=1.5,loudnorm=I=-14:TP=-1.5:LRA=11[a]")
+    fc.append(f"[mix]afade=t=out:st={max(total - 1.5, 0)}:d=1.5,loudnorm=I=-14:TP=-1.5:LRA=11,alimiter=limit=0.8:level=false[a]")
     run(["ffmpeg", "-y", *ins, "-filter_complex", ";".join(fc), "-map", "0:v", "-map", "[a]",
          "-t", round(total, 3), "-c:v", "copy", "-c:a", "aac", "-b:a", "192k", out])
 
@@ -212,7 +213,12 @@ def cmd_build(a):
         silent = Path(tmp) / "joined.mp4"
         total = join_scenes(paths, durs, trans, silent, fps) or durs[0]
         final = out_dir / f"{name}.mp4"
-        mix_audio(silent, final, total, sb.get("audio", {}))
+        audio = dict(sb.get("audio", {}))
+        if audio.get("sfx") and not audio.get("music"):
+            wav = Path(tmp) / "sfx.wav"
+            sound.write_wav(sound.score(sb, total), wav)
+            audio.update(music=str(wav), music_volume=0.4)  # music-only path applies x2.5 -> unity gain
+        mix_audio(silent, final, total, audio)
 
         starts, acc = [], 0.0
         for d in durs:
@@ -251,6 +257,17 @@ def cmd_still(a):
     print(f"stills in {out}")
 
 
+def cmd_sound(a):
+    """Add the synthesised sound design to a video that is already rendered (video stream is copied)."""
+    sb = json.loads(Path(a.storyboard).read_text())
+    total = probe_duration(a.video)
+    with tempfile.TemporaryDirectory(prefix="vstudio_") as tmp:
+        wav = Path(tmp) / "sfx.wav"
+        sound.write_wav(sound.score(sb, total), wav)
+        mix_audio(Path(a.video), Path(a.out), total, {"music": str(wav), "music_volume": 0.4})
+    print(f"wrote {a.out}")
+
+
 def cmd_lint(a):
     sb = json.loads(Path(a.storyboard).read_text())
     sys.exit(1 if lint(sb) else 0)
@@ -283,6 +300,8 @@ def main():
     b.set_defaults(fn=cmd_build)
     st = sub.add_parser("still"); st.add_argument("storyboard"); st.add_argument("--t", type=float, default=2.5)
     st.add_argument("--format", choices=FORMATS); st.add_argument("--out"); st.set_defaults(fn=cmd_still)
+    so = sub.add_parser("sound"); so.add_argument("storyboard"); so.add_argument("video"); so.add_argument("out")
+    so.set_defaults(fn=cmd_sound)
     l = sub.add_parser("lint"); l.add_argument("storyboard"); l.set_defaults(fn=cmd_lint)
     r = sub.add_parser("reframe"); r.add_argument("src"); r.add_argument("dst")
     r.add_argument("--format", default="9:16", choices=FORMATS); r.set_defaults(fn=cmd_reframe)

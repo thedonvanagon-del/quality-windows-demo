@@ -33,6 +33,7 @@ Or in Claude Code: ask for a video and the `video-producer` agent runs the whole
 | Footage scenes | ffmpeg trim, fill-crop to target format, optional text overlay |
 | Transitions | `xfade` crossfade between scenes |
 | Audio | voiceover + music with sidechain ducking, fade out, loudnorm to -14 LUFS |
+| Sound design | `"audio": {"sfx": true}` synthesises whooshes, pops, bean-crack rolls, ticks, plops, chimes and a roaster-drum bed, timed to the scenes (`sound.py`). `studio.py sound <storyboard> <video> <out>` adds it to a finished render without re-rendering. |
 | Captions | lower-third burned into the scene, plus an `.srt` sidecar |
 | Copy check | blocks flagged health-claim words unless `--force` |
 
@@ -49,7 +50,8 @@ Motion graphics render at roughly 10 to 12 seconds per second of output on a 4-c
 ## Not included
 
 - **Voiceover generation.** No TTS engine is bundled. Pass a recording in `audio.voiceover`.
-- **Music.** Supply licensed tracks.
+- **Music.** Supply licensed tracks. The built-in sound design is effects and a quiet bed, not a song.
+- **Generated footage.** Nothing here creates AI video. For cinematic generated clips use a tool like Higgsfield, then cut the clips in with `clip` scenes.
 - **Auto-captions from speech.** Captions come from the `caption` field per scene, not transcription.
 
 ## Brand

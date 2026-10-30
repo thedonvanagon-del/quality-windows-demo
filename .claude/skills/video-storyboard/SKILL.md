@@ -52,6 +52,8 @@ Scene types and their fields:
 
 Any scene takes `theme`: `kraft` (default, tan paper), `ink` (dark) or `coral`. Alternate them so the video doesn't feel flat.
 
+Set `"audio": {"sfx": true}` for synthesised sound design timed to the scenes. Add `voiceover` or `music` paths to layer real audio on top.
+
 Every scene takes `duration` (seconds) and an optional `caption`. Captions burn in as a lower third and also export to the `.srt`.
 
 With `n` scenes the final runtime is `sum(durations) - (n-1) * transition`.
