@@ -122,6 +122,14 @@ One-time setup, from AWS CloudShell (the >_ icon in the AWS console, Ohio region
    sudo systemctl restart bookie-bullies-app
    ```
 
+**Deploying from CloudShell instead.** Without the GitHub settings in step 4,
+ship the code straight from CloudShell, where the key and a clone already are:
+```
+cd ~/quality-windows-demo && git pull -q
+tar czf - -C picks-app package.json src public | ssh -i ~/bb-deploy ubuntu@<ip> \
+  'tar xzf - -C /opt/bookie-bullies-app && sudo systemctl restart bookie-bullies-app'
+```
+
 On the server: the code is in `/opt/bookie-bullies-app`, the database in
 `/var/lib/bookie-bullies-app/bookiebullies.db`, settings in
 `/etc/bookie-bullies-app.env`, and logs from
@@ -143,8 +151,6 @@ There's also a Dockerfile, for any host that runs containers and keeps a disk.
 
 ## Not built yet
 
-- **Password reset and email verification.** Both need the app to send email.
-  The Buddha Beans Google Workspace could do it over SMTP.
 - **Changing a screen name.** It stays fixed for now so shared profile links
   keep working.
 - **Props, parlays, futures.** Sides, totals and moneylines only.

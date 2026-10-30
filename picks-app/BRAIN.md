@@ -101,6 +101,16 @@ All of it is in `picks-app/`, merged to `main` on 2026-10-27 through
 [thedonvanagon-del/quality-windows-demo#15](https://github.com/thedonvanagon-del/quality-windows-demo/pull/15).
 **Beta launch started 2026-10-27.** Not live yet: waiting on the server setup below.
 
+Launch log:
+- **2026-10-28:** Server built with Terraform from CloudShell. Static IP
+  **3.136.213.29** (Lightsail, Ohio, `bookie-bullies-app`). Its first-boot setup
+  failed: Lightsail runs launch scripts with `sh`, which choked on `pipefail`.
+  Fixed in `setup.sh.tftpl` for future servers; this one gets the setup run by hand.
+- **2026-10-30:** GitHub settings (`APP_HOST`, `APP_SSH_KEY`) aren't in yet: the
+  browser is signed in as **NFTrapper**, a second GitHub account, and only
+  **thedonvanagon-del** (the repo owner) can see Settings. Until that login is
+  sorted, deploys go straight from CloudShell (`picks-app/README.md`).
+
 - Email and password signup with 21+ and Terms checkboxes, email confirmation,
   optional first and last name, screen name, login, logout, password reset by
   email, account deletion, Terms and Privacy pages
