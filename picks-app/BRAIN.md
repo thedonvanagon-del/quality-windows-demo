@@ -112,6 +112,23 @@ not dollars, and nothing is paid out.
   as "Name · 47-31 · +17.5u" with the crest.
 - **2026-10-25:** Profiles have a short bio, up to 160 characters.
 
+### Following, streaks, splits, notifications
+- **2026-10-30: Follow players.** Follow anyone from their profile; **Following**
+  (in More) shows their picks once each game starts. Profiles show follower counts.
+- **2026-10-30: Hot streaks** (`/hot`): the best last ten over 30 days by units
+  (ten graded picks needed), with the current run (W5, L2) and Follow buttons.
+- **2026-10-30: Public split.** Game pages show what share of players took each
+  side, once a market has 5 picks (so it never points at one person's open
+  pick). Cards show the spread lean ("64% on KC").
+- **2026-10-30: Breakdown** on profiles: spreads, totals, moneylines; favorites
+  vs underdogs; home vs road.
+- **2026-10-30: Notifications.** A bell with a count, an inbox, and phone
+  notifications (Web Push, built in, no outside service, checked against the
+  spec's own example). Players hear when bets settle and when someone they
+  follow locks a pick (not the side; that waits for the start; at most one per
+  player per half hour). Both can be turned off. iPhones get them once the app
+  is on the Home Screen (iOS 16.4+). The App Store version isn't needed for this.
+
 ### Chat
 - **2026-10-30: Game chat**, one public thread per game (`/games/:id`, hub at
   `/chat`, linked from every game card and More). Plain text, 280 characters,
@@ -164,6 +181,8 @@ Launch log:
 - Scoreboard look with three color choices, TV channel and team records on
   cards, live-score strip, slide-up pick slip, LOCKED confirmation
 - Profile record card with a units line, ROI, last 10, rank, Share as image
+- Follow players and a Following feed; Hot streaks; public split; profile breakdown
+- Notifications: bell and inbox, phone notifications (Web Push)
 - Installable on phones (manifest, icons, iPhone full-screen)
 - Automatic grading every 10 minutes, with voids for postponed games
 - Demo mode: `npm run demo`, log in as demo@example.com / letmein123

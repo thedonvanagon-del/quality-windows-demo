@@ -268,6 +268,43 @@ if (chatBox && window.DOMParser) {
   }, 15_000);
 }
 
+// Phone notifications: register the service worker, ask permission, and hand
+// the subscription to the server. iPhones only allow it from the Home Screen app.
+const pushBox = document.querySelector('[data-push-key]');
+if (pushBox) {
+  const on = pushBox.querySelector('[data-push-on]');
+  const status = pushBox.querySelector('[data-push-status]');
+  const supported = 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
+  if (!supported) pushBox.querySelector('[data-push-help]').hidden = false;
+  else on.hidden = false;
+  on?.addEventListener('click', async () => {
+    on.disabled = true;
+    try {
+      if ((await Notification.requestPermission()) !== 'granted') {
+        status.textContent = 'Notifications are blocked. Allow them for this site in your settings, then try again.';
+        return;
+      }
+      const reg = await navigator.serviceWorker.register('/sw.js');
+      await navigator.serviceWorker.ready;
+      const key = Uint8Array.from(atob(pushBox.dataset.pushKey.replace(/-/g, '+').replace(/_/g, '/')), (c) => c.charCodeAt(0));
+      const sub = (await reg.pushManager.getSubscription()) ?? (await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: key }));
+      const json = sub.toJSON();
+      const csrf = document.querySelector('input[name="_csrf"]')?.value ?? '';
+      const res = await fetch('/push/subscribe', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'content-type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({ _csrf: csrf, endpoint: json.endpoint, p256dh: json.keys.p256dh, auth: json.keys.auth }),
+      });
+      status.textContent = res.ok ? "You're set. Notifications will show on this device." : "That didn't work. Try again in a minute.";
+    } catch {
+      status.textContent = "That didn't work on this device.";
+    } finally {
+      on.disabled = false;
+    }
+  });
+}
+
 // Copy an invite link.
 for (const button of document.querySelectorAll('[data-copy]')) {
   button.hidden = false;

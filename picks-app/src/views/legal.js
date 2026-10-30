@@ -63,13 +63,14 @@ export function privacy(ctx, { contact }) {
       <li><strong>Picks:</strong> every pick you make, the line and time it was locked, and how many units you played.</li>
       <li><strong>Settings:</strong> your app color and the groups you're in.</li>
       <li><strong>Chat:</strong> messages you post in game chats, and any reports you make.</li>
+      <li><strong>Follows and notifications:</strong> who you follow, your notification settings and inbox, and, if you turn on phone notifications, the delivery address your phone's browser gives us (from Apple, Google, Mozilla or Microsoft). Messages to your phone are encrypted so only your phone can read them.</li>
       <li><strong>Basics to keep the app working:</strong> a sign-in cookie, and your IP address for a short time to stop password guessing and spam signups.</li>
     </ul>
     <p>We don't ask for your address, phone number, payment details or ID, and we don't use ad trackers.</p>
 
     <h2>Who sees what</h2>
     <ul>
-      <li><strong>Everyone:</strong> your screen name, name (if you added one), bio, link, record, picks once their game has started, and your chat messages.</li>
+      <li><strong>Everyone:</strong> your screen name, name (if you added one), bio, link, record, picks once their game has started, your chat messages, and how many followers you have.</li>
       <li><strong>Only you:</strong> your email, and your open picks before their games start.</li>
       <li><strong>Your groups:</strong> members see each other's started picks and records.</li>
     </ul>

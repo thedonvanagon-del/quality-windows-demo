@@ -1,6 +1,7 @@
 import { html } from '../html.js';
 import { formatOdds, formatUnits, selection } from '../picks.js';
 import { SPORT } from '../sports.js';
+import { when } from '../time.js';
 import { icons } from './icons.js';
 import { csrfField, layout } from './layout.js';
 import { at, minus, teamLogo } from './parts.js';
@@ -20,6 +21,9 @@ export function more(ctx, { liveCount }) {
       <p class="lede">Everything else in the app.</p>
       <ul class="menu">
         ${row('/live', icons.live, 'Live games', 'Scores right now, with your bets on them', liveCount ? html`<span class="count">${liveCount} live</span>` : '')}
+        ${row('/hot', icons.line, 'Hot streaks', 'Who\'s on a heater: the best last ten')}
+        ${row('/following', icons.groups, 'Following', 'Picks from players you follow')}
+        ${row('/notifications', icons.bell, 'Notifications', 'Settled bets, players you follow, phone alerts', ctx.unread ? html`<span class="count">${ctx.unread} new</span>` : '')}
         ${row('/chat', icons.chat, 'Game chat', 'Talk about today\'s games while they\'re on')}
         ${row('/leaderboard', icons.board, 'Leaderboard', 'Everyone, or one sport at a time')}
         ${row('/groups', icons.groups, 'Groups', 'Your friends and their boards')}
@@ -76,6 +80,43 @@ export function chatHub(ctx, { list }) {
             <span class="count ${count ? '' : 'zero'}">${count ? `${count} ${count === 1 ? 'message' : 'messages'}` : 'Start it'}</span><span class="go">${icons.chevron}</span>
           </a></li>`)}</ul>`
         : html`<div class="card empty">No games on today. Chats open as games get close.</div>`}
+    `,
+  });
+}
+
+/** The inbox, what to be told about, and phone notifications. */
+export function notifications(ctx, { list, prefs, phones, pushKey }) {
+  return layout(ctx, {
+    title: 'Notifications',
+    active: 'notifications',
+    body: html`
+      <a class="back" href="/more">← More</a>
+      <h1>Notifications</h1>
+      ${list.length
+        ? html`<ul class="menu inbox">${list.map((n) => html`<li class="${n.read_at ? '' : 'unread'}"><a href="${n.url}">
+            <span class="icon">${n.kind === 'follow' ? icons.groups : icons.picks}</span>
+            <span class="text">${n.text}<small><time datetime="${n.created_at}" data-local="long">${when(n.created_at)}</time></small></span>
+          </a></li>`)}</ul>`
+        : html`<div class="card empty">Nothing yet. You'll hear here when your bets settle and when players you follow make picks.</div>`}
+
+      <h2>Tell me when</h2>
+      <form class="form prefs" method="post" action="/notifications/settings">
+        ${csrfField(ctx)}
+        <label class="check"><input type="checkbox" name="settled" ${prefs.notify_settled ? 'checked' : ''}><span>My bets settle (won, lost, push)</span></label>
+        <label class="check"><input type="checkbox" name="follows" ${prefs.notify_follows ? 'checked' : ''}><span>A player I follow locks a pick</span></label>
+        <button class="btn small">Save</button>
+      </form>
+
+      <h2>Phone notifications</h2>
+      ${pushKey
+        ? html`<div class="push-box" data-push-key="${pushKey}">
+            <p class="muted">${phones ? `On for ${phones} ${phones === 1 ? 'device' : 'devices'}.` : 'Get these on your lock screen, like any app.'}</p>
+            <button class="btn small" type="button" data-push-on hidden>Turn on for this device</button>
+            <p class="muted small" data-push-help hidden>On iPhone, add Bookie Bullies to your Home Screen first (Share, then Add to Home Screen), open it from there, and come back to this page.</p>
+            <p class="small" data-push-status role="status"></p>
+            ${phones ? html`<form method="post" action="/push/unsubscribe">${csrfField(ctx)}<button class="btn ghost small">Turn off on every device</button></form>` : ''}
+          </div>`
+        : html`<p class="muted">Phone notifications aren't set up on this server yet.</p>`}
     `,
   });
 }

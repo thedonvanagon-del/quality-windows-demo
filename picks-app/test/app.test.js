@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import crypto from 'node:crypto';
 import { afterEach, beforeEach, describe, test } from 'node:test';
 
 import { clock, event, setFinal, setLine, setLive, startApp, visible } from './helpers.js';
@@ -508,6 +509,55 @@ describe('public split', () => {
     const page = visible((await viewer.get('/games/nfl%3A1')).text);
     assert.match(page, /Public split BUF 60% Spread · 5 picks 40% KC/);
     assert.match(visible((await viewer.get('/games')).text), /60% on BUF/);
+  });
+});
+
+describe('notifications', () => {
+  const phone = () => {
+    const ecdh = crypto.createECDH('prime256v1');
+    ecdh.generateKeys();
+    return { endpoint: `https://fcm.googleapis.com/fcm/send/${crypto.randomUUID()}`, p256dh: ecdh.getPublicKey().toString('base64url'), auth: crypto.randomBytes(16).toString('base64url') };
+  };
+
+  test('a settled bet lands in the inbox and on the phone', async () => {
+    const ann = await player('ann@example.com', 'Ann');
+    await ann.get('/notifications');
+    assert.equal((await ann.post('/push/subscribe', phone())).status, 204);
+    assert.equal((await ann.post('/push/subscribe', { ...phone(), endpoint: 'https://evil.example/x' })).status, 400, 'only real push services');
+    await ann.get('/games');
+    await ann.post('/picks', { ...BILLS_PLUS, units: '2' });
+
+    setFinal(game, 27, 24);
+    time.set('2026-10-25T21:00:00.000Z');
+    await app.games.checkFinals();
+    await new Promise((resolve) => setImmediate(resolve));
+    const page = await ann.get('/games');
+    assert.match(page.text, /aria-label="Notifications, 1 new"/);
+    assert.match(visible((await ann.get('/notifications')).text), /Won \+1\.82u: Bills \+3\.5 \(BUF 24, KC 27\)/);
+    assert.doesNotMatch((await ann.get('/games')).text, /Notifications, 1 new/, 'opening the inbox reads it');
+    assert.equal(app.pushed.length, 1);
+    assert.match(app.pushed[0].url, /^https:\/\/fcm\.googleapis\.com\//);
+    assert.match(app.pushed[0].init.headers.Authorization, /^vapid t=.+, k=B/);
+  });
+
+  test('followers hear when a player locks a pick, once per half hour, never which side', async () => {
+    const ann = await player('ann@example.com', 'Ann');
+    const bob = await player('bob@example.com', 'Bob');
+    await bob.get('/u/Ann');
+    await bob.post('/u/Ann/follow');
+    await ann.get('/games');
+    await ann.post('/picks', BILLS_PLUS);
+    await ann.post('/picks', { game: 'nfl:1', market: 'total', side: 'over', line: '47.5', odds: '-110', units: '1' });
+    const inbox = visible((await bob.get('/notifications')).text);
+    assert.match(inbox, /Ann locked a pick on Bills @ Chiefs\. It shows when the game starts\./);
+    assert.equal(app.store.get("SELECT COUNT(*) AS n FROM notifications WHERE kind = 'follow'").n, 1);
+    assert.doesNotMatch(inbox, /\+3\.5|Over/);
+
+    await bob.post('/notifications/settings', { settled: 'on' });
+    time.advance(31 * 60_000);
+    await ann.get('/games');
+    await ann.post('/picks', { game: 'nfl:1', market: 'ml', side: 'away', line: '', odds: '150', units: '1' });
+    assert.equal(app.store.get("SELECT COUNT(*) AS n FROM notifications WHERE kind = 'follow'").n, 1, 'Bob turned these off');
   });
 });
 

@@ -224,7 +224,7 @@ export function hot(ctx, { rows, followed }) {
       <h1>Hot streaks</h1>
       <p class="lede">The best last ten picks over the past 30 days, by units won. Players need ten graded picks in that time to show up.</p>
       ${rows.length
-        ? html`<div class="table"><table>
+        ? html`<div class="table"><table class="hot">
             <thead><tr><th>#</th><th>Player</th><th class="n">Last 10</th><th class="n">Units</th><th class="n">Streak</th>${me ? html`<th class="n"><span class="sr-only">Follow</span></th>` : ''}</tr></thead>
             <tbody>${rows.map((r, i) => html`<tr class="${r.id === me ? 'me' : ''}">
               <td class="rank"><span class="rk">${i + 1}</span></td>

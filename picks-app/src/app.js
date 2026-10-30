@@ -16,6 +16,8 @@ import { LOGO_HOST } from './espn.js';
 import { toGame } from './games.js';
 import { cleanLink } from './links.js';
 import { createMailer } from './mail.js';
+import { createNotifier } from './notify.js';
+import { validSubscription } from './push.js';
 import { deletePick, formatLine, formatUnits, isLocked, makePick, MARKETS, price, toWin } from './picks.js';
 import { SPORT } from './sports.js';
 import { breakdown, hotStreaks, lastTen, leaderboard, PERIODS, rankOf, record, recordBySport, splits, unitsSeries } from './stats.js';
@@ -39,7 +41,7 @@ const SECURITY_HEADERS = {
   'Permissions-Policy': 'camera=(), microphone=(), geolocation=()',
 };
 
-export function createApp({ store, games, config, mailer = createMailer({ log: { log() {} } }), now = () => new Date(), log = console }) {
+export function createApp({ store, games, config, mailer = createMailer({ log: { log() {} } }), notifier = createNotifier({ store }), push = null, now = () => new Date(), log = console }) {
   const assets = loadAssets();
   const app = {
     name: config.appName,
@@ -360,6 +362,7 @@ export function createApp({ store, games, config, mailer = createMailer({ log: {
       flash(ctx, 'error', result.error);
       return redirect(ctx, back);
     }
+    notifier.pickMade({ player: ctx.user, game, now: ctx.now });
     flash(ctx, 'locked', `${formatLine(market, side, current, game)}, ${formatUnits(result.units)} to win ${formatUnits(toWin(current.odds, result.units))}`, ctx.now.toISOString());
     redirect(ctx, back);
   }
@@ -593,6 +596,58 @@ export function createApp({ store, games, config, mailer = createMailer({ log: {
     send(ctx, 200, social.following(ctx, { feed: followFeed(store, ctx.user.id, ctx.now), people: followingList(store, ctx.user.id) }));
   }
 
+  // ---- notifications ------------------------------------------------------
+
+  /** The inbox. Opening it marks everything read. */
+  function notificationsPage(ctx) {
+    if (!signedIn(ctx)) return;
+    const list = notifier.list(ctx.user.id);
+    const prefs = store.get('SELECT notify_settled, notify_follows FROM users WHERE id = ?', ctx.user.id);
+    const phones = store.get('SELECT COUNT(*) AS n FROM push_subscriptions WHERE user_id = ?', ctx.user.id).n;
+    notifier.markRead(ctx.user.id, ctx.now);
+    ctx.unread = 0;
+    send(ctx, 200, moreViews.notifications(ctx, { list, prefs, phones, pushKey: push?.publicKey() ?? null }));
+  }
+
+  function notifyPrefs(ctx) {
+    if (!signedIn(ctx)) return;
+    store.run(
+      'UPDATE users SET notify_settled = ?, notify_follows = ? WHERE id = ?',
+      ctx.form.get('settled') === 'on' ? 1 : 0, ctx.form.get('follows') === 'on' ? 1 : 0, ctx.user.id,
+    );
+    flash(ctx, 'ok', 'Saved.');
+    redirect(ctx, '/notifications');
+  }
+
+  /** A phone turning push on: keep its subscription, tied to this player. */
+  function pushSubscribe(ctx) {
+    if (!signedIn(ctx)) return;
+    const sub = { endpoint: ctx.form.get('endpoint') ?? '', p256dh: ctx.form.get('p256dh') ?? '', auth: ctx.form.get('auth') ?? '' };
+    if (!push || !validSubscription(sub)) return send(ctx, 400, 'That subscription was turned down.');
+    const count = store.get('SELECT COUNT(*) AS n FROM push_subscriptions WHERE user_id = ?', ctx.user.id).n;
+    if (count >= 10) store.run('DELETE FROM push_subscriptions WHERE id = (SELECT MIN(id) FROM push_subscriptions WHERE user_id = ?)', ctx.user.id);
+    store.run(
+      `INSERT INTO push_subscriptions (user_id, endpoint, p256dh, auth, created_at) VALUES (?, ?, ?, ?, ?)
+       ON CONFLICT (endpoint) DO UPDATE SET user_id = excluded.user_id, p256dh = excluded.p256dh, auth = excluded.auth`,
+      ctx.user.id, sub.endpoint, sub.p256dh, sub.auth, ctx.now.toISOString(),
+    );
+    send(ctx, 204, '');
+  }
+
+  function pushUnsubscribe(ctx) {
+    if (!signedIn(ctx)) return;
+    store.run('DELETE FROM push_subscriptions WHERE user_id = ?', ctx.user.id);
+    flash(ctx, 'ok', 'Phone notifications are off on every device.');
+    redirect(ctx, '/notifications');
+  }
+
+  /** The service worker has to come from the site's root to cover every page. */
+  function serviceWorker(ctx) {
+    const file = assets.files.get('sw.js');
+    ctx.res.writeHead(200, { ...SECURITY_HEADERS, 'Content-Type': file.type, 'Cache-Control': 'no-cache' });
+    ctx.res.end(file.body);
+  }
+
   function themePost(ctx) {
     if (!signedIn(ctx)) return;
     const theme = ctx.form.get('theme');
@@ -715,6 +770,11 @@ export function createApp({ store, games, config, mailer = createMailer({ log: {
     ['POST', '/u/:name/unfollow', unfollowPost],
     ['GET', '/following', followingPage],
     ['GET', '/hot', hotPage],
+    ['GET', '/notifications', notificationsPage],
+    ['POST', '/notifications/settings', notifyPrefs],
+    ['POST', '/push/subscribe', pushSubscribe],
+    ['POST', '/push/unsubscribe', pushUnsubscribe],
+    ['GET', '/sw.js', serviceWorker],
     ['GET', '/more', morePage],
     ['GET', '/live', livePage],
     ['POST', '/theme', themePost],
@@ -759,7 +819,10 @@ export function createApp({ store, games, config, mailer = createMailer({ log: {
       ctx.session = auth.readSession(store, cookies.sid, ctx.now);
       ctx.user = ctx.session?.user ?? null;
       // The count on the My bets tab.
-      if (ctx.user?.screenName) ctx.openBets = store.get('SELECT COUNT(*) AS n FROM picks WHERE user_id = ? AND result IS NULL', ctx.user.id).n;
+      if (ctx.user?.screenName) {
+        ctx.openBets = store.get('SELECT COUNT(*) AS n FROM picks WHERE user_id = ? AND result IS NULL', ctx.user.id).n;
+        ctx.unread = notifier.unread(ctx.user.id);
+      }
       if (cookies.flash) {
         ctx.flash = readFlash(cookies.flash);
         setCookie(ctx, 'flash', '', 0);

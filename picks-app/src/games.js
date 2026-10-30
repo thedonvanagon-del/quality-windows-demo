@@ -12,7 +12,7 @@ const PICK_MAX_AGE = 60_000;
 const PICK_FALLBACK_AGE = 10 * 60_000;
 const GRADE_FETCH_LIMIT = 30;
 
-export function createGames({ store, espn, now = () => new Date(), log = console }) {
+export function createGames({ store, espn, now = () => new Date(), log = console, onGraded = null }) {
   const fetchedAt = new Map(); // "nfl 20261019-20261025" -> ms
   const inFlight = new Map();
   const problems = new Map(); // sport -> last error message
@@ -76,7 +76,7 @@ export function createGames({ store, espn, now = () => new Date(), log = console
         );
       }
     });
-    return gradeFinished(store, now());
+    return gradeFinished(store, now(), { onGraded });
   }
 
   function boardRange(sport) {
@@ -154,7 +154,7 @@ export function createGames({ store, espn, now = () => new Date(), log = console
       for (const { sport, start_time: start } of due) days.set(`${sport} ${etDay(start)}`, [SPORT[sport], etDay(start)]);
       let graded = 0;
       for (const [sport, day] of [...days.values()].slice(0, GRADE_FETCH_LIMIT)) graded += await refresh(sport, day);
-      return graded + gradeFinished(store, now());
+      return graded + gradeFinished(store, now(), { onGraded });
     },
 
     sports: SPORTS,

@@ -107,7 +107,7 @@ export function deletePick(store, { userId, pickId, game, now }) {
  * gets voided too, but only on ESPN's word: if the app just couldn't reach
  * ESPN for a while, the pick waits. Returns how many it graded.
  */
-export function gradeFinished(store, now, { staleAfterMs = 3 * 86_400_000 } = {}) {
+export function gradeFinished(store, now, { staleAfterMs = 3 * 86_400_000, onGraded = null } = {}) {
   const open = store.all(
     `SELECT p.id, p.market, p.side, p.line, p.odds, p.units,
             g.state, g.status, g.completed, g.home_score, g.away_score, g.start_time, g.updated_at
@@ -115,7 +115,7 @@ export function gradeFinished(store, now, { staleAfterMs = 3 * 86_400_000 } = {}
       WHERE p.result IS NULL AND g.start_time <= ?`,
     now.toISOString(),
   );
-  let graded = 0;
+  const done = [];
   store.tx(() => {
     for (const p of open) {
       let result = null;
@@ -126,14 +126,15 @@ export function gradeFinished(store, now, { staleAfterMs = 3 * 86_400_000 } = {}
         result = 'void';
       }
       if (!result) continue;
-      store.run(
+      const { changes } = store.run(
         'UPDATE picks SET result = ?, profit = ?, graded_at = ? WHERE id = ? AND result IS NULL',
         result, profit(result, p.odds, p.units), now.toISOString(), p.id,
       );
-      graded += 1;
+      if (changes) done.push(p.id);
     }
   });
-  return graded;
+  if (done.length && onGraded) onGraded(done);
+  return done.length;
 }
 
 export const MARKET_NAME = { spread: 'Spread', total: 'Total', ml: 'Moneyline' };

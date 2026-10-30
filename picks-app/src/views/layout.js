@@ -57,6 +57,7 @@ export function layout(ctx, { title, active, body, description, share }) {
     <a class="brand" href="/"><img class="brand-logo" src="${app.assets.logo}" alt="" width="34" height="34">${app.name}</a>
     <nav class="nav" aria-label="Main">${nav.map(link)}</nav>
     <div class="top-right">
+      ${playing ? html`<a class="bell ${active === 'notifications' ? 'on' : ''}" href="/notifications" aria-label="Notifications${ctx.unread ? `, ${ctx.unread} new` : ''}">${icons.bell}${ctx.unread ? html`<b class="badge">${ctx.unread > 99 ? '99+' : ctx.unread}</b>` : ''}</a>` : ''}
       ${playing
         ? html`<a class="user-chip ${active === 'me' ? 'on' : ''}" href="${profile}"><span class="avatar">${user.screenName[0]}</span><span class="name">${user.screenName}</span></a>`
         : user
