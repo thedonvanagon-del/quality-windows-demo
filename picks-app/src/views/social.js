@@ -182,6 +182,30 @@ function linkForm(ctx, player) {
     </form>`;
 }
 
+const BREAKDOWN_LABELS = {
+  market: { spread: 'Spreads', total: 'Totals', ml: 'Moneylines' },
+  role: { fav: 'Favorites', dog: 'Underdogs' },
+  venue: { home: 'Home teams', away: 'Road teams' },
+};
+
+/** Where a player wins: bet type, favorite or dog, home or road. */
+function breakdownTable(split) {
+  const rows = ['market', 'role', 'venue'].flatMap((group) =>
+    Object.entries(BREAKDOWN_LABELS[group])
+      .map(([key, label]) => ({ label, group, ...(split[group].find((r) => r.key === key) ?? null) }))
+      .filter((r) => r.graded),
+  );
+  if (!rows.length) return '';
+  return html`<h2>Breakdown</h2>
+    <div class="table"><table class="breakdown">
+      <thead><tr><th>Bets on</th><th class="n">Record</th><th class="n hide-sm">Win</th><th class="n">Units</th><th class="n">ROI</th></tr></thead>
+      <tbody>${rows.map((r, i) => html`<tr class="${i && rows[i - 1].group !== r.group ? 'group-start' : ''}">
+        <td>${r.label}</td><td class="n">${recordText(r)}</td><td class="n hide-sm">${pct(r.winPct)}</td>
+        <td class="n"><b>${units(r.units)}</b></td><td class="n">${signedPct(r.roi)}</td>
+      </tr>`)}</tbody>
+    </table></div>`;
+}
+
 /** Follow or unfollow; `next` brings the player back where they pressed it. */
 export function followButton(ctx, name, following, next = '') {
   const path = `/u/${encodeURIComponent(name)}/${following ? 'unfollow' : 'follow'}`;
@@ -294,7 +318,7 @@ function colorPicker(ctx) {
     </form>`;
 }
 
-export function profile(ctx, { player, record, bySport, series = [], last10 = null, rank = null, follows = { followers: 0, following: 0 }, following = false, picks, hidden }) {
+export function profile(ctx, { player, record, bySport, split = null, series = [], last10 = null, rank = null, follows = { followers: 0, following: 0 }, following = false, picks, hidden }) {
   return layout(ctx, {
     title: player.screen_name,
     active: ctx.user?.id === player.id ? 'me' : null,
@@ -324,6 +348,7 @@ export function profile(ctx, { player, record, bySport, series = [], last10 = nu
             </tr>`)}</tbody>
           </table></div>`
         : ''}
+      ${split ? breakdownTable(split) : ''}
       <h2>Picks</h2>
       ${hidden ? html`<p class="muted">${hidden} open ${hidden === 1 ? 'pick' : 'picks'}, shown once the game starts.</p>` : ''}
       ${picks.length

@@ -556,6 +556,9 @@ describe('grading and boards', () => {
     assert.match(visible(card), /Unranked: 5 picks for a rank Record 1-0 Units \+1\.82u/);
     assert.match(visible(card), /Win 100% ROI \+91% Last 10 1-0 Picks 1/);
     assert.match(card, /data-series="[^"]*,1\.82"/, 'the units line ends at today\'s total');
+    assert.match(visible(card), /Breakdown .* Spreads 1-0 100% \+1\.82u \+91% Underdogs 1-0 100% \+1\.82u \+91% Road teams 1-0/);
+    assert.match(visible((await app.browser().get('/u/Bob')).text), /Moneylines 1-0 .* Favorites 1-0 .* Home teams 1-0/);
+    assert.match(visible((await app.browser().get('/u/Cat')).text), /Totals 0-1 0% −1u −100% Picks/, 'totals sit out of favorite and home splits');
   });
 
   test('push a spread that lands on the number', async () => {

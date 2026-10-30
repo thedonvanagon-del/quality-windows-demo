@@ -18,7 +18,7 @@ import { cleanLink } from './links.js';
 import { createMailer } from './mail.js';
 import { deletePick, formatLine, formatUnits, isLocked, makePick, MARKETS, price, toWin } from './picks.js';
 import { SPORT } from './sports.js';
-import { hotStreaks, lastTen, leaderboard, PERIODS, rankOf, record, recordBySport, splits, unitsSeries } from './stats.js';
+import { breakdown, hotStreaks, lastTen, leaderboard, PERIODS, rankOf, record, recordBySport, splits, unitsSeries } from './stats.js';
 import * as account from './views/account.js';
 import * as legal from './views/legal.js';
 import * as moreViews from './views/more.js';
@@ -552,6 +552,7 @@ export function createApp({ store, games, config, mailer = createMailer({ log: {
       player,
       record: record(store, player.id),
       bySport: recordBySport(store, player.id),
+      split: breakdown(store, player.id),
       series: unitsSeries(store, player.id, ctx.now),
       last10: lastTen(store, player.id),
       rank: rankOf(store, player.id, ctx.now),

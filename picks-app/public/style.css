@@ -783,3 +783,4 @@ a.chip { display: inline-block; text-decoration: none; }
 .split-bar { display: block; width: 100%; height: 8px; border-radius: 4px; overflow: hidden; }
 .split-bar .a { fill: var(--accent); }
 .split-bar .b { fill: var(--raised); }
+.breakdown tr.group-start td { border-top: 2px solid var(--line); }

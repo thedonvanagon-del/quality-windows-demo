@@ -70,6 +70,29 @@ export function recordBySport(store, userId) {
     .map(withRates);
 }
 
+const GROUPINGS = {
+  // Bet type: spreads, totals, moneylines.
+  market: `p.market`,
+  // Favorite or underdog: laying points or a minus price. Totals and pick'ems sit out.
+  role: `CASE
+    WHEN p.market = 'spread' AND p.line < 0 THEN 'fav' WHEN p.market = 'spread' AND p.line > 0 THEN 'dog'
+    WHEN p.market = 'ml' AND p.odds < -100 THEN 'fav' WHEN p.market = 'ml' AND p.odds > 100 THEN 'dog' END`,
+  // Home or away side. Totals sit out.
+  venue: `CASE WHEN p.side IN ('home', 'away') THEN p.side END`,
+};
+
+/** A player's record split three ways: by bet type, favorite vs underdog, home vs away. */
+export function breakdown(store, userId) {
+  const { where, params } = filters({ userId }, new Date());
+  const out = {};
+  for (const [name, expr] of Object.entries(GROUPINGS)) {
+    out[name] = store
+      .all(`SELECT ${expr} AS key, ${TOTALS} FROM picks p WHERE ${where} GROUP BY key HAVING key IS NOT NULL`, ...params)
+      .map(withRates);
+  }
+  return out;
+}
+
 /** Running units total at the end of each of the last `days` days (Eastern), oldest first. */
 export function unitsSeries(store, userId, now, days = 30) {
   const start = new Date(now.getTime() - days * 86_400_000);
