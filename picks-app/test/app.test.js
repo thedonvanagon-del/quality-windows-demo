@@ -126,13 +126,13 @@ describe('accounts', () => {
 
   test('pick an app color that sticks to the account', async () => {
     const b = await player('ann@example.com', 'Ann');
-    assert.match((await b.get('/games')).text, /data-theme="ember"/, 'orange by default');
+    assert.match((await b.get('/games')).text, /data-theme="scoreboard"/, 'the Scoreboard look by default');
     await b.get('/u/Ann');
-    assert.equal((await b.post('/theme', { theme: 'violet' })).location, '/u/Ann');
-    assert.match((await b.get('/games')).text, /data-theme="violet"/);
+    assert.equal((await b.post('/theme', { theme: 'market' })).location, '/u/Ann');
+    assert.match((await b.get('/games')).text, /data-theme="market"/);
     await b.post('/theme', { theme: 'hotpink' });
-    assert.match((await b.get('/games')).text, /data-theme="violet"/, 'unknown colors are ignored');
-    assert.match((await app.browser().get('/')).text, /data-theme="ember"/, 'visitors see the default');
+    assert.match((await b.get('/games')).text, /data-theme="market"/, 'unknown colors are ignored');
+    assert.match((await app.browser().get('/')).text, /data-theme="scoreboard"/, 'visitors see the default');
   });
 
   test('reset a forgotten password by email', async () => {

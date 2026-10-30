@@ -180,7 +180,7 @@ function linkForm(ctx, player) {
     </form>`;
 }
 
-const COLORS = { ember: 'Ember', teal: 'Teal', violet: 'Violet' };
+const COLORS = { scoreboard: 'Scoreboard', market: 'Bull Market', ember: 'Ember' };
 
 /** Three swatches; the player's pick colors the app on every device they use. */
 function colorPicker(ctx) {

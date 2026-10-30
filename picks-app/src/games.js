@@ -51,21 +51,28 @@ export function createGames({ store, espn, now = () => new Date(), log = console
         store.run(
           `INSERT INTO games (id, sport, start_time, state, status, detail, completed,
                               home_name, home_short, home_abbr, home_score, home_logo,
-                              away_name, away_short, away_abbr, away_score, away_logo, lines, updated_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                              away_name, away_short, away_abbr, away_score, away_logo, lines, updated_at,
+                              tv, home_record, away_record, home_color, away_color)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
            ON CONFLICT (id) DO UPDATE SET
              start_time = excluded.start_time, state = excluded.state, status = excluded.status,
              detail = excluded.detail, completed = excluded.completed,
              home_score = excluded.home_score, away_score = excluded.away_score,
              home_logo = COALESCE(excluded.home_logo, games.home_logo),
              away_logo = COALESCE(excluded.away_logo, games.away_logo),
+             tv = COALESCE(excluded.tv, games.tv),
+             home_record = COALESCE(excluded.home_record, games.home_record),
+             away_record = COALESCE(excluded.away_record, games.away_record),
+             home_color = COALESCE(excluded.home_color, games.home_color),
+             away_color = COALESCE(excluded.away_color, games.away_color),
              -- ESPN drops the odds once a game starts; keep the last ones seen
              -- for display.
              lines = CASE WHEN ? THEN excluded.lines ELSE games.lines END,
              updated_at = excluded.updated_at`,
           g.id, g.sport, g.start, g.state, g.status, g.detail, g.completed ? 1 : 0,
           g.home.name, g.home.short, g.home.abbr, g.home.score, g.home.logo ?? null,
-          g.away.name, g.away.short, g.away.abbr, g.away.score, g.away.logo ?? null, lines, at, replaceLines ? 1 : 0,
+          g.away.name, g.away.short, g.away.abbr, g.away.score, g.away.logo ?? null, lines, at,
+          g.tv ?? null, g.home.record ?? null, g.away.record ?? null, g.home.color ?? null, g.away.color ?? null, replaceLines ? 1 : 0,
         );
       }
     });
@@ -90,6 +97,10 @@ export function createGames({ store, espn, now = () => new Date(), log = console
     async live() {
       await Promise.all(SPORTS.map(freshBoard));
       return store.all(`SELECT * FROM games WHERE state = 'in' ORDER BY start_time, sport, home_name`).map(toGame);
+    },
+    /** Live scores as last stored, without asking ESPN: cheap enough for a ticker on every board. */
+    liveNow(limit = 12) {
+      return store.all(`SELECT * FROM games WHERE state = 'in' ORDER BY start_time, sport, home_name LIMIT ?`, limit).map(toGame);
     },
     problem: (sportKey) => problems.get(sportKey) ?? null,
 
@@ -159,8 +170,9 @@ export function toGame(row) {
     status: row.status,
     detail: row.detail,
     completed: Boolean(row.completed),
-    home: { name: row.home_name, short: row.home_short, abbr: row.home_abbr, score: row.home_score, logo: row.home_logo },
-    away: { name: row.away_name, short: row.away_short, abbr: row.away_abbr, score: row.away_score, logo: row.away_logo },
+    tv: row.tv ?? null,
+    home: { name: row.home_name, short: row.home_short, abbr: row.home_abbr, score: row.home_score, logo: row.home_logo, record: row.home_record ?? null, color: row.home_color ?? null },
+    away: { name: row.away_name, short: row.away_short, abbr: row.away_abbr, score: row.away_score, logo: row.away_logo, record: row.away_record ?? null, color: row.away_color ?? null },
     lines: JSON.parse(row.lines),
     updatedAt: row.updated_at,
   };

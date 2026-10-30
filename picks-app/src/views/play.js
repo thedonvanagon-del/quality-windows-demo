@@ -6,7 +6,7 @@ import { csrfField, layout } from './layout.js';
 import { at, minus, pickItem, sportTabs, statStrip, tabs, teamLogo } from './parts.js';
 
 /** `mine` maps game id -> { spread: 'home', total: 'over', ... } for the player's picks. */
-export function games(ctx, { sport, list, mine, problem }) {
+export function games(ctx, { sport, list, mine, live = [], problem }) {
   const days = [];
   for (const game of list) {
     const day = etDay(game.start);
@@ -17,6 +17,7 @@ export function games(ctx, { sport, list, mine, problem }) {
     title: `${sport.name} games`,
     active: 'games',
     body: html`
+      ${ticker(live)}
       <h1>Games</h1>
       <p class="lede">Tap a number to pick it. You get the line on the board right now, and it locks when the game starts.</p>
       ${sportTabs('/games', ctx.query, { all: false })}
@@ -31,19 +32,42 @@ export function games(ctx, { sport, list, mine, problem }) {
   });
 }
 
+/** The scores of games in progress, in a strip across the top, the way a broadcast runs them. */
+function ticker(live) {
+  if (!live.length) return '';
+  return html`<a class="ticker" href="/live" aria-label="Live scores">
+    <span class="live-tag">Live</span>
+    ${live.map((g) => html`<span class="tick">${g.away.abbr} ${g.away.score ?? 0} <b>${g.home.abbr} ${g.home.score ?? 0}</b> <em>${g.detail}</em></span>`)}
+  </a>`;
+}
+
 function gameCard(game, mine, sport) {
+  const fav = favorite(game);
   const row = (side, totalSide) => html`
-    <span class="team">${teamLogo(game[side])}<span class="tname">${game[side].short}</span></span>
+    <span class="team">${stripe(game[side].color)}${teamLogo(game[side])}<span class="tname"><span class="tn">${game[side].short}</span>${fav === side || game[side].record ? html`<span class="tsub">${fav === side ? html`<span class="fav">Fav</span>` : ''}${game[side].record ? html`<span class="trec">${game[side].record}</span>` : ''}</span>` : ''}</span></span>
     ${cell(game, 'spread', side, mine)}
     ${cell(game, 'total', totalSide, mine)}
     ${cell(game, 'ml', side, mine)}`;
   return html`<article class="event" aria-label="${game.away.name} at ${game.home.name}">
     <div class="board">
-      <span class="when">${at(game.start)}</span><span class="colhead">${sport.spread}</span><span class="colhead">Total</span><span class="colhead">Money</span>
+      <span class="when">${at(game.start)}${game.tv ? html`<span class="tv">${game.tv}</span>` : ''}</span><span class="colhead">${sport.spread}</span><span class="colhead">Total</span><span class="colhead">Money</span>
       ${row('away', 'over')}
       ${row('home', 'under')}
     </div>
   </article>`;
+}
+
+/** A bar in the team's color. An SVG fill, since the page's security policy blocks inline styles. */
+function stripe(color) {
+  return color ? html`<svg class="stripe" viewBox="0 0 4 10" preserveAspectRatio="none" aria-hidden="true"><rect width="4" height="10" fill="${color}"></rect></svg>` : html`<span class="stripe"></span>`;
+}
+
+/** The side the book favors: the shorter moneyline, else the side laying points. */
+function favorite(game) {
+  const { ml, spread } = game.lines ?? {};
+  if (ml?.home != null && ml?.away != null && ml.home !== ml.away) return ml.home < ml.away ? 'home' : 'away';
+  if (spread?.home) return spread.home < 0 ? 'home' : 'away';
+  return null;
 }
 
 function cell(game, market, side, mine) {

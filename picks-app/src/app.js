@@ -310,7 +310,7 @@ export function createApp({ store, games, config, mailer = createMailer({ log: {
     ctx.query.set('sport', sport.key);
     const list = await games.upcoming(sport.key);
     const mine = picksOnGames(store, ctx.user.id, list.map((g) => g.id));
-    send(ctx, 200, play.games(ctx, { sport, list, mine, problem: games.problem(sport.key) }));
+    send(ctx, 200, play.games(ctx, { sport, list, mine, live: games.liveNow(), problem: games.problem(sport.key) }));
   }
 
   async function pickForm(ctx) {
@@ -744,6 +744,7 @@ function loadAssets() {
     '.css': 'text/css; charset=utf-8',
     '.js': 'text/javascript; charset=utf-8',
     '.png': 'image/png',
+    '.woff2': 'font/woff2',
     '.webmanifest': 'application/manifest+json',
   };
   const files = new Map();

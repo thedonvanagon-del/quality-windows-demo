@@ -132,6 +132,13 @@ const MIGRATIONS = [
   );
   CREATE INDEX email_verifications_user ON email_verifications(user_id);
   `,
+  `
+  ALTER TABLE games ADD COLUMN tv TEXT;
+  ALTER TABLE games ADD COLUMN home_record TEXT;
+  ALTER TABLE games ADD COLUMN away_record TEXT;
+  ALTER TABLE games ADD COLUMN home_color TEXT;
+  ALTER TABLE games ADD COLUMN away_color TEXT;
+  `,
 ];
 
 export function openStore(file) {

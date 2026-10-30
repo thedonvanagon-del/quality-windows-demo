@@ -1,3 +1,4 @@
+import { THEMES } from '../config.js';
 import { html } from '../html.js';
 import { icons } from './icons.js';
 
@@ -7,7 +8,8 @@ import { icons } from './icons.js';
  */
 export function layout(ctx, { title, active, body, description, share }) {
   const { user, flash, app } = ctx;
-  const theme = user?.theme ?? app.theme;
+  // Players who chose a color that has since been retired get the default.
+  const theme = THEMES.includes(user?.theme) ? user.theme : app.theme;
   const playing = Boolean(user?.screenName);
   const profile = playing ? `/u/${encodeURIComponent(user.screenName)}` : null;
   const nav = playing
@@ -30,7 +32,7 @@ export function layout(ctx, { title, active, body, description, share }) {
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>${title ? `${title} · ${app.name}` : app.name}</title>
 <meta name="description" content="${description ?? 'Make your picks before kickoff. They lock, they get graded off the final score, and nobody can edit them.'}">
-<meta name="theme-color" content="#0f141b">
+<meta name="theme-color" content="#0e1a3a">
 <meta property="og:site_name" content="${app.name}">
 <meta property="og:type" content="${share ? 'profile' : 'website'}">
 <meta property="og:title" content="${share?.title ?? (title ? `${title} · ${app.name}` : app.name)}">

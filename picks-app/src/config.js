@@ -1,5 +1,6 @@
 // The first is the default. Each player can switch on their profile.
-export const THEMES = ['ember', 'teal', 'violet'];
+// scoreboard: navy and amber. market: black and green. ember: the first look, orange.
+export const THEMES = ['scoreboard', 'market', 'ember'];
 
 export function loadConfig(env = process.env) {
   return {
@@ -7,7 +8,7 @@ export function loadConfig(env = process.env) {
     host: env.HOST || '0.0.0.0',
     databasePath: env.DATABASE_PATH || 'data/bookiebullies.db',
     appName: env.APP_NAME || 'Bookie Bullies',
-    // The accent color for visitors and new players: ember, teal or violet.
+    // The look for visitors and new players: scoreboard, market or ember.
     theme: THEMES.includes(env.THEME) ? env.THEME : THEMES[0],
     // Fake games and players, so the app can be clicked through with no
     // network. Never set this in production.

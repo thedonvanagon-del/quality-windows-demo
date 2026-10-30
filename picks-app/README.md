@@ -57,7 +57,7 @@ five.
 
 It looks like a sportsbook: dark, with odds tiles, team logos from ESPN's
 image server, and an app-style tab bar on phones. Players pick their accent
-color (orange, teal or violet) on their profile.
+look (Scoreboard navy and amber, Bull Market black and green, or Ember orange) on their profile.
 
 Sports: NFL, college football, NBA, college basketball, MLB and NHL. Run lines
 and puck lines only go up when ESPN posts a price for them.
@@ -78,7 +78,7 @@ npm start       # the real thing, against ESPN, with the database in data/bookie
 | `PORT` | `3000` | Where it listens. |
 | `DATABASE_PATH` | `data/bookiebullies.db` | The SQLite file. This holds every account and every record. |
 | `APP_NAME` | `Bookie Bullies` | The name in the header and the page titles. |
-| `THEME` | `ember` | The accent color for visitors and new players: `ember` (orange), `teal` or `violet`. Each player can switch on their own profile. |
+| `THEME` | `scoreboard` | The look for visitors and new players: `scoreboard` (navy and amber), `market` (black and green) or `ember` (orange). Each player can switch on their own profile. |
 | `TRUST_PROXY` | off | Turn on behind a host's proxy (Fly, Render, Railway) so it reads the real visitor IP and knows the site is on https. |
 | `DEMO` | off | Fake games and players. Never in production. |
 

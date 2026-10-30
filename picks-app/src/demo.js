@@ -102,6 +102,11 @@ function game(sport, id, start, homeTeam, awayTeam, rand) {
 }
 
 /** The game as ESPN's scoreboard would show it at `at`. */
+// Made-up team colors, records and channels, so demo cards look like the real ones.
+const DEMO_COLORS = ['c8102e', '00338d', '004c54', '241773', '0076b6', 'aa0000', '041e42', '203731', 'fb4f14', '008e97', '125740', '003594'];
+const DEMO_TV = { nfl: ['CBS', 'FOX', 'NBC', 'ESPN', 'Prime Video'], ncaaf: ['ESPN', 'ABC', 'FOX', 'CBS'], nba: ['ESPN', 'TNT', 'NBA TV'], ncaab: ['ESPN2', 'FS1', 'CBS'], mlb: ['FOX', 'TBS', 'ESPN'], nhl: ['ESPN+', 'TNT', 'NHL Net'] };
+const seed = (text) => [...String(text)].reduce((n, c) => (n * 31 + c.charCodeAt(0)) % 9973, 7);
+
 function espnEvent(g, at) {
   const started = at >= new Date(g.start);
   const done = at >= new Date(new Date(g.start).getTime() + 3.5 * HOUR);
@@ -116,7 +121,9 @@ function espnEvent(g, at) {
       displayName: g[side].name,
       shortDisplayName: g[side].short,
       logo: pro ? `https://a.espncdn.com/i/teamlogos/${g.sport}/500/${g[side].abbr.toLowerCase()}.png` : undefined,
+      color: DEMO_COLORS[seed(g[side].abbr) % DEMO_COLORS.length],
     },
+    records: [{ type: 'total', summary: `${3 + (seed(g[side].abbr) % 6)}-${1 + (seed(g[side].abbr + 'l') % 5)}` }],
   });
   const legacy = g.sport === 'mlb' || g.sport === 'nhl';
   const fav = g.ml.home < 0 ? 'home' : 'away';
@@ -145,6 +152,7 @@ function espnEvent(g, at) {
     id: g.id,
     date: g.start,
     competitions: [{
+      broadcasts: [{ names: [DEMO_TV[g.sport][seed(g.id) % DEMO_TV[g.sport].length]] }],
       competitors: [competitor('home'), competitor('away')],
       status: {
         type: {

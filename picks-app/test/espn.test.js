@@ -87,7 +87,7 @@ test("keeps team logos only from ESPN's image server", () => {
   away.team.logo = 'https://evil.example/track.png';
   const [game] = parseScoreboard(SPORT.nfl, { events: [e] });
   assert.equal(game.home.logo, 'https://a.espncdn.com/i/teamlogos/nfl/500/kc.png');
-  assert.equal(game.away.logo, null);
+  assert.equal(game.away.logo, 'https://a.espncdn.com/i/teamlogos/nfl/500/buf.png', 'the outside address is dropped for ESPN\'s own');
 });
 
 test('asks ESPN for one day at a time and drops repeats', async () => {
@@ -107,4 +107,27 @@ test('asks ESPN for one day at a time and drops repeats', async () => {
 test('a refused request is an error, not an empty board', async () => {
   const fetch = async () => new Response('bad', { status: 400 });
   await assert.rejects(createEspn({ fetch }).scoreboard(SPORT.nba, '20261030'), /answered 400/);
+});
+
+test('reads the TV channel, team records and team colors', () => {
+  const e = event({ id: '9', start: '2026-11-01T18:00Z' });
+  const comp = e.competitions[0];
+  comp.broadcasts = [{ market: 'national', names: ['CBS'] }];
+  comp.competitors[0].records = [{ name: 'overall', type: 'total', summary: '6-2' }, { name: 'Home', type: 'home', summary: '3-1' }];
+  comp.competitors[0].team.color = 'E31837';
+  comp.competitors[1].records = [{ summary: 'not a record' }];
+  comp.competitors[1].team.color = 'url(x)';
+  const [game] = parseScoreboard(SPORT.nfl, { events: [e] });
+  assert.equal(game.tv, 'CBS');
+  assert.deepEqual([game.home.record, game.home.color], ['6-2', '#e31837']);
+  assert.deepEqual([game.away.record, game.away.color], [null, null]);
+});
+
+test('falls back to ESPN\'s standard logo address when the feed sends none', () => {
+  const pro = parseScoreboard(SPORT.nfl, { events: [event({ id: '1', start: '2026-11-01T18:00Z' })] })[0];
+  assert.equal(pro.home.logo, 'https://a.espncdn.com/i/teamlogos/nfl/500/kc.png');
+  const e = event({ id: '2', start: '2026-11-01T18:00Z' });
+  e.competitions[0].competitors[0].team.id = '61';
+  const college = parseScoreboard(SPORT.ncaaf, { events: [e] })[0];
+  assert.equal(college.home.logo, 'https://a.espncdn.com/i/teamlogos/ncaa/500/61.png');
 });
