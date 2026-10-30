@@ -61,6 +61,144 @@ for (const button of document.querySelectorAll('[data-share]')) {
   });
 }
 
+// Share the record card as a picture: drawn on a canvas in the page's own
+// colors, then handed to the share sheet, or saved where there isn't one.
+for (const button of document.querySelectorAll('[data-share-image]')) {
+  const card = button.closest('.record-card');
+  if (!card || !HTMLCanvasElement.prototype.toBlob) continue;
+  button.hidden = false;
+  button.addEventListener('click', async () => {
+    button.disabled = true;
+    try {
+      const blob = await drawCard(card.dataset);
+      const name = `bookie-bullies-${card.dataset.name}.png`;
+      const file = new File([blob], name, { type: 'image/png' });
+      if (navigator.canShare?.({ files: [file] })) {
+        try {
+          await navigator.share({ files: [file], title: `${card.dataset.name} on Bookie Bullies` });
+        } catch (err) {
+          if (err.name !== 'AbortError') throw err;
+        }
+      } else {
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = name;
+        link.click();
+        setTimeout(() => URL.revokeObjectURL(link.href), 10_000);
+      }
+    } catch {
+      button.textContent = "Couldn't make the image";
+    } finally {
+      button.disabled = false;
+    }
+  });
+}
+
+async function drawCard(d) {
+  const css = getComputedStyle(document.documentElement);
+  const v = (name) => css.getPropertyValue(name).trim();
+  const W = 1080;
+  const H = 1350;
+  const canvas = document.createElement('canvas');
+  canvas.width = W;
+  canvas.height = H;
+  const c = canvas.getContext('2d');
+  const cond = '"Barlow Condensed", "Arial Narrow", sans-serif';
+  await Promise.all(['800 40px "Barlow Condensed"', '700 40px "Barlow Condensed"', '600 40px Barlow'].map((f) => document.fonts?.load(f).catch(() => {})));
+
+  c.fillStyle = v('--bg');
+  c.fillRect(0, 0, W, H);
+  c.fillStyle = v('--accent');
+  c.fillRect(0, 0, W, 14);
+
+  const crest = document.querySelector('.brand-logo');
+  if (crest?.complete && crest.naturalWidth) c.drawImage(crest, 80, 84, 120, 120);
+  c.fillStyle = v('--ink');
+  c.font = `800 64px ${cond}`;
+  c.fillText('BOOKIE BULLIES', 224, 150);
+  c.fillStyle = '#ffd257';
+  c.font = `800 34px ${cond}`;
+  c.fillText('✓ TRUST YOUR BETS', 226, 196);
+
+  c.fillStyle = v('--ink');
+  c.font = `800 96px ${cond}`;
+  c.fillText(d.name, 80, 360);
+  if (d.rank) {
+    c.font = `800 40px ${cond}`;
+    const label = `${d.rank} OVERALL`;
+    const w = c.measureText(label).width + 32;
+    c.fillStyle = v('--accent');
+    c.fillRect(80, 392, w, 56);
+    c.fillStyle = v('--accent-ink');
+    c.fillText(label, 96, 434);
+  }
+
+  const units = Number(d.units);
+  c.fillStyle = v('--muted');
+  c.font = `700 34px ${cond}`;
+  c.fillText('RECORD', 80, 540);
+  c.textAlign = 'right';
+  c.fillText('UNITS', W - 80, 540);
+  const unitText = `${units > 0 ? '+' : ''}${units}u`;
+  let size = 170;
+  const fits = () => {
+    c.font = `800 ${size}px ${cond}`;
+    return c.measureText(d.record).width + c.measureText(unitText).width + 70 <= W - 160;
+  };
+  while (size > 60 && !fits()) size -= 6;
+  c.fillStyle = units > 0 ? v('--win') : units < 0 ? v('--loss') : v('--ink');
+  c.fillText(unitText, W - 80, 700);
+  c.textAlign = 'left';
+  c.fillStyle = v('--ink');
+  c.fillText(d.record, 80, 700);
+
+  const series = d.series ? d.series.split(',').map(Number) : [];
+  if (series.length > 1) {
+    const x0 = 80;
+    const y0 = 760;
+    const w = W - 160;
+    const h = 220;
+    const lo = Math.min(0, ...series);
+    const span = Math.max(0, ...series) - lo || 1;
+    const y = (val) => y0 + h - ((val - lo) / span) * h;
+    c.strokeStyle = v('--line');
+    c.setLineDash([10, 10]);
+    c.lineWidth = 2;
+    c.beginPath();
+    c.moveTo(x0, y(0));
+    c.lineTo(x0 + w, y(0));
+    c.stroke();
+    c.setLineDash([]);
+    c.strokeStyle = series.at(-1) >= 0 ? v('--win') : v('--loss');
+    c.lineWidth = 7;
+    c.lineJoin = 'round';
+    c.beginPath();
+    series.forEach((val, i) => c[i ? 'lineTo' : 'moveTo'](x0 + (i / (series.length - 1)) * w, y(val)));
+    c.stroke();
+    c.fillStyle = v('--muted');
+    c.font = `600 28px Barlow, sans-serif`;
+    c.fillText('Units, last 30 days', x0, y0 + h + 44);
+  }
+
+  const stats = [['WIN', d.win], ['ROI', d.roi], ['LAST 10', d.last10]];
+  stats.forEach(([label, value], i) => {
+    const x = 80 + i * 320;
+    c.fillStyle = v('--card');
+    c.fillRect(x, 1070, 280, 140);
+    c.fillStyle = v('--muted');
+    c.font = `700 30px ${cond}`;
+    c.fillText(label, x + 24, 1116);
+    c.fillStyle = v('--ink');
+    c.font = `800 62px ${cond}`;
+    c.fillText(value.replace('−', '-'), x + 24, 1186);
+  });
+
+  c.fillStyle = v('--muted');
+  c.font = `600 30px Barlow, sans-serif`;
+  c.fillText(`Every pick locked before the game · ${d.url}`, 80, 1290);
+  return new Promise((resolve, reject) => canvas.toBlob((b) => (b ? resolve(b) : reject(new Error('no image'))), 'image/png'));
+}
+
 // Copy an invite link.
 for (const button of document.querySelectorAll('[data-copy]')) {
   button.hidden = false;

@@ -1,9 +1,11 @@
 import { html } from '../html.js';
+import { formatUnits } from '../picks.js';
 import { SPORT, SPORTS } from '../sports.js';
 import { MIN_RANKED } from '../stats.js';
 import { joined } from '../time.js';
+import { trustMark } from './icons.js';
 import { csrfField, layout } from './layout.js';
-import { boardTable, periodTabs, pct, pickItem, profileLink, recordText, signedPct, sportTabs, statStrip, units } from './parts.js';
+import { boardTable, periodTabs, pct, pickItem, profileLink, recordText, signedPct, sportTabs, units } from './parts.js';
 
 export function leaderboard(ctx, { rows, sport }) {
   return layout(ctx, {
@@ -180,6 +182,55 @@ function linkForm(ctx, player) {
     </form>`;
 }
 
+/**
+ * The record up top, built to be screenshotted: record, units, a 30-day units
+ * line, win rate, ROI, last ten and rank. Its data attributes feed the
+ * "Share as image" button, which draws the same card as a picture.
+ */
+function recordCard(ctx, { player, record, series, last10, rank }) {
+  const last = last10?.graded ? recordText(last10) : '–';
+  const url = `${ctx.origin}/u/${encodeURIComponent(player.screen_name)}`;
+  return html`<section class="record-card" aria-label="Record"
+      data-name="${player.screen_name}" data-record="${recordText(record)}" data-units="${record.units}"
+      data-win="${pct(record.winPct)}" data-roi="${signedPct(record.roi)}" data-last10="${last}"
+      data-rank="${rank ? `#${rank}` : ''}" data-series="${series.join(',')}" data-url="${url.replace(/^https?:\/\//, '')}">
+    <div class="rc-top">
+      <span class="trust-small">${trustMark}<span>Trust Your Bets</span></span>
+      ${rank ? html`<span class="rank-badge">#${rank} overall</span>` : html`<span class="rank-badge muted">Unranked: ${MIN_RANKED} picks for a rank</span>`}
+    </div>
+    <div class="rc-main">
+      <div><span class="rc-label">Record</span><b class="rc-big">${recordText(record)}</b></div>
+      <div class="rc-right"><span class="rc-label">Units</span><b class="rc-big">${units(record.units)}</b></div>
+    </div>
+    ${sparkline(series)}
+    <div class="rc-stats">
+      <div><span class="rc-label">Win</span><b>${pct(record.winPct)}</b></div>
+      <div><span class="rc-label">ROI</span><b>${signedPct(record.roi)}</b></div>
+      <div><span class="rc-label">Last 10</span><b>${last}</b></div>
+      <div><span class="rc-label">Picks</span><b>${record.graded}</b></div>
+    </div>
+    <button class="btn ghost small rc-share" type="button" data-share-image hidden>Share as image</button>
+  </section>`;
+}
+
+/** Units over the last 30 days as a line; flat when there's nothing yet. */
+function sparkline(series) {
+  if (series.length < 2) return '';
+  const w = 300;
+  const h = 64;
+  const lo = Math.min(0, ...series);
+  const hi = Math.max(0, ...series);
+  const span = hi - lo || 1;
+  const pts = series.map((v, i) => `${Math.round((i / (series.length - 1)) * w * 10) / 10},${Math.round((h - 4 - ((v - lo) / span) * (h - 8)) * 10) / 10}`);
+  const zero = Math.round((h - 4 - ((0 - lo) / span) * (h - 8)) * 10) / 10;
+  const end = series.at(-1);
+  return html`<svg class="spark ${end > 0 ? 'up' : end < 0 ? 'down' : ''}" viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" role="img" aria-label="Units over the last 30 days, now ${formatUnits(end, { sign: true })}">
+    <line x1="0" y1="${zero}" x2="${w}" y2="${zero}" class="spark-zero"></line>
+    <polygon points="0,${zero} ${pts.join(' ')} ${w},${zero}" class="spark-fill"></polygon>
+    <polyline points="${pts.join(' ')}" class="spark-line"></polyline>
+  </svg>`;
+}
+
 const COLORS = { scoreboard: 'Scoreboard', market: 'Bull Market', ember: 'Ember' };
 
 /** Three swatches; the player's pick colors the app on every device they use. */
@@ -192,7 +243,7 @@ function colorPicker(ctx) {
     </form>`;
 }
 
-export function profile(ctx, { player, record, bySport, picks, hidden }) {
+export function profile(ctx, { player, record, bySport, series = [], last10 = null, rank = null, picks, hidden }) {
   return layout(ctx, {
     title: player.screen_name,
     active: ctx.user?.id === player.id ? 'me' : null,
@@ -207,7 +258,7 @@ export function profile(ctx, { player, record, bySport, picks, hidden }) {
         <button class="btn ghost small" type="button" data-share="${ctx.origin}/u/${encodeURIComponent(player.screen_name)}" data-share-text="${shareCard(player, record).title}" hidden>Share profile</button>
       </div>
       <p class="lede">On the record since ${joined(player.created_at)}. ${record.graded} graded ${record.graded === 1 ? 'pick' : 'picks'}, every one locked before its game.</p>
-      ${statStrip(record)}
+      ${recordCard(ctx, { player, record, series, last10, rank })}
       ${ctx.user?.id === player.id ? html`${nameForm(ctx, player)}${bioForm(ctx, player)}${linkForm(ctx, player)}${colorPicker(ctx)}` : ''}
       ${bySport.length
         ? html`<h2>By sport</h2>

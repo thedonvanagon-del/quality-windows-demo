@@ -637,3 +637,37 @@ svg.stripe { background: none; }
 }
 
 .stat b { font-size: 1.7rem; font-weight: 800; }
+
+/* ---- Record card (profiles) -------------------------------------------- */
+
+.record-card {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-top: 3px solid var(--accent);
+  border-radius: var(--r);
+  padding: 16px;
+  display: grid;
+  gap: 12px;
+  margin: 4px 0 8px;
+}
+.rc-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.trust-small { display: inline-flex; align-items: center; gap: 8px; font-family: var(--cond); font-weight: 800; font-size: 1rem; letter-spacing: 0.04em; text-transform: uppercase; color: #ffd257; }
+.trust-small .trust-mark { width: 22px; height: 22px; }
+.rank-badge { font-family: var(--cond); font-weight: 800; font-size: 0.95rem; letter-spacing: 0.04em; text-transform: uppercase; background: var(--accent); color: var(--accent-ink); border-radius: 4px; padding: 2px 8px; }
+.rank-badge.muted { background: var(--raised); color: var(--muted); }
+.rc-main { display: flex; justify-content: space-between; align-items: flex-end; gap: 4px 12px; flex-wrap: wrap; }
+.rc-right { text-align: right; }
+.rc-label { display: block; font-size: 0.72rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+.rc-big { display: block; font-family: var(--cond); font-weight: 800; font-size: clamp(2.2rem, 11vw, 3rem); line-height: 1; font-variant-numeric: tabular-nums; }
+.spark { width: 100%; height: 64px; display: block; }
+.spark-zero { stroke: var(--line); stroke-width: 1; stroke-dasharray: 4 4; vector-effect: non-scaling-stroke; }
+.spark-line { fill: none; stroke: var(--muted); stroke-width: 2.5; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
+.spark-fill { fill: var(--raised); opacity: 0.5; }
+.spark.up .spark-line { stroke: var(--win); }
+.spark.up .spark-fill { fill: var(--win-soft); opacity: 1; }
+.spark.down .spark-line { stroke: var(--loss); }
+.spark.down .spark-fill { fill: var(--loss-soft); opacity: 1; }
+.rc-stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+.rc-stats > div { background: var(--raised); border-radius: 6px; padding: 8px 10px; }
+.rc-stats b { display: block; font-family: var(--cond); font-weight: 800; font-size: 1.3rem; font-variant-numeric: tabular-nums; }
+.rc-share { justify-self: start; }

@@ -70,6 +70,48 @@ export function recordBySport(store, userId) {
     .map(withRates);
 }
 
+/** Running units total at the end of each of the last `days` days (Eastern), oldest first. */
+export function unitsSeries(store, userId, now, days = 30) {
+  const start = new Date(now.getTime() - days * 86_400_000);
+  const before = store.get(
+    "SELECT COALESCE(SUM(profit), 0) AS u FROM picks WHERE user_id = ? AND result IN ('win', 'loss', 'push') AND game_start < ?",
+    userId, start.toISOString(),
+  ).u;
+  const rows = store.all(
+    `SELECT game_start, profit FROM picks
+      WHERE user_id = ? AND result IN ('win', 'loss', 'push') AND game_start >= ?
+      ORDER BY game_start`,
+    userId, start.toISOString(),
+  );
+  const out = [];
+  let total = before;
+  let i = 0;
+  for (let d = 1; d <= days; d++) {
+    const end = new Date(start.getTime() + d * 86_400_000).toISOString();
+    while (i < rows.length && rows[i].game_start < end) total += rows[i++].profit ?? 0;
+    out.push(Math.round(total * 100) / 100);
+  }
+  return out;
+}
+
+/** The last ten graded picks as a record: { wins, losses, pushes }. */
+export function lastTen(store, userId) {
+  const rows = store.all(
+    `SELECT result FROM picks WHERE user_id = ? AND result IN ('win', 'loss', 'push')
+      ORDER BY game_start DESC, id DESC LIMIT 10`,
+    userId,
+  );
+  const count = (r) => rows.filter((x) => x.result === r).length;
+  return { wins: count('win'), losses: count('loss'), pushes: count('push'), graded: rows.length };
+}
+
+/** Where the player sits on the all-time board, or null without a rank yet. */
+export function rankOf(store, userId, now) {
+  const rows = leaderboard(store, {}, now, 100_000);
+  const i = rows.findIndex((r) => r.id === userId);
+  return i >= 0 && rows[i].ranked ? i + 1 : null;
+}
+
 function withRates(row) {
   const wins = row?.wins ?? 0;
   const losses = row?.losses ?? 0;
