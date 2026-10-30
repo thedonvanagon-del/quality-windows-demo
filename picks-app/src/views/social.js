@@ -182,6 +182,57 @@ function linkForm(ctx, player) {
     </form>`;
 }
 
+/** Follow or unfollow; `next` brings the player back where they pressed it. */
+export function followButton(ctx, name, following, next = '') {
+  const path = `/u/${encodeURIComponent(name)}/${following ? 'unfollow' : 'follow'}`;
+  return html`<form method="post" action="${path}" class="follow-form">${csrfField(ctx)}${next ? html`<input type="hidden" name="next" value="${next}">` : ''}<button class="btn small ${following ? 'ghost' : ''}">${following ? 'Following' : 'Follow'}</button></form>`;
+}
+
+/** The best last-ten records right now, with a Follow button on each. */
+export function hot(ctx, { rows, followed }) {
+  const me = ctx.user?.screenName ? ctx.user.id : null;
+  return layout(ctx, {
+    title: 'Hot streaks',
+    active: 'more',
+    description: "Who's hot on Bookie Bullies: the best last ten picks over the past 30 days.",
+    body: html`
+      <a class="back" href="/more">← More</a>
+      <h1>Hot streaks</h1>
+      <p class="lede">The best last ten picks over the past 30 days, by units won. Players need ten graded picks in that time to show up.</p>
+      ${rows.length
+        ? html`<div class="table"><table>
+            <thead><tr><th>#</th><th>Player</th><th class="n">Last 10</th><th class="n">Units</th><th class="n">Streak</th>${me ? html`<th class="n"><span class="sr-only">Follow</span></th>` : ''}</tr></thead>
+            <tbody>${rows.map((r, i) => html`<tr class="${r.id === me ? 'me' : ''}">
+              <td class="rank"><span class="rk">${i + 1}</span></td>
+              <td>${profileLink(r.screen_name)}</td>
+              <td class="n">${recordText(r)}</td>
+              <td class="n"><b>${units(r.units)}</b></td>
+              <td class="n"><span class="streak ${r.streak.startsWith('W') ? 'hot' : ''}">${r.streak}</span></td>
+              ${me ? html`<td class="n">${r.id === me ? '' : followButton(ctx, r.screen_name, followed.has(r.id), '/hot')}</td>` : ''}
+            </tr>`)}</tbody>
+          </table></div>`
+        : html`<div class="card empty">Nobody's hot yet. Players show up once they have ten graded picks in 30 days and are up on them.</div>`}
+    `,
+  });
+}
+
+/** Picks from the people the player follows, once each game starts. */
+export function following(ctx, { feed, people }) {
+  return layout(ctx, {
+    title: 'Following',
+    active: 'more',
+    body: html`
+      <a class="back" href="/more">← More</a>
+      <h1>Following</h1>
+      <p class="lede">Picks from the players you follow, as each game starts. Open picks stay hidden until then, same as everywhere.</p>
+      ${people.length
+        ? html`<p class="chips-row">${people.map((p) => html`<a class="chip" href="/u/${encodeURIComponent(p.screen_name)}">${p.screen_name}</a>`)}</p>`
+        : html`<div class="card empty">You're not following anyone yet. Find players on the <a href="/hot">Hot streaks</a> page or the <a href="/leaderboard">leaderboard</a>, then press Follow on their profile.</div>`}
+      ${feed.length ? html`<ul class="tickets">${feed.map((p) => pickItem(p, { who: true }))}</ul>` : people.length ? html`<div class="card empty">No started picks from them yet.</div>` : ''}
+    `,
+  });
+}
+
 /**
  * The record up top, built to be screenshotted: record, units, a 30-day units
  * line, win rate, ROI, last ten and rank. Its data attributes feed the
@@ -243,7 +294,7 @@ function colorPicker(ctx) {
     </form>`;
 }
 
-export function profile(ctx, { player, record, bySport, series = [], last10 = null, rank = null, picks, hidden }) {
+export function profile(ctx, { player, record, bySport, series = [], last10 = null, rank = null, follows = { followers: 0, following: 0 }, following = false, picks, hidden }) {
   return layout(ctx, {
     title: player.screen_name,
     active: ctx.user?.id === player.id ? 'me' : null,
@@ -253,7 +304,9 @@ export function profile(ctx, { player, record, bySport, series = [], last10 = nu
       <div class="team"><span class="avatar big">${player.screen_name[0]}</span><h1>${player.screen_name}</h1></div>
       ${player.first_name || player.last_name ? html`<p class="real-name">${[player.first_name, player.last_name].filter(Boolean).join(' ')}</p>` : ''}
       ${player.bio ? html`<p class="bio">${player.bio}</p>` : ''}
+      <p class="follow-counts"><b>${follows.followers}</b> ${follows.followers === 1 ? 'follower' : 'followers'} · <b>${follows.following}</b> following</p>
       <div class="row profile-actions">
+        ${ctx.user?.screenName && ctx.user.id !== player.id ? followButton(ctx, player.screen_name, following) : ''}
         ${player.link_url ? html`<a class="btn small" href="${player.link_url}" target="_blank" rel="nofollow noopener noreferrer ugc">${player.link_label} ↗</a>` : ''}
         <button class="btn ghost small" type="button" data-share="${ctx.origin}/u/${encodeURIComponent(player.screen_name)}" data-share-text="${shareCard(player, record).title}" hidden>Share profile</button>
       </div>

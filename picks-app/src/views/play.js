@@ -7,7 +7,7 @@ import { csrfField, layout } from './layout.js';
 import { at, minus, pickItem, sportTabs, statStrip, tabs, teamLogo } from './parts.js';
 
 /** `mine` maps game id -> { spread: 'home', total: 'over', ... } for the player's picks. */
-export function games(ctx, { sport, list, mine, chats = new Map(), live = [], problem }) {
+export function games(ctx, { sport, list, mine, chats = new Map(), split = new Map(), live = [], problem }) {
   const days = [];
   for (const game of list) {
     const day = etDay(game.start);
@@ -26,7 +26,7 @@ export function games(ctx, { sport, list, mine, chats = new Map(), live = [], pr
       ${days.length
         ? days.map(
             (d) => html`<div class="day">${d.label}</div>
-              ${d.games.map((g) => gameCard(g, mine.get(g.id) ?? {}, sport, chats.get(g.id) ?? 0))}`,
+              ${d.games.map((g) => gameCard(g, mine.get(g.id) ?? {}, sport, chats.get(g.id) ?? 0, split.get(g.id)))}`,
           )
         : html`<div class="card empty">No ${sport.name} games on the board in the next ${sport.days} days.</div>`}
     `,
@@ -42,7 +42,7 @@ function ticker(live) {
   </a>`;
 }
 
-function gameCard(game, mine, sport, chatCount = null) {
+function gameCard(game, mine, sport, chatCount = null, split = null) {
   const fav = favorite(game);
   const row = (side, totalSide) => html`
     <span class="team">${stripe(game[side].color)}${teamLogo(game[side])}<span class="tname"><span class="tn">${game[side].short}</span>${fav === side || game[side].record ? html`<span class="tsub">${fav === side ? html`<span class="fav">Fav</span>` : ''}${game[side].record ? html`<span class="trec">${game[side].record}</span>` : ''}</span>` : ''}</span></span>
@@ -55,8 +55,38 @@ function gameCard(game, mine, sport, chatCount = null) {
       ${row('away', 'over')}
       ${row('home', 'under')}
     </div>
-    ${chatCount == null ? '' : html`<a class="card-chat" href="/games/${encodeURIComponent(game.id)}#chat">${icons.chat}<span>${chatCount ? `Chat · ${chatCount}` : 'Chat'}</span></a>`}
+    ${chatCount == null && !split?.spread ? '' : html`<div class="card-foot">
+      ${chatCount == null ? '' : html`<a class="card-chat" href="/games/${encodeURIComponent(game.id)}#chat">${icons.chat}<span>${chatCount ? `Chat · ${chatCount}` : 'Chat'}</span></a>`}
+      ${split?.spread ? html`<span class="lean">${leanText(game, split.spread)}</span>` : ''}
+    </div>`}
   </article>`;
+}
+
+/** "64% on KC": where the players lean on the spread. */
+function leanText(game, s) {
+  const side = (s.home ?? 0) >= (s.away ?? 0) ? 'home' : 'away';
+  return `${Math.round(((s[side] ?? 0) / s.total) * 100)}% on ${game[side].abbr}`;
+}
+
+/** The public split on each market, as bars. */
+function splitBars(game, split) {
+  if (!split) return '';
+  const rows = [
+    ['spread', 'Spread', ['away', 'home'], (side) => game[side].abbr],
+    ['total', 'Total', ['over', 'under'], (side) => (side === 'over' ? 'Over' : 'Under')],
+    ['ml', 'Moneyline', ['away', 'home'], (side) => game[side].abbr],
+  ].filter(([market]) => split[market]);
+  return html`<section class="splits" aria-label="Where players are picking">
+    <h2>Public split</h2>
+    ${rows.map(([market, label, [a, b], name]) => {
+      const m = split[market];
+      const pa = Math.round(((m[a] ?? 0) / m.total) * 100);
+      return html`<div class="split">
+        <div class="split-head"><span>${name(a)} ${pa}%</span><span class="muted">${label} · ${m.total} picks</span><span>${100 - pa}% ${name(b)}</span></div>
+        <svg class="split-bar" viewBox="0 0 100 8" preserveAspectRatio="none" role="img" aria-label="${name(a)} ${pa} percent, ${name(b)} ${100 - pa} percent"><rect width="${pa}" height="8" class="a"></rect><rect x="${pa}" width="${100 - pa}" height="8" class="b"></rect></svg>
+      </div>`;
+    })}
+  </section>`;
 }
 
 /** A bar in the team's color. An SVG fill, since the page's security policy blocks inline styles. */
@@ -167,7 +197,7 @@ export function myPicks(ctx, { open, graded, tab, record }) {
 }
 
 /** One game: its board (or score once it starts) and its chat. */
-export function gamePage(ctx, { game, started, messages, picksBy, mine }) {
+export function gamePage(ctx, { game, started, messages, picksBy, mine, split = null }) {
   const sport = SPORT[game.sport];
   const scoreline = (side) => html`<div class="scoreline"><span class="team">${teamLogo(game[side])}<span class="tname"><span class="tn">${game[side].short}</span>${game[side].record ? html`<span class="tsub"><span class="trec">${game[side].record}</span></span>` : ''}</span></span><span class="score">${game[side].score ?? 0}</span></div>`;
   const canPost = ctx.user.verified;
@@ -183,6 +213,7 @@ export function gamePage(ctx, { game, started, messages, picksBy, mine }) {
             ${scoreline('away')}${scoreline('home')}
           </article>`
         : gameCard(game, mine, sport)}
+      ${splitBars(game, split)}
       <h2 id="chat">Chat</h2>
       <div class="chat" data-poll>
         <ol class="chat-list">

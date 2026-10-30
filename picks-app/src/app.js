@@ -9,7 +9,8 @@ import { fileURLToPath } from 'node:url';
 import * as auth from './auth.js';
 import { chatCounts, chatGames, deleteMessage, gameOfMessage, messages, postMessage, reportMessage } from './chat.js';
 import { createGroup, deleteGroup, findByCode, groupFor, groupsOf, joinGroup, leaveGroup, membersOf } from './groups.js';
-import { groupFeed, ownPicks, picksOnGames, publicPicks } from './history.js';
+import { follow, followCounts, followingAmong, followingList, isFollowing, unfollow } from './follows.js';
+import { followFeed, groupFeed, ownPicks, picksOnGames, publicPicks } from './history.js';
 import { THEMES } from './config.js';
 import { LOGO_HOST } from './espn.js';
 import { toGame } from './games.js';
@@ -17,7 +18,7 @@ import { cleanLink } from './links.js';
 import { createMailer } from './mail.js';
 import { deletePick, formatLine, formatUnits, isLocked, makePick, MARKETS, price, toWin } from './picks.js';
 import { SPORT } from './sports.js';
-import { lastTen, leaderboard, PERIODS, rankOf, record, recordBySport, unitsSeries } from './stats.js';
+import { hotStreaks, lastTen, leaderboard, PERIODS, rankOf, record, recordBySport, splits, unitsSeries } from './stats.js';
 import * as account from './views/account.js';
 import * as legal from './views/legal.js';
 import * as moreViews from './views/more.js';
@@ -314,7 +315,8 @@ export function createApp({ store, games, config, mailer = createMailer({ log: {
     const list = await games.upcoming(sport.key);
     const mine = picksOnGames(store, ctx.user.id, list.map((g) => g.id));
     const chats = chatCounts(store, list.map((g) => g.id));
-    send(ctx, 200, play.games(ctx, { sport, list, mine, chats, live: games.liveNow(), problem: games.problem(sport.key) }));
+    const split = splits(store, list.map((g) => g.id));
+    send(ctx, 200, play.games(ctx, { sport, list, mine, chats, split, live: games.liveNow(), problem: games.problem(sport.key) }));
   }
 
   async function pickForm(ctx) {
@@ -398,7 +400,7 @@ export function createApp({ store, games, config, mailer = createMailer({ log: {
       }
     }
     const mine = picksOnGames(store, ctx.user.id, [game.id]).get(game.id) ?? {};
-    send(ctx, 200, play.gamePage(ctx, { game, started, messages: list, picksBy, mine }));
+    send(ctx, 200, play.gamePage(ctx, { game, started, messages: list, picksBy, mine, split: splits(store, [game.id]).get(game.id) ?? null }));
   }
 
   function chatPost(ctx, { id }) {
@@ -553,9 +555,41 @@ export function createApp({ store, games, config, mailer = createMailer({ log: {
       series: unitsSeries(store, player.id, ctx.now),
       last10: lastTen(store, player.id),
       rank: rankOf(store, player.id, ctx.now),
+      follows: followCounts(store, player.id),
+      following: isFollowing(store, ctx.user?.id, player.id),
       picks,
       hidden,
     }));
+  }
+
+  function followPost(ctx, { name }) {
+    if (!signedIn(ctx)) return;
+    const player = store.get('SELECT id, screen_name FROM users WHERE screen_name = ?', name);
+    if (!player) return notFound(ctx);
+    const result = follow(store, { followerId: ctx.user.id, followeeId: player.id, now: ctx.now });
+    flash(ctx, result.error ? 'error' : 'ok', result.error ?? `Following ${player.screen_name}. Their picks show in Following once each game starts.`);
+    redirect(ctx, safeNext(ctx.form.get('next')) ?? `/u/${encodeURIComponent(player.screen_name)}`);
+  }
+
+  function unfollowPost(ctx, { name }) {
+    if (!signedIn(ctx)) return;
+    const player = store.get('SELECT id, screen_name FROM users WHERE screen_name = ?', name);
+    if (!player) return notFound(ctx);
+    unfollow(store, { followerId: ctx.user.id, followeeId: player.id });
+    redirect(ctx, safeNext(ctx.form.get('next')) ?? `/u/${encodeURIComponent(player.screen_name)}`);
+  }
+
+  /** Who's on a heater: the best last ten over the past 30 days. */
+  function hotPage(ctx) {
+    const rows = hotStreaks(store, ctx.now);
+    const followed = followingAmong(store, ctx.user?.id, rows.map((r) => r.id));
+    send(ctx, 200, social.hot(ctx, { rows, followed }));
+  }
+
+  /** Picks from everyone the player follows, once each game starts. */
+  function followingPage(ctx) {
+    if (!signedIn(ctx)) return;
+    send(ctx, 200, social.following(ctx, { feed: followFeed(store, ctx.user.id, ctx.now), people: followingList(store, ctx.user.id) }));
   }
 
   function themePost(ctx) {
@@ -676,6 +710,10 @@ export function createApp({ store, games, config, mailer = createMailer({ log: {
     ['GET', '/join/:code', joinPage],
     ['POST', '/join/:code', joinPost],
     ['GET', '/u/:name', profilePage],
+    ['POST', '/u/:name/follow', followPost],
+    ['POST', '/u/:name/unfollow', unfollowPost],
+    ['GET', '/following', followingPage],
+    ['GET', '/hot', hotPage],
     ['GET', '/more', morePage],
     ['GET', '/live', livePage],
     ['POST', '/theme', themePost],

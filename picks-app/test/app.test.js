@@ -470,6 +470,47 @@ describe('game chat', () => {
   });
 });
 
+describe('following', () => {
+  test('follow a player and see their picks once games start', async () => {
+    const ann = await player('ann@example.com', 'Ann');
+    await ann.post('/picks', { ...BILLS_PLUS, units: '2' });
+    const bob = await player('bob@example.com', 'Bob');
+    await bob.get('/u/Ann');
+    const done = await bob.post('/u/Ann/follow');
+    assert.equal(done.location, '/u/Ann');
+    let profile = visible((await bob.get('/u/Ann')).text);
+    assert.match(profile, /1 follower · 0 following/);
+    assert.match(profile, /Following/);
+    assert.match(visible((await bob.get('/following')).text), /Ann No started picks from them yet/);
+
+    time.set('2026-10-25T17:05:00.000Z');
+    assert.match(visible((await bob.get('/following')).text), /Ann · Bills \+3\.5/);
+
+    await bob.get('/u/Bob');
+    await bob.post('/u/Bob/follow');
+    assert.match(visible((await bob.get('/u/Bob')).text), /0 followers · 1 following/, "can't follow yourself");
+    await bob.get('/u/Ann');
+    await bob.post('/u/Ann/unfollow');
+    assert.match(visible((await bob.get('/u/Ann')).text), /0 followers/);
+  });
+});
+
+describe('public split', () => {
+  test('shows where players lean once five have picked a market', async () => {
+    const sides = [['away', '3.5'], ['away', '3.5'], ['away', '3.5'], ['home', '-3.5']];
+    for (const [i, [side, line]] of sides.entries()) {
+      const b = await player(`p${i}@example.com`, `Player${i}`);
+      await b.post('/picks', { ...BILLS_PLUS, side, line });
+    }
+    const viewer = await player('v@example.com', 'Viewer');
+    assert.doesNotMatch(visible((await viewer.get('/games/nfl%3A1')).text), /Public split/, 'four picks are too few to show');
+    await viewer.post('/picks', { ...BILLS_PLUS, side: 'home', line: '-3.5' });
+    const page = visible((await viewer.get('/games/nfl%3A1')).text);
+    assert.match(page, /Public split BUF 60% Spread · 5 picks 40% KC/);
+    assert.match(visible((await viewer.get('/games')).text), /60% on BUF/);
+  });
+});
+
 describe('more and live', () => {
   test('list games in progress with your bets on them', async () => {
     const ann = await player('ann@example.com', 'Ann');

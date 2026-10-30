@@ -73,6 +73,19 @@ export function groupFeed(store, group, now, limit = 30) {
     .map(toPick);
 }
 
+/** Picks from the players someone follows, on games that have started, newest first. */
+export function followFeed(store, followerId, now, limit = 60) {
+  return store
+    .all(
+      `SELECT ${COLUMNS} FROM picks p JOIN games g ON g.id = p.game_id JOIN users u ON u.id = p.user_id
+        WHERE p.user_id IN (SELECT followee_id FROM follows WHERE follower_id = ?)
+          AND (g.start_time <= ? OR g.state != 'pre')
+        ORDER BY g.start_time DESC, p.id DESC LIMIT ?`,
+      followerId, now.toISOString(), limit,
+    )
+    .map(toPick);
+}
+
 /** game id -> { market: side } for one player's picks on these games. */
 export function picksOnGames(store, userId, gameIds) {
   const mine = new Map();
