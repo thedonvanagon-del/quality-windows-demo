@@ -738,3 +738,29 @@ dialog.sheet .slip { border-radius: 14px 14px 0 0; border-bottom: 0; padding-bot
 .lt-body b { font-family: var(--cond); font-size: 1.2rem; font-weight: 800; }
 .lt-body span { color: var(--muted); font-size: 0.85rem; }
 @keyframes stamp { from { transform: rotate(-6deg) scale(1.8); opacity: 0; } to { transform: rotate(-6deg) scale(1); opacity: 1; } }
+
+/* ---- Game chat ----------------------------------------------------------- */
+
+.card-chat { display: inline-flex; align-items: center; gap: 6px; margin-top: 10px; padding: 6px 10px; border-radius: 6px; background: var(--raised); color: var(--muted); font-family: var(--cond); font-weight: 700; font-size: 0.95rem; letter-spacing: 0.03em; text-transform: uppercase; min-height: 36px; }
+.card-chat:hover { color: var(--ink); }
+.card-chat svg, .chat-link svg { width: 16px; height: 16px; }
+.chat-link { display: inline-flex; align-items: center; gap: 5px; color: var(--accent); font-weight: 800; }
+.chat { display: grid; gap: 12px; }
+.chat-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.chat-empty { color: var(--muted); padding: 14px; background: var(--card); border: 1px dashed var(--line); border-radius: var(--r); }
+.msg { background: var(--card); border: 1px solid var(--line); border-radius: var(--r); padding: 10px 12px; }
+.msg.own { border-color: color-mix(in srgb, var(--accent) 40%, var(--line)); }
+.msg-head { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 10px; font-size: 0.8rem; color: var(--faint); }
+.msg-head .who { font-family: var(--cond); font-weight: 800; font-size: 1.05rem; color: var(--ink); }
+.msg-head form { margin-left: auto; }
+.msg-pick { font-family: var(--cond); font-weight: 700; font-size: 0.85rem; color: var(--accent); background: var(--accent-soft); border-radius: 4px; padding: 0 6px; }
+.msg-body { margin: 4px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.hidden-msg { color: var(--faint); font-style: italic; }
+.link-btn { background: none; border: 0; padding: 4px 2px; font: inherit; font-size: 0.8rem; color: var(--faint); cursor: pointer; min-height: 32px; }
+.link-btn:hover { color: var(--ink); text-decoration: underline; }
+.chat-form { display: flex; gap: 8px; align-items: flex-end; }
+.chat-form textarea { flex: 1; resize: vertical; min-height: 48px; font: inherit; color: var(--ink); background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; }
+.chat-form textarea:focus { outline: none; border-color: var(--accent); }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.menu .count.zero { background: var(--raised); color: var(--muted); }
+.live-dot { color: var(--live); font-weight: 800; }

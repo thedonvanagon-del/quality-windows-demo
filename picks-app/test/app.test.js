@@ -403,6 +403,73 @@ describe('picks', () => {
   });
 });
 
+describe('game chat', () => {
+  const page = '/games/nfl%3A1';
+
+  test('talk about a game, with picks showing once it starts', async () => {
+    const ann = await player('ann@example.com', 'Ann');
+    await ann.post('/picks', { ...BILLS_PLUS, units: '2' });
+    assert.match(visible((await ann.get('/games')).text), /Chat/, 'every card links to its chat');
+    await ann.get(page);
+    const sent = await ann.post(`${page}/chat`, { body: 'Bills cover <b>easy</b>' });
+    assert.equal(sent.location, `${page}#chat`);
+
+    const bob = await player('bob@example.com', 'Bob');
+    let seen = await bob.get(page);
+    assert.match(seen.text, /Bills cover &lt;b&gt;easy&lt;\/b&gt;/, 'messages are plain text');
+    assert.doesNotMatch(visible(seen.text), /Ann Bills \+3\.5 2u/, 'no picks before the start');
+
+    time.set('2026-10-25T17:05:00.000Z');
+    seen = await bob.get(page);
+    assert.match(visible(seen.text), /Ann Bills \+3\.5 2u/);
+    assert.match(visible((await bob.get('/chat')).text), /Bills @ Chiefs NFL · .* 1 message/);
+  });
+
+  test('turn away empty, long and unconfirmed messages, and slow down floods', async () => {
+    const ann = await player('ann@example.com', 'Ann');
+    await ann.get(page);
+    await ann.post(`${page}/chat`, { body: '   ' });
+    assert.match(visible((await ann.get(page)).text), /Type something first/);
+    await ann.post(`${page}/chat`, { body: 'x'.repeat(281) });
+    assert.match(visible((await ann.get(page)).text), /Keep it under 280 characters/);
+    for (let i = 0; i < 9; i++) await ann.post(`${page}/chat`, { body: `msg ${i}` });
+    assert.match(visible((await ann.get(page)).text), /Slow down a little/);
+    assert.equal(app.store.get('SELECT COUNT(*) AS n FROM chat_messages').n, 6, 'eight tries a minute, the two turned away included');
+
+    const cal = app.browser();
+    await cal.join('cal@example.com', 'Cal', 'correct horse', { confirm: false });
+    const unconfirmed = await cal.get(page);
+    assert.match(visible(unconfirmed.text), /Confirm your email to join the chat/);
+    await cal.post(`${page}/chat`, { body: 'hi' });
+    assert.equal(app.store.get("SELECT COUNT(*) AS n FROM chat_messages WHERE body = 'hi'").n, 0);
+  });
+
+  test('delete your own, report someone else, and hide what enough people report', async () => {
+    const ann = await player('ann@example.com', 'Ann');
+    await ann.get(page);
+    await ann.post(`${page}/chat`, { body: 'first' });
+    await ann.post(`${page}/chat`, { body: 'buy my picks at scam.example' });
+    const [first, spam] = app.store.all('SELECT id FROM chat_messages ORDER BY id');
+
+    const bob = await player('bob@example.com', 'Bob');
+    await bob.get(page);
+    await bob.post(`/chat/${first.id}/delete`);
+    assert.match(visible((await bob.get(page)).text), /first/, "can't delete someone else's");
+    await ann.get(page);
+    await ann.post(`/chat/${first.id}/delete`);
+    assert.doesNotMatch(visible((await ann.get(page)).text), /first/);
+
+    for (const [email, name] of [['bob@example.com', null], ['cal@example.com', 'Cal'], ['dee@example.com', 'Dee']]) {
+      const b = name ? await player(email, name) : bob;
+      await b.get(page);
+      await b.post(`/chat/${spam.id}/report`);
+    }
+    const after = visible((await ann.get(page)).text);
+    assert.doesNotMatch(after, /scam\.example/);
+    assert.match(after, /Hidden after reports/);
+  });
+});
+
 describe('more and live', () => {
   test('list games in progress with your bets on them', async () => {
     const ann = await player('ann@example.com', 'Ann');
@@ -414,7 +481,7 @@ describe('more and live', () => {
     game.competitions[0].competitors[0].score = '7';
     game.competitions[0].competitors[1].score = '3';
     const page = visible((await ann.get('/live')).text);
-    assert.match(page, /Live NFL · 2nd Qtr BUF Bills 3 KC Chiefs 7/);
+    assert.match(page, /Live NFL · 2nd Qtr Chat BUF Bills 3 KC Chiefs 7/);
     assert.match(page, /Your bet Bills \+3\.5 −110 0\.5u/);
     assert.match(visible((await ann.get('/more')).text), /Live games Scores right now, with your bets on them 1 live/);
 

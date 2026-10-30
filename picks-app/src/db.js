@@ -139,6 +139,23 @@ const MIGRATIONS = [
   ALTER TABLE games ADD COLUMN home_color TEXT;
   ALTER TABLE games ADD COLUMN away_color TEXT;
   `,
+  `
+  CREATE TABLE chat_messages (
+    id INTEGER PRIMARY KEY,
+    game_id TEXT NOT NULL REFERENCES games(id),
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    body TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    deleted_at TEXT
+  );
+  CREATE INDEX chat_messages_game ON chat_messages(game_id, id);
+  CREATE TABLE chat_reports (
+    message_id INTEGER NOT NULL REFERENCES chat_messages(id) ON DELETE CASCADE,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    created_at TEXT NOT NULL,
+    PRIMARY KEY (message_id, user_id)
+  );
+  `,
 ];
 
 export function openStore(file) {

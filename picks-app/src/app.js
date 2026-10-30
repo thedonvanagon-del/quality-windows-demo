@@ -7,10 +7,12 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import * as auth from './auth.js';
+import { chatCounts, chatGames, deleteMessage, gameOfMessage, messages, postMessage, reportMessage } from './chat.js';
 import { createGroup, deleteGroup, findByCode, groupFor, groupsOf, joinGroup, leaveGroup, membersOf } from './groups.js';
 import { groupFeed, ownPicks, picksOnGames, publicPicks } from './history.js';
 import { THEMES } from './config.js';
 import { LOGO_HOST } from './espn.js';
+import { toGame } from './games.js';
 import { cleanLink } from './links.js';
 import { createMailer } from './mail.js';
 import { deletePick, formatLine, formatUnits, isLocked, makePick, MARKETS, price, toWin } from './picks.js';
@@ -54,6 +56,7 @@ export function createApp({ store, games, config, mailer = createMailer({ log: {
   const joinLimit = auth.rateLimiter({ limit: 30, windowMs: 60 * 60_000 });
   const forgotLimit = auth.rateLimiter({ limit: 5, windowMs: 60 * 60_000 });
   const resendLimit = auth.rateLimiter({ limit: 5, windowMs: 60 * 60_000 });
+  const chatLimit = auth.rateLimiter({ limit: 8, windowMs: 60_000 });
   const contact = config.contactEmail ?? 'hello@bookiebullies.com';
 
   /** Email a link that confirms this address. Mail trouble is logged, never shown. */
@@ -310,7 +313,8 @@ export function createApp({ store, games, config, mailer = createMailer({ log: {
     ctx.query.set('sport', sport.key);
     const list = await games.upcoming(sport.key);
     const mine = picksOnGames(store, ctx.user.id, list.map((g) => g.id));
-    send(ctx, 200, play.games(ctx, { sport, list, mine, live: games.liveNow(), problem: games.problem(sport.key) }));
+    const chats = chatCounts(store, list.map((g) => g.id));
+    send(ctx, 200, play.games(ctx, { sport, list, mine, chats, live: games.liveNow(), problem: games.problem(sport.key) }));
   }
 
   async function pickForm(ctx) {
@@ -373,6 +377,64 @@ export function createApp({ store, games, config, mailer = createMailer({ log: {
     const { open, graded } = ownPicks(store, ctx.user.id);
     const tab = ctx.query.get('tab') === 'settled' ? 'settled' : 'open';
     send(ctx, 200, play.myPicks(ctx, { open, graded, tab, record: record(store, ctx.user.id) }));
+  }
+
+  // ---- game chat ------------------------------------------------------------
+
+  const gamePath = (id) => `/games/${encodeURIComponent(id)}`;
+
+  /** One game: its lines (or score), and the chat about it. */
+  function gamePage(ctx, { id }) {
+    if (!signedIn(ctx)) return;
+    const game = games.get(id);
+    if (!game) return notFound(ctx);
+    const started = isLocked(game, ctx.now);
+    const list = messages(store, game.id);
+    // Picks show beside names only once the game starts, like everywhere else.
+    const picksBy = new Map();
+    if (started && list.length) {
+      for (const p of store.all('SELECT user_id, market, side, line, odds, units FROM picks WHERE game_id = ?', game.id)) {
+        picksBy.set(p.user_id, [...(picksBy.get(p.user_id) ?? []), p]);
+      }
+    }
+    const mine = picksOnGames(store, ctx.user.id, [game.id]).get(game.id) ?? {};
+    send(ctx, 200, play.gamePage(ctx, { game, started, messages: list, picksBy, mine }));
+  }
+
+  function chatPost(ctx, { id }) {
+    if (!signedIn(ctx)) return;
+    const game = games.get(id);
+    if (!game) return notFound(ctx);
+    if (!ctx.user.verified) {
+      flash(ctx, 'error', 'Confirm your email to chat. The link is in your inbox.');
+    } else if (!chatLimit.allow(`user ${ctx.user.id}`, ctx.now)) {
+      flash(ctx, 'error', 'Slow down a little. Try again in a minute.');
+    } else {
+      const result = postMessage(store, { gameId: game.id, userId: ctx.user.id, text: ctx.form.get('body'), now: ctx.now });
+      if (result.error) flash(ctx, 'error', result.error);
+    }
+    redirect(ctx, `${gamePath(game.id)}#chat`);
+  }
+
+  function chatDelete(ctx, { id }) {
+    if (!signedIn(ctx)) return;
+    const gameId = gameOfMessage(store, Number(id));
+    const result = deleteMessage(store, { id: Number(id), userId: ctx.user.id, now: ctx.now });
+    if (result.error) flash(ctx, 'error', result.error);
+    redirect(ctx, gameId ? `${gamePath(gameId)}#chat` : '/chat');
+  }
+
+  function chatReport(ctx, { id }) {
+    if (!signedIn(ctx)) return;
+    const result = reportMessage(store, { id: Number(id), userId: ctx.user.id, now: ctx.now });
+    flash(ctx, result.error ? 'error' : 'ok', result.error ?? 'Thanks. Messages enough people report get hidden.');
+    redirect(ctx, result.gameId ? `${gamePath(result.gameId)}#chat` : '/chat');
+  }
+
+  /** Every game worth talking about right now, busiest chats first. */
+  function chatHub(ctx) {
+    if (!signedIn(ctx)) return;
+    send(ctx, 200, moreViews.chatHub(ctx, { list: chatGames(store, ctx.now).map((row) => ({ game: toGame(row), count: row.chat_count })) }));
   }
 
   async function morePage(ctx) {
@@ -595,6 +657,11 @@ export function createApp({ store, games, config, mailer = createMailer({ log: {
     ['GET', '/welcome', welcomeForm],
     ['POST', '/welcome', welcome],
     ['GET', '/games', gamesPage],
+    ['GET', '/games/:id', gamePage],
+    ['POST', '/games/:id/chat', chatPost],
+    ['POST', '/chat/:id/delete', chatDelete],
+    ['POST', '/chat/:id/report', chatReport],
+    ['GET', '/chat', chatHub],
     ['GET', '/pick', pickForm],
     ['POST', '/picks', pickPost],
     ['GET', '/picks', myPicks],

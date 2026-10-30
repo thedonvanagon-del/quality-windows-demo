@@ -1,12 +1,13 @@
 import { html } from '../html.js';
 import { formatOdds, formatSpread, formatUnits, MARKET_NAME, MAX_UNITS, maxUnits, price, selection, toWin, UNIT_CHIPS, UNITS_MIN } from '../picks.js';
 import { SPORT } from '../sports.js';
-import { dayLabel, etDay } from '../time.js';
+import { dayLabel, etDay, when } from '../time.js';
+import { icons } from './icons.js';
 import { csrfField, layout } from './layout.js';
 import { at, minus, pickItem, sportTabs, statStrip, tabs, teamLogo } from './parts.js';
 
 /** `mine` maps game id -> { spread: 'home', total: 'over', ... } for the player's picks. */
-export function games(ctx, { sport, list, mine, live = [], problem }) {
+export function games(ctx, { sport, list, mine, chats = new Map(), live = [], problem }) {
   const days = [];
   for (const game of list) {
     const day = etDay(game.start);
@@ -25,7 +26,7 @@ export function games(ctx, { sport, list, mine, live = [], problem }) {
       ${days.length
         ? days.map(
             (d) => html`<div class="day">${d.label}</div>
-              ${d.games.map((g) => gameCard(g, mine.get(g.id) ?? {}, sport))}`,
+              ${d.games.map((g) => gameCard(g, mine.get(g.id) ?? {}, sport, chats.get(g.id) ?? 0))}`,
           )
         : html`<div class="card empty">No ${sport.name} games on the board in the next ${sport.days} days.</div>`}
     `,
@@ -41,7 +42,7 @@ function ticker(live) {
   </a>`;
 }
 
-function gameCard(game, mine, sport) {
+function gameCard(game, mine, sport, chatCount = null) {
   const fav = favorite(game);
   const row = (side, totalSide) => html`
     <span class="team">${stripe(game[side].color)}${teamLogo(game[side])}<span class="tname"><span class="tn">${game[side].short}</span>${fav === side || game[side].record ? html`<span class="tsub">${fav === side ? html`<span class="fav">Fav</span>` : ''}${game[side].record ? html`<span class="trec">${game[side].record}</span>` : ''}</span>` : ''}</span></span>
@@ -54,6 +55,7 @@ function gameCard(game, mine, sport) {
       ${row('away', 'over')}
       ${row('home', 'under')}
     </div>
+    ${chatCount == null ? '' : html`<a class="card-chat" href="/games/${encodeURIComponent(game.id)}#chat">${icons.chat}<span>${chatCount ? `Chat · ${chatCount}` : 'Chat'}</span></a>`}
   </article>`;
 }
 
@@ -162,4 +164,58 @@ export function myPicks(ctx, { open, graded, tab, record }) {
           : html`<div class="card empty">No open bets. <a href="/games">Find a game</a>.</div>`}
     `,
   });
+}
+
+/** One game: its board (or score once it starts) and its chat. */
+export function gamePage(ctx, { game, started, messages, picksBy, mine }) {
+  const sport = SPORT[game.sport];
+  const scoreline = (side) => html`<div class="scoreline"><span class="team">${teamLogo(game[side])}<span class="tname"><span class="tn">${game[side].short}</span>${game[side].record ? html`<span class="tsub"><span class="trec">${game[side].record}</span></span>` : ''}</span></span><span class="score">${game[side].score ?? 0}</span></div>`;
+  const canPost = ctx.user.verified;
+  return layout(ctx, {
+    title: `${game.away.short} @ ${game.home.short}`,
+    active: 'games',
+    body: html`
+      <a class="back" href="/games?sport=${sport.key}">← ${sport.short} games</a>
+      <h1>${game.away.short} @ ${game.home.short}</h1>
+      ${started
+        ? html`<article class="event">
+            <div class="live-head">${game.state === 'in' ? html`<span class="live-tag">Live</span>` : ''}<span>${sport.short} · ${game.detail || 'Started'}${game.tv ? ` · ${game.tv}` : ''}</span></div>
+            ${scoreline('away')}${scoreline('home')}
+          </article>`
+        : gameCard(game, mine, sport)}
+      <h2 id="chat">Chat</h2>
+      <div class="chat" data-poll>
+        <ol class="chat-list">
+          ${messages.length
+            ? messages.map((m) => chatMessage(ctx, game, m, started ? picksBy.get(m.user_id) ?? [] : []))
+            : html`<li class="chat-empty">No messages yet. Start it off.</li>`}
+        </ol>
+        ${canPost
+          ? html`<form class="chat-form" method="post" action="/games/${encodeURIComponent(game.id)}/chat">
+              ${csrfField(ctx)}
+              <label class="sr-only" for="chat-body">Message</label>
+              <textarea id="chat-body" name="body" rows="2" maxlength="280" required placeholder="Say something about the game"></textarea>
+              <button class="btn">Send</button>
+            </form>
+            <p class="fine">Keep it about the games. No harassment, hate or selling picks in chat; put your link on your profile instead. Three reports hide a message.</p>`
+          : html`<p class="muted">Confirm your email to join the chat. The link is in your inbox.</p>`}
+      </div>
+    `,
+  });
+}
+
+function chatMessage(ctx, game, m, picks) {
+  const own = m.user_id === ctx.user.id;
+  const action = own
+    ? html`<form method="post" action="/chat/${m.id}/delete" data-confirm="Delete this message?">${csrfField(ctx)}<button class="link-btn">Delete</button></form>`
+    : html`<form method="post" action="/chat/${m.id}/report" data-confirm="Report this message?">${csrfField(ctx)}<button class="link-btn">Report</button></form>`;
+  return html`<li class="msg ${own ? 'own' : ''}" data-id="${m.id}${m.hidden ? 'h' : ''}">
+    <div class="msg-head">
+      <a class="who" href="/u/${encodeURIComponent(m.screen_name)}">${m.screen_name}</a>
+      ${picks.map((p) => html`<span class="msg-pick">${selection(p.market, p.side, p.line, game)} ${formatUnits(p.units)}</span>`)}
+      <time datetime="${m.created_at}" data-local="long">${when(m.created_at)}</time>
+      ${action}
+    </div>
+    ${m.hidden ? html`<p class="msg-body hidden-msg">Hidden after reports.</p>` : html`<p class="msg-body">${m.body}</p>`}
+  </li>`;
 }

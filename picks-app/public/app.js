@@ -240,6 +240,34 @@ async function drawCard(d) {
   return new Promise((resolve, reject) => canvas.toBlob((b) => (b ? resolve(b) : reject(new Error('no image'))), 'image/png'));
 }
 
+// Game chat stays current: every 15 seconds while the page is in view, swap in
+// the newest messages. Typing isn't touched; only the list changes.
+const chatBox = document.querySelector('.chat[data-poll]');
+if (chatBox && window.DOMParser) {
+  const list = chatBox.querySelector('.chat-list');
+  setInterval(async () => {
+    if (document.hidden) return;
+    try {
+      const res = await fetch(window.location.pathname, { credentials: 'same-origin', headers: { accept: 'text/html' } });
+      if (!res.ok || res.redirected) return;
+      const next = new DOMParser().parseFromString(await res.text(), 'text/html').querySelector('.chat-list');
+      const ids = (el) => [...el.querySelectorAll('.msg')].map((m) => m.dataset.id).join();
+      if (!next || ids(next) === ids(list)) return;
+      const nearBottom = window.innerHeight + window.scrollY >= document.body.scrollHeight - 120;
+      list.replaceChildren(...[...next.childNodes].map((n) => document.adoptNode(n)));
+      localTimes(list);
+      for (const form of list.querySelectorAll('form[data-confirm]')) {
+        form.addEventListener('submit', (event) => {
+          if (!window.confirm(form.dataset.confirm)) event.preventDefault();
+        });
+      }
+      if (nearBottom) window.scrollTo(0, document.body.scrollHeight);
+    } catch {
+      // Try again on the next tick.
+    }
+  }, 15_000);
+}
+
 // Copy an invite link.
 for (const button of document.querySelectorAll('[data-copy]')) {
   button.hidden = false;
