@@ -43,6 +43,10 @@ Brand assets: `python3 sync_brand.py /path/to/buddhabeans-theme` copies the Brot
 
 Formats: `9:16`, `16:9`, `1:1`, `4:5`. Scene types: `logo`, `title`, `beans`, `bullets`, `pop`, `roastline`, `photo`, `quote`, `image`, `clip`, `outro`. The field list is in `.claude/skills/video-storyboard/SKILL.md`.
 
+## Print style (hand-made look)
+
+`"style": "print"` in a storyboard switches to the screen-print look in `scenes_print.py`: Brothers only, ink on kraft, wobbling ink edge, hand-drawn underlines and arrow, torn paper and tape. Motion steps on twos (12 fps poses at 24 fps), cuts are hard and land on the beat (`bpm`, and each scene's length is `beats`), and sound is a beat-locked groove plus hits (`sound.score_print`). If Brothers fails to load the render stops instead of falling back. Scene types: `mascot`, `slam`, `cutout`, `stack`, `outro`. Example: `examples/meet-buddha-beans.json`. Tested at 9:16 only.
+
 ## Speed
 
 Motion graphics render at roughly 10 to 12 seconds per second of output on a 4-core container. Drop `fps` to 24 for drafts. Masters come out around 43MB for 50 seconds because of the paper grain; re-encode with `-crf 26` for sharing (about 14MB).

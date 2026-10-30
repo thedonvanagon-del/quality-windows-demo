@@ -161,3 +161,88 @@ def write_wav(buf, path):
         w.setsampwidth(2)
         w.setframerate(SR)
         w.writeframes(pcm.T.copy().tobytes())
+
+
+# ---------------------------------------------------------------- print style: hits plus a lo-fi groove
+
+def thunk(d=0.7):
+    t = _t(d)
+    body = np.sin(2 * np.pi * np.cumsum(48 + 90 * np.exp(-t * 22)) / SR) * np.exp(-t * 6.5)
+    knock = _fft_band(RNG.standard_normal(len(t)), 90, 900) * np.exp(-t * 26) * 0.6
+    return body + knock
+
+
+def slap(d=0.3):
+    t = _t(d)
+    n = _fft_band(RNG.standard_normal(len(t)), 250, 3200) * np.exp(-t * 30)
+    body = np.sin(2 * np.pi * np.cumsum(95 + 120 * np.exp(-t * 40)) / SR) * np.exp(-t * 16)
+    return n / max(np.abs(n).max(), 1e-6) * 0.7 + body * 0.8
+
+
+def scribble_snd(d=0.45):
+    t = _t(d)
+    n = _fft_band(RNG.standard_normal(len(t)), 1400, 6500)
+    n = n / np.abs(n).max() * (0.55 + 0.45 * np.sin(2 * np.pi * 17 * t))
+    return n * np.minimum(1, np.minimum(t / .03, (d - t) / .12)) * 0.5
+
+
+def rip(d=0.22):
+    t = _t(d)
+    n = _fft_band(RNG.standard_normal(len(t)), 1800, 9000) * (RNG.random(len(t)) > .55)
+    return n / max(np.abs(n).max(), 1e-6) * np.exp(-t * 9) * 0.5
+
+
+def kick(d=0.3):
+    t = _t(d)
+    return np.sin(2 * np.pi * np.cumsum(46 + 140 * np.exp(-t * 32)) / SR) * np.exp(-t * 11)
+
+
+def clap(d=0.22):
+    out = np.zeros(int(d * SR))
+    for off in (0, .011, .024):
+        i = int(off * SR)
+        n = _fft_band(RNG.standard_normal(int(.18 * SR)), 900, 3800) * np.exp(-_t(.18) * 22)
+        out[i:i + len(n)] += n[: len(out) - i] * (1 if off == .024 else .6)
+    return out / max(np.abs(out).max(), 1e-6) * 0.7
+
+
+def hat(d=0.05):
+    t = _t(d)
+    n = _fft_band(RNG.standard_normal(len(t)), 6500, 15000)
+    return n / max(np.abs(n).max(), 1e-6) * np.exp(-t * 90)
+
+
+def bass(freq, d=0.45):
+    t = _t(d)
+    return (np.sin(2 * np.pi * freq * t) + .3 * np.sin(4 * np.pi * freq * t)) * np.exp(-t * 4.2) * 0.5
+
+
+KINDS = {"thunk": (thunk, 1.0), "slap": (slap, .85), "band": (slap, .6), "scribble": (scribble_snd, .7),
+         "tape": (rip, .8)}
+
+
+def score_print(bpm, starts, events, total, groove_from=4):
+    """events: list of (absolute_seconds, kind). Groove starts at beat `groove_from` and runs to the end."""
+    beat = 60.0 / bpm
+    buf = np.zeros((2, int((total + 1) * SR)))
+    room = bed(total + 1)[: buf.shape[1]] * 0.55  # low room tone so the hits sit in a space, not in silence
+    buf[0] += room
+    buf[1] += room * 0.97
+    for at, kind in events:
+        fn, g = KINDS[kind]
+        _place(buf, fn(), at, g, pan=RNG.uniform(-.15, .15))
+    nbeats = int(total / beat)
+    for b in range(int(groove_from), nbeats):
+        at = b * beat
+        _place(buf, kick(), at, .55)
+        if b % 2 == 1:
+            _place(buf, clap(), at, .42)
+        _place(buf, hat(), at, .16)
+        _place(buf, hat(), at + beat * .5 + beat * .09, .11)  # swung off-beat
+        if (b - groove_from) % 4 in (0, 2):
+            _place(buf, bass(55.0 if ((b - groove_from) // 4) % 2 == 0 else 61.74), at, .5)
+        elif (b - groove_from) % 4 == 3:
+            _place(buf, bass(82.41, .3), at + beat * .5, .35)
+    peak = np.abs(buf).max()
+    buf = np.tanh(buf / max(peak, 1e-6) * 1.35) / np.tanh(1.35)
+    return buf[:, : int(total * SR)]

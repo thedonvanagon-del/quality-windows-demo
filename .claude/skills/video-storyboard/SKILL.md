@@ -50,6 +50,16 @@ Scene types and their fields:
 - `clip`: `clip` (path), `start`, `text` (optional). Trims real footage and fills the frame.
 - `outro`: `text`. Logo, line, and the site URL.
 
+**Print style** (`"style": "print"`, `"bpm": 120`, scene length in `beats`, hard cuts). Use it when the video should look hand-made and on brand. Scene types:
+
+- `mascot`: laughing-Buddha cutout, `words`, `sub`, `tag`
+- `slam`: giant stacked words that slap in. `words`, `accent` (index of the coloured word, gets a marker underline), `bg` (kraft, ink, coral, cream)
+- `cutout`: torn, taped photo with big overlapping words and a hand-drawn arrow. `image`, `words`, `note`, `target` (where the arrow points, as fractions of the photo)
+- `stack`: poster of full-width bands that slide in on the beat. `lines`
+- `outro`: logo stamp, `words`, URL with marker underline
+
+Only Brothers is used. Keep every word on screen from the logo, the catalog, or text the owner supplied.
+
 Any scene takes `theme`: `kraft` (default, tan paper), `ink` (dark) or `coral`. Alternate them so the video doesn't feel flat.
 
 Set `"audio": {"sfx": true}` for synthesised sound design timed to the scenes. Add `voiceover` or `music` paths to layer real audio on top.

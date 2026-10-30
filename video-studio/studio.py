@@ -23,6 +23,7 @@ import tempfile
 from pathlib import Path
 
 import scenes
+import scenes_print
 import sound
 
 HERE = Path(__file__).resolve().parent
@@ -64,8 +65,8 @@ def load_brand(sb):
 
 
 def scene_text(scene):
-    parts = [scene.get(k, "") for k in ("text", "sub", "caption", "attribution", "eyebrow", "burst", "note")]
-    parts += scene.get("bullets", []) + scene.get("labels", []) + [b.get("label", "") for b in scene.get("bags", [])]
+    parts = [scene.get(k, "") for k in ("text", "sub", "caption", "attribution", "eyebrow", "burst", "note", "tag", "url")]
+    parts += scene.get("words", []) + scene.get("lines", []) + scene.get("bullets", []) + scene.get("labels", []) + [b.get("label", "") for b in scene.get("bags", [])]
     return " ".join(p for p in parts if p)
 
 
@@ -85,26 +86,43 @@ def lint(sb):
 
 # ---------------------------------------------------------------- HTML scenes
 
-def render_html_scene(sc, brand, w, h, fps, out, tmp):
+def render_html_scene(sc, brand, w, h, fps, out, tmp, style=None, bpm=None):
+    """Seek the page's animations frame by frame and encode. style='print' steps on twos with a boiling edge."""
     from playwright.sync_api import sync_playwright  # imported late: only HTML scenes need it
     frames = Path(tmp) / f"frames_{out.stem}"
     frames.mkdir()
     page_file = Path(tmp) / f"{out.stem}.html"
-    page_file.write_text(scenes.build_html(sc, brand, w, h))
+    events = []
+    if style == "print":
+        html_text, events = scenes_print.build(sc, brand, w, h, bpm)
+    else:
+        html_text = scenes.build_html(sc, brand, w, h)
+    page_file.write_text(html_text)
     n = int(round(sc["duration"] * fps))
     with sync_playwright() as p:
         b = p.chromium.launch(executable_path=CHROMIUM) if CHROMIUM else p.chromium.launch()
         pg = b.new_page(viewport={"width": w, "height": h})
         pg.goto(f"file://{page_file}")
         pg.wait_for_timeout(150)
+        if style == "print":
+            loaded = pg.evaluate(scenes_print.LOADED_JS)
+            if "Brothers" not in loaded:
+                sys.exit(f"Brothers did not load (loaded: {loaded}). Refusing to render in another font.")
+            pg.evaluate(scenes_print.FIT_JS)
+        step = 12  # animation frames per second: on twos at 24fps
         for i in range(n):
             ms = i * 1000 / fps
+            if style == "print":
+                k = int(ms * step / 1000)
+                ms = k * 1000 / step
+                pg.evaluate("s=>document.getElementById('boil').setAttribute('seed', String(s))", (k * 7) % 5 + 1)
             pg.evaluate("t=>document.getAnimations().forEach(a=>{a.pause();a.currentTime=t})", ms)
             pg.screenshot(path=str(frames / f"{i:05d}.png"))
         b.close()
     run(["ffmpeg", "-y", "-framerate", fps, "-i", frames / "%05d.png", "-c:v", "libx264",
          "-pix_fmt", "yuv420p", "-crf", "17", "-preset", "medium", out])
     shutil.rmtree(frames)
+    return events
 
 
 def render_clip_scene(sc, w, h, fps, out):
@@ -125,6 +143,11 @@ def join_scenes(paths, durs, trans, out, fps):
     if len(paths) == 1:
         shutil.copy(paths[0], out)
         return
+    if trans <= 0:  # hard cuts: scenes share codec and size, so the join is a straight copy
+        lst = Path(str(out) + ".txt")
+        lst.write_text("".join(f"file '{p}'\n" for p in paths))
+        run(["ffmpeg", "-y", "-f", "concat", "-safe", "0", "-i", lst, "-c", "copy", out])
+        return sum(durs)
     inputs = []
     for p in paths:
         inputs += ["-i", p]
@@ -186,8 +209,13 @@ def cmd_build(a):
     brand = load_brand(sb)
     fmt = a.format or sb.get("format", "9:16")
     w, h = FORMATS[fmt]
-    fps = sb.get("fps", 30)
-    trans = sb.get("transition", 0.5)
+    style = sb.get("style")
+    fps = sb.get("fps", 24 if style == "print" else 30)
+    trans = 0 if style == "print" else sb.get("transition", 0.5)
+    bpm = sb.get("bpm", 120)
+    if style == "print":  # scene length comes from beats so every cut lands on the beat
+        for sc in sb["scenes"]:
+            sc["duration"] = round(sc.get("beats", 4) * 60.0 / bpm, 4)
     out_dir = Path(a.out or HERE / "out")
     out_dir.mkdir(parents=True, exist_ok=True)
     name = re.sub(r"[^a-z0-9]+", "-", sb.get("title", "video").lower()).strip("-")
@@ -199,14 +227,15 @@ def cmd_build(a):
         sys.exit("fix the flagged copy, or rerun with --force")
 
     with tempfile.TemporaryDirectory(prefix="vstudio_") as tmp:
-        paths, durs = [], []
+        paths, durs, all_events = [], [], []
         for i, sc in enumerate(sb["scenes"], 1):
             p = Path(tmp) / f"scene_{i:02}.mp4"
             print(f"scene {i}/{len(sb['scenes'])}: {sc.get('type', 'title')} ({sc['duration']}s)")
             if sc.get("type") == "clip":
                 render_clip_scene(sc, w, h, fps, p)
             else:
-                render_html_scene(sc, brand, w, h, fps, p, tmp)
+                ev = render_html_scene(sc, brand, w, h, fps, p, tmp, style=style, bpm=bpm)
+                all_events.append(ev)
             paths.append(p)
             durs.append(float(sc["duration"]))
 
@@ -216,7 +245,14 @@ def cmd_build(a):
         audio = dict(sb.get("audio", {}))
         if audio.get("sfx") and not audio.get("music"):
             wav = Path(tmp) / "sfx.wav"
-            sound.write_wav(sound.score(sb, total), wav)
+            if style == "print":
+                starts_s, acc_s, abs_ev = [], 0.0, []
+                for d, ev in zip(durs, all_events):
+                    abs_ev += [(acc_s + t_, k_) for t_, k_ in ev]
+                    acc_s += d
+                sound.write_wav(sound.score_print(bpm, starts_s, abs_ev, total, sb.get("groove_from", 4)), wav)
+            else:
+                sound.write_wav(sound.score(sb, total), wav)
             audio.update(music=str(wav), music_volume=0.4)  # music-only path applies x2.5 -> unity gain
         mix_audio(silent, final, total, audio)
 
@@ -225,7 +261,7 @@ def cmd_build(a):
             starts.append(acc)
             acc += d - trans
         srt = out_dir / f"{name}.srt"
-        n = write_srt(sb["scenes"], starts, srt)
+        n = write_srt(sb["scenes"], starts, srt) if style != "print" else 0
         run(["ffmpeg", "-y", "-ss", min(1.0, total / 2), "-i", final, "-frames:v", 1,
              out_dir / f"{name}.jpg"])
     print(f"\ndone: {final}  ({total:.1f}s, {w}x{h}, {fps}fps)")
@@ -238,6 +274,10 @@ def cmd_still(a):
     sb = json.loads(Path(a.storyboard).read_text())
     brand = load_brand(sb)
     w, h = FORMATS[a.format or sb.get("format", "9:16")]
+    style, bpm = sb.get("style"), sb.get("bpm", 120)
+    for sc in sb["scenes"]:
+        if style == "print":
+            sc["duration"] = round(sc.get("beats", 4) * 60.0 / bpm, 4)
     out = Path(a.out or HERE / "out" / "stills")
     out.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(prefix="vstudio_") as tmp, sync_playwright() as p:
@@ -247,9 +287,11 @@ def cmd_still(a):
             if sc.get("type") == "clip":
                 continue
             f = Path(tmp) / f"s{i}.html"
-            f.write_text(scenes.build_html(sc, brand, w, h))
+            f.write_text(scenes_print.build(sc, brand, w, h, bpm)[0] if style == "print" else scenes.build_html(sc, brand, w, h))
             pg.goto(f"file://{f}")
             pg.wait_for_timeout(200)
+            if style == "print":
+                pg.evaluate(scenes_print.FIT_JS)
             t = min(a.t, sc["duration"] - 0.05) * 1000
             pg.evaluate("t=>document.getAnimations().forEach(a=>{a.pause();a.currentTime=t})", t)
             pg.screenshot(path=str(out / f"scene_{i:02}.png"))
@@ -263,7 +305,17 @@ def cmd_sound(a):
     total = probe_duration(a.video)
     with tempfile.TemporaryDirectory(prefix="vstudio_") as tmp:
         wav = Path(tmp) / "sfx.wav"
-        sound.write_wav(sound.score(sb, total), wav)
+        if sb.get("style") == "print":
+            brand, bpm = load_brand(sb), sb.get("bpm", 120)
+            w, h = FORMATS[sb.get("format", "9:16")]
+            acc, abs_ev = 0.0, []
+            for sc in sb["scenes"]:
+                sc["duration"] = round(sc.get("beats", 4) * 60.0 / bpm, 4)
+                abs_ev += [(acc + t_, k_) for t_, k_ in scenes_print.build(sc, brand, w, h, bpm)[1]]
+                acc += sc["duration"]
+            sound.write_wav(sound.score_print(bpm, [], abs_ev, total, sb.get("groove_from", 4)), wav)
+        else:
+            sound.write_wav(sound.score(sb, total), wav)
         mix_audio(Path(a.video), Path(a.out), total, {"music": str(wav), "music_volume": 0.4})
     print(f"wrote {a.out}")
 
