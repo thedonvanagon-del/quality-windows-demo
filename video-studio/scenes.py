@@ -152,6 +152,19 @@ def build_html(sc, brand, w, h):
         mascot = None  # the polaroid sits where the sticker would
         art = (f'<div class="polaroid pop" style="--d:.2s"><div class="ph"><img src="{img_url}" class="kb"></div>'
                f'<span class="hand">{E("note")}</span></div>') if img_url else ""
+    elif t == "bags":  # product-photo lineup; each bag drops in with a pop
+        full = True
+        items = sc.get("bags", [])
+        cw = int((300 if land else 270) * u)
+        cards = ""
+        for i, b in enumerate(items):
+            src = b["image"]
+            url = _u(src) if Path(src).is_absolute() else (asset(src) or "")
+            rot = (-3, 2.5, -1.5, 3, -2.5)[i % 5]
+            cards += (f'<div class="pop" style="--d:{.3 + i * .28}s"><div class="bagcard" style="width:{cw}px;transform:rotate({rot}deg)">'
+                      f'<div class="bagimg" style="height:{int(cw * 1.2)}px"><img src="{url}"></div>'
+                      f'<span class="lbl">{html.escape(b.get("label", ""))}</span></div></div>')
+        art = f'<div class="bagrow">{cards}</div>'
     elif t == "logo":
         full = True
         text = ""
@@ -231,6 +244,11 @@ blockquote{{font:400 {px(92)}/1.1 'BrothersSlant','Brothers',serif}}
 .lbl{{font:500 {px(34 if land else 30)} 'PlexMono',monospace;text-transform:uppercase;letter-spacing:.06em;text-align:center;
   background:var(--fg);color:var(--bg);padding:{px(6)} {px(14)}}}
 .track{{position:absolute;left:5%;right:5%;bottom:{px(34)};border-top:{px(6)} dashed var(--fg);opacity:.35}}
+.bagrow{{display:flex;flex-wrap:wrap;justify-content:center;gap:{px(30)} {px(26)}}}
+.bagcard{{background:#fffaf0;padding:{px(14)};box-shadow:{px(10)} {px(12)} 0 rgba(0,0,0,.22);display:flex;flex-direction:column;gap:{px(12)};align-items:center}}
+.bagimg{{width:100%;background:#efe2c6;display:flex;align-items:center;justify-content:center;overflow:hidden}}
+.bagimg img{{max-width:100%;max-height:100%;object-fit:contain}}
+.bagcard .lbl{{font-size:{px(24)};text-align:center}}
 .polaroid{{background:#fffaf0;padding:{px(22)} {px(22)} {px(40)};box-shadow:{px(16)} {px(20)} 0 rgba(0,0,0,.25);
   transform:rotate(-4deg);display:flex;flex-direction:column;gap:{px(14)}}}
 .ph{{width:{px(470 if land else 500)};height:{px(600 if land else 620)};overflow:hidden;background:#000}}

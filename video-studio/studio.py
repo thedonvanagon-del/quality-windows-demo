@@ -65,7 +65,7 @@ def load_brand(sb):
 
 def scene_text(scene):
     parts = [scene.get(k, "") for k in ("text", "sub", "caption", "attribution", "eyebrow", "burst", "note")]
-    parts += scene.get("bullets", []) + scene.get("labels", [])
+    parts += scene.get("bullets", []) + scene.get("labels", []) + [b.get("label", "") for b in scene.get("bags", [])]
     return " ".join(p for p in parts if p)
 
 
