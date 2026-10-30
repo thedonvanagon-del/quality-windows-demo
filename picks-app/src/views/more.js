@@ -1,5 +1,5 @@
 import { html } from '../html.js';
-import { formatMoney, formatOdds, formatUnits, selection } from '../picks.js';
+import { formatOdds, formatUnits, selection } from '../picks.js';
 import { SPORT } from '../sports.js';
 import { icons } from './icons.js';
 import { csrfField, layout } from './layout.js';
@@ -22,7 +22,7 @@ export function more(ctx, { liveCount }) {
         ${row('/live', icons.live, 'Live games', 'Scores right now, with your bets on them', liveCount ? html`<span class="count">${liveCount} live</span>` : '')}
         ${row('/leaderboard', icons.board, 'Leaderboard', 'Everyone, or one sport at a time')}
         ${row('/groups', icons.groups, 'Groups', 'Your friends and their boards')}
-        ${row(`/u/${encodeURIComponent(ctx.user.screenName)}`, icons.me, 'Profile and settings', 'Bio, unit size, app color')}
+        ${row(`/u/${encodeURIComponent(ctx.user.screenName)}`, icons.me, 'Profile and settings', 'Bio, link, app color')}
       </ul>
       <h2>Account</h2>
       <ul class="menu">
@@ -55,7 +55,7 @@ function liveCard(g, picks) {
     ${line('away')}
     ${line('home')}
     ${picks.length
-      ? html`<div class="yours">${picks.map((p) => html`<div><span><span class="tag">Your bet</span> ${selection(p.market, p.side, p.line, g)} ${minus(formatOdds(p.odds))}</span><span>${p.wager != null ? formatMoney(p.wager) : formatUnits(p.units)}</span></div>`)}</div>`
+      ? html`<div class="yours">${picks.map((p) => html`<div><span><span class="tag">Your bet</span> ${selection(p.market, p.side, p.line, g)} ${minus(formatOdds(p.odds))}</span><span>${formatUnits(p.units)}</span></div>`)}</div>`
       : ''}
   </article>`;
 }

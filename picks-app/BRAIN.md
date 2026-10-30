@@ -16,8 +16,8 @@ take the line on the board, and grade off ESPN's final scores. Two uses:
 - **A game for friends.** Overall and per-sport leaderboards, plus private
   groups with invite codes.
 
-No real money changes hands in the app. Players log what they wager, but
-dollars stay private and nothing is paid out.
+No real money changes hands in the app. Picks are sized in units (1u to 5u),
+not dollars, and nothing is paid out.
 
 ## Decisions
 
@@ -69,14 +69,21 @@ dollars stay private and nothing is paid out.
 - **2026-10-19:** Other people's open picks stay hidden until the game starts.
 - **2026-10-19:** One record per person. Sport boards and groups all read it.
 - **2026-10-19:** Leaderboards rank by units won, not win rate.
-- **2026-10-30:** **Max 5 units on one pick**, whatever the unit size (the
-  capper's "max play"). Without it, a $1 unit plus a $1,000 bet counted as
-  1,000 units and one lucky hit owned the leaderboard. A dollar cap ($1,000 a
-  day was floated) wouldn't fix that, since units are relative, so dollars stay
-  open. No daily cap for now; add one if someone games it with volume.
+- **2026-10-30:** **Units only, no dollars.** The slip has 1u to 5u buttons
+  (any amount from 0.1u). Replaces the 2026-10-25 dollar wagers below: with
+  dollars and a per-player unit size, a $1 unit plus a $1,000 bet counted as
+  1,000 units and one lucky hit owned the leaderboard. A $1,000-a-day dollar cap
+  was floated but wouldn't have fixed that. The unit-size setting is gone;
+  old dollar amounts stay in the database, unused.
+- **2026-10-30:** **No pick risks more than 5u or wins more than 5u.** On an
+  underdog the cap is what wins 5u: at +150 the most is 3.33u, at +400 1.25u. So
+  a long shot can't turn one hit into the leaderboard.
+- **2026-10-30:** Boards show W-L but **rank by units won**. W-L alone rewards
+  betting only heavy favorites: -400 favorites go 8-2 and still lose money.
+  No daily cap for now; add one if someone games it with volume.
 - **2026-10-30:** Home page leads with a gold check and **"Trust Your Bets"**.
   Our own mark, styled after Trustpilot's tiles, gold in every theme.
-- **2026-10-25:** Players wager **dollars** on the pick slip ($10 to $250 chips or
+- **2026-10-25 (replaced 2026-10-30 by units only):** Players wager **dollars** on the pick slip ($10 to $250 chips or
   any amount). Each player sets what one unit is worth (starts at $100), and the
   record counts the wager in units, so a $10 bettor and a $1,000 bettor compete
   on skill. **Dollar amounts only ever show to the bettor.**
@@ -126,11 +133,11 @@ Launch log:
   email, account deletion, Terms and Privacy pages
 - Games board for NFL, college football, NBA, college basketball, MLB, NHL
   (spread, total, moneyline)
-- Pick slip with dollar wagers and live "to win"
-- My bets: open (wager, to win, countdown, delete) and settled (won or lost in dollars)
+- Pick slip sized in units (1u to 5u) with live "to win"
+- My bets: open (units, to win, countdown, delete) and settled (won or lost in units)
 - Leaderboards: everyone or one sport, 7 days, 30 days or all time
 - Groups: create, invite code and link, group board, members' picks feed
-- Profiles: record, by sport, every pick with its lock time, bio, unit size,
+- Profiles: record, by sport, every pick with its lock time, bio,
   color, an outside link button, Share, and a record preview when shared
 - More tab with Live games (scores now, your bets on them)
 - Installable on phones (manifest, icons, iPhone full-screen)
@@ -170,20 +177,27 @@ In rough order of value:
 
 1. ~~Share cards~~ and ~~"hire me" link~~: built 2026-10-26 (text preview with
    the crest; a picture card with the record drawn on it would be the next step).
-2. **Paid picks in the app.** Cappers set a monthly price, subscribers see their
+2. **Tournaments with coin buy-ins** (owner's idea, 2026-10-30). Players buy
+   coins and spend them to enter contests (a $5 buy-in, say), best units over a
+   weekend or a week wins. **Talk to a gaming lawyer before building.** Paying
+   to enter a contest for a prize is a paid fantasy/sweepstakes question that
+   changes state by state: some states ban paid contests, most need a license or
+   registration, and coins that buy entries for cash prizes count as money.
+   Free tournaments with bragging rights (or sponsor prizes) can ship anytime.
+3. **Paid picks in the app.** Cappers set a monthly price, subscribers see their
    picks before games start, Bookie Bullies keeps 10 to 20% and Stripe Connect
    pays out the rest. Needs payouts, refunds and tax forms; Apple takes up to
    30% of digital subscriptions sold in an iPhone app; no "guaranteed win"
    claims allowed. Build once cappers are clearly selling through their links.
-3. **The Bookie Bullies model as a player.** The site's own daily picks posted
+4. **The Bookie Bullies model as a player.** The site's own daily picks posted
    into the app under an official account, with a public record.
-4. **cfb-bot as a player**, same idea, for college football and the NFL.
-5. **Streaks and badges:** "8-2 last 10", "Hot in NBA", "Top 3 this week".
-6. **Weekly winners in groups.**
-7. **Notifications** when bets settle or games start (and the App Store push).
-8. App Store and Google Play versions.
-9. Trash talk in groups, following players.
-10. Changing a screen name, props and parlays, admin tools.
+5. **cfb-bot as a player**, same idea, for college football and the NFL.
+6. **Streaks and badges:** "8-2 last 10", "Hot in NBA", "Top 3 this week".
+7. **Weekly winners in groups.**
+8. **Notifications** when bets settle or games start (and the App Store push).
+9. App Store and Google Play versions.
+10. Trash talk in groups, following players.
+11. Changing a screen name, props and parlays, admin tools.
 
 ## How to work on it
 

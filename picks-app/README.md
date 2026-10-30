@@ -50,7 +50,7 @@ five.
 | Page | What it does |
 |---|---|
 | `/games` | Upcoming games by sport, with spread, total and moneyline. Tap a number to pick it. |
-| `/picks` | My bets: open bets with the wager, to-win and a countdown (deletable until the start), and settled ones. A badge on the tab counts what is open. |
+| `/picks` | My bets: open bets with their units, to-win and a countdown (deletable until the start), and settled ones. A badge on the tab counts what is open. |
 | `/leaderboard` | Everyone, or one sport, over 7 days, 30 days or all time. Public. |
 | `/groups` | Start a group (all sports or one), join with a code, see its board and its picks feed. |
 | `/u/<name>` | A player's public record: overall, by sport, and every pick with when it was locked. |

@@ -8,19 +8,18 @@ export const MARKETS = {
   total: ['over', 'under'],
   ml: ['away', 'home'],
 };
-// A player types a dollar wager; their record counts it in units, at their
-// own unit size, so a $10 bettor and a $1,000 bettor compete on skill.
-export const DEFAULT_UNIT = 100;
-export const WAGER_MIN = 1;
-export const WAGER_MAX = 100_000;
-export const WAGER_CHIPS = [10, 25, 50, 100, 250];
-// The biggest play a pick can be, in units: a capper's "max play". Without it,
-// a $1 unit and a big wager would turn one pick into hundreds of units.
+// Players size a pick in units, the way cappers post them: 1u is a normal
+// play, 5u is a max play. No dollars, so there's no unit size to game.
+export const UNITS_MIN = 0.1;
 export const MAX_UNITS = 5;
+export const UNIT_CHIPS = [1, 2, 3, 4, 5];
 
-/** Units for a dollar wager at a unit size, never below a hundredth. */
-export function unitsFor(wager, unitSize = DEFAULT_UNIT) {
-  return Math.max(0.01, round2(wager / unitSize));
+/**
+ * The most a pick can be at this price. No pick risks more than 5 units or
+ * wins more than 5, so a long underdog can't turn one hit into the leaderboard.
+ */
+export function maxUnits(odds) {
+  return odds > 0 ? Math.min(MAX_UNITS, Math.floor((MAX_UNITS * 100 * 100) / odds) / 100) : MAX_UNITS;
 }
 
 /** The line and price on one side of a market right now, or null if it's not up. */
@@ -68,18 +67,19 @@ export function isLocked(game, now) {
  * Write a pick, or say why not. `seen` is the line and price the player was
  * shown; if the number moved since, they get the new one to confirm instead.
  */
-export function makePick(store, { userId, game, market, side, wager, unitSize = DEFAULT_UNIT, seen, now }) {
-  if (!Number.isFinite(wager) || wager < WAGER_MIN || wager > WAGER_MAX) {
-    return { error: `Wager between $${WAGER_MIN} and $${WAGER_MAX.toLocaleString('en-US')}.` };
-  }
-  wager = round2(wager);
-  const units = unitsFor(wager, unitSize);
-  if (units > MAX_UNITS) {
-    return { error: `${MAX_UNITS} units is the max on one pick. At ${formatMoney(unitSize)} a unit, that's ${formatMoney(MAX_UNITS * unitSize)}.` };
-  }
+export function makePick(store, { userId, game, market, side, units, seen, now }) {
   if (isLocked(game, now)) return { error: 'That game has started. Picks lock at kickoff.' };
   const current = price(game, market, side);
   if (!current) return { error: 'That line is off the board right now.' };
+  const most = maxUnits(current.odds);
+  if (!Number.isFinite(units) || units < UNITS_MIN || round2(units) > most) {
+    return {
+      error: most < MAX_UNITS
+        ? `At ${formatOdds(current.odds)}, ${formatUnits(most)} is the most you can play. No pick can win more than ${MAX_UNITS} units.`
+        : `Play between ${formatUnits(UNITS_MIN)} and ${formatUnits(MAX_UNITS)}.`,
+    };
+  }
+  units = round2(units);
   if (seen && (seen.line !== current.line || seen.odds !== current.odds)) {
     return { moved: current, error: `The line moved to ${formatLine(market, side, current, game)}. Still want it?` };
   }
@@ -87,11 +87,11 @@ export function makePick(store, { userId, game, market, side, wager, unitSize = 
   if (taken) return { error: `You already have a ${MARKET_NAME[market].toLowerCase()} pick on this game.` };
 
   const { lastInsertRowid } = store.run(
-    `INSERT INTO picks (user_id, game_id, sport, market, side, line, odds, units, wager, game_start, made_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    userId, game.id, game.sport, market, side, current.line, current.odds, units, wager, game.start, now.toISOString(),
+    `INSERT INTO picks (user_id, game_id, sport, market, side, line, odds, units, game_start, made_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    userId, game.id, game.sport, market, side, current.line, current.odds, units, game.start, now.toISOString(),
   );
-  return { id: Number(lastInsertRowid), wager, units };
+  return { id: Number(lastInsertRowid), units };
 }
 
 /** Delete a pick before its game starts. After that it stays on the record. */
@@ -157,12 +157,6 @@ export function formatSpread(line) {
 
 export function formatOdds(odds) {
   return odds > 0 ? `+${odds}` : `${odds}`;
-}
-
-/** "$1,250", "$90.91", "+$181.82", "-$200" */
-export function formatMoney(n, { sign = false } = {}) {
-  const abs = Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: Number.isInteger(Math.abs(n)) ? 0 : 2, maximumFractionDigits: 2 });
-  return `${n < 0 ? '-' : sign && n > 0 ? '+' : ''}$${abs}`;
 }
 
 export function formatUnits(units, { sign = false } = {}) {

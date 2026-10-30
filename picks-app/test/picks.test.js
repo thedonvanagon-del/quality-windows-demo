@@ -2,7 +2,8 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import { openStore } from '../src/db.js';
-import { grade, gradeFinished, makePick, MAX_UNITS, price, profit, toWin } from '../src/picks.js';
+import { leaderboard } from '../src/stats.js';
+import { grade, gradeFinished, makePick, MAX_UNITS, maxUnits, price, profit, toWin } from '../src/picks.js';
 
 test('grades spreads from the picked side', () => {
   assert.equal(grade({ market: 'spread', side: 'home', line: -3.5 }, 27, 24), 'loss');
@@ -89,13 +90,43 @@ test('voids a game that never finished only on ESPN saying so days later', () =>
   assert.equal(pick(store).result, 'void');
 });
 
-test('caps a pick at the max units, whatever the unit size', () => {
+test('caps a pick at 5 units risked and 5 to win', () => {
+  assert.equal(maxUnits(-110), MAX_UNITS);
+  assert.equal(maxUnits(100), 5);
+  assert.equal(maxUnits(150), 3.33);
+  assert.equal(maxUnits(1000), 0.5);
+
   const store = openStore(':memory:');
   seed(store, { start: '2026-10-25T17:00:00.000Z', state: 'pre', status: 'STATUS_SCHEDULED', updated: '2026-10-25T12:00:00.000Z' });
-  const game = { id: 'nfl:1', sport: 'nfl', start: '2026-10-25T17:00:00.000Z', state: 'pre', lines: { ml: { home: -170, away: 150 } } };
-  const at = { userId: 1, game, market: 'ml', side: 'home', now: new Date('2026-10-25T12:00Z') };
-  // A $1 unit can't turn a $1,000 bet into 1,000 units.
-  assert.match(makePick(store, { ...at, wager: 1000, unitSize: 1 }).error, /5 units is the max on one pick\. At \$1 a unit, that's \$5\./);
-  assert.equal(MAX_UNITS, 5);
-  assert.deepEqual(makePick(store, { ...at, wager: 500, unitSize: 100 }).units, 5);
+  const game = { id: 'nfl:1', sport: 'nfl', start: '2026-10-25T17:00:00.000Z', state: 'pre', lines: { ml: { home: -170, away: 400 } } };
+  const at = { userId: 1, game, market: 'ml', now: new Date('2026-10-25T12:00Z') };
+  assert.match(makePick(store, { ...at, side: 'home', units: 6 }).error, /Play between 0\.1u and 5u/);
+  assert.match(makePick(store, { ...at, side: 'away', units: 2 }).error, /At \+400, 1\.25u is the most you can play/);
+  assert.equal(makePick(store, { ...at, side: 'home', units: 5 }).units, 5);
+});
+
+test('one lucky max play ranks below a real record', () => {
+  const store = openStore(':memory:');
+  seed(store, { start: '2026-10-25T17:00:00.000Z', state: 'post', status: 'STATUS_FINAL', updated: '2026-10-25T21:00:00.000Z' });
+  store.run('DELETE FROM picks');
+  store.run("UPDATE users SET email_verified_at = '2026-01-01'");
+  store.run("INSERT INTO users (email, password_hash, screen_name, created_at, email_verified_at) VALUES ('b@b.co', 'x', 'Bo', '2026-01-01', '2026-01-01')");
+  let n = 1;
+  const add = (user, result, units, profit) => {
+    const id = `nfl:${(n += 1)}`;
+    store.run(
+      `INSERT INTO games (id, sport, start_time, state, status, detail, completed, home_name, home_short, home_abbr, away_name, away_short, away_abbr, lines, updated_at)
+       VALUES (?, 'nfl', '2026-10-25T17:00:00.000Z', 'post', 'STATUS_FINAL', '', 1, 'Chiefs', 'Chiefs', 'KC', 'Bills', 'Bills', 'BUF', '{}', '2026-10-25T21:00:00.000Z')`,
+      id,
+    );
+    store.run(
+      `INSERT INTO picks (user_id, game_id, sport, market, side, line, odds, units, game_start, made_at, result, profit)
+       VALUES (?, ?, 'nfl', 'ml', 'home', NULL, 100, ?, '2026-10-25T17:00:00.000Z', '2026-10-25T12:00:00.000Z', ?, ?)`,
+      user, id, units, result, profit,
+    );
+  };
+  add(1, 'win', 5, 5); // Ann: one 5u hit
+  for (const r of ['win', 'win', 'win', 'loss', 'win']) add(2, r, 1, r === 'win' ? 1 : -1); // Bo: 4-1, +3u
+  const rows = leaderboard(store, {}, new Date('2026-10-26T00:00Z'));
+  assert.deepEqual(rows.map((r) => [r.screen_name, r.ranked]), [['Bo', true], ['Ann', false]]);
 });

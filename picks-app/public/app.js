@@ -15,27 +15,24 @@ for (const form of document.querySelectorAll('form[data-confirm]')) {
   });
 }
 
-// Keep "to win" and the unit count on the pick slip in step with the wager.
+// Keep "to win" on the pick slip in step with the units.
 const slip = document.querySelector('form[data-odds]');
 if (slip) {
   const odds = Number(slip.dataset.odds);
-  const unit = Number(slip.dataset.unit) || 100;
-  const input = slip.querySelector('input[name="wager"]');
-  const money = (n) => `$${n.toLocaleString('en-US', { minimumFractionDigits: Number.isInteger(n) ? 0 : 2, maximumFractionDigits: 2 })}`;
+  const input = slip.querySelector('input[name="units"]');
   const chips = slip.querySelector('.chips');
   const update = () => {
-    const wager = Number(input.value.replace(/[$,\s]/g, ''));
-    const ok = Number.isFinite(wager) && wager > 0;
-    const win = ok ? Math.round((odds > 0 ? (wager * odds) / 100 : (wager * 100) / -odds) * 100) / 100 : 0;
-    slip.querySelector('[data-to-win]').textContent = ok ? money(win) : '–';
-    slip.querySelector('[data-units]').textContent = ok ? `${Math.max(0.01, Math.round((wager / unit) * 100) / 100)}u` : '–';
-    for (const chip of chips.querySelectorAll('.chip')) chip.classList.toggle('on', Number(chip.dataset.wager) === wager);
+    const units = Number(input.value.replace(/[u,\s]/gi, ''));
+    const ok = Number.isFinite(units) && units > 0;
+    const win = ok ? Math.round((odds > 0 ? (units * odds) / 100 : (units * 100) / -odds) * 100) / 100 : 0;
+    slip.querySelector('[data-to-win]').textContent = ok ? `${win}u` : '–';
+    for (const chip of chips.querySelectorAll('.chip')) chip.classList.toggle('on', Number(chip.dataset.units) === units);
   };
   chips.hidden = false;
   chips.addEventListener('click', (event) => {
     const chip = event.target.closest('.chip');
     if (!chip) return;
-    input.value = chip.dataset.wager;
+    input.value = chip.dataset.units;
     update();
   });
   input.addEventListener('input', update);

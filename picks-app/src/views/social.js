@@ -1,5 +1,6 @@
 import { html } from '../html.js';
 import { SPORT, SPORTS } from '../sports.js';
+import { MIN_RANKED } from '../stats.js';
 import { joined } from '../time.js';
 import { csrfField, layout } from './layout.js';
 import { boardTable, periodTabs, pct, pickItem, profileLink, recordText, signedPct, sportTabs, statStrip, units } from './parts.js';
@@ -10,7 +11,7 @@ export function leaderboard(ctx, { rows, sport }) {
     active: 'board',
     body: html`
       <h1>${sport ? `${sport.name} leaderboard` : 'Leaderboard'}</h1>
-      <p class="lede">Ranked by units won. Every graded pick counts, losses included.</p>
+      <p class="lede">Ranked by units won, not win rate, so betting only big favorites doesn't pay. Every graded pick counts, losses included. You need ${MIN_RANKED} graded picks in the window for a rank.</p>
       ${sportTabs('/leaderboard', ctx.query)}
       ${periodTabs('/leaderboard', ctx.query)}
       ${boardTable(rows, { me: ctx.user?.id })}
@@ -179,17 +180,6 @@ function linkForm(ctx, player) {
     </form>`;
 }
 
-/** What one unit is worth to this player, so a dollar wager becomes units on the record. */
-function unitForm(ctx) {
-  return html`<h2>Your unit</h2>
-    <form class="unit-form" method="post" action="/unit">
-      ${csrfField(ctx)}
-      <span class="money-input"><span>$</span><input type="text" name="unit_size" value="${ctx.user.unitSize}" inputmode="decimal" autocomplete="off" aria-label="Dollars per unit" required></span>
-      <button class="btn small">Save</button>
-    </form>
-    <p class="muted small">A $${ctx.user.unitSize} bet counts as 1u on your record. Pick what you'd normally bet on a game.</p>`;
-}
-
 const COLORS = { ember: 'Ember', teal: 'Teal', violet: 'Violet' };
 
 /** Three swatches; the player's pick colors the app on every device they use. */
@@ -218,7 +208,7 @@ export function profile(ctx, { player, record, bySport, picks, hidden }) {
       </div>
       <p class="lede">On the record since ${joined(player.created_at)}. ${record.graded} graded ${record.graded === 1 ? 'pick' : 'picks'}, every one locked before its game.</p>
       ${statStrip(record)}
-      ${ctx.user?.id === player.id ? html`${nameForm(ctx, player)}${bioForm(ctx, player)}${linkForm(ctx, player)}${unitForm(ctx)}${colorPicker(ctx)}` : ''}
+      ${ctx.user?.id === player.id ? html`${nameForm(ctx, player)}${bioForm(ctx, player)}${linkForm(ctx, player)}${colorPicker(ctx)}` : ''}
       ${bySport.length
         ? html`<h2>By sport</h2>
           <div class="table"><table>

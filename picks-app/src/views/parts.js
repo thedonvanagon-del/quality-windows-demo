@@ -1,7 +1,7 @@
 import { html } from '../html.js';
-import { formatMoney, formatOdds, formatUnits, selection, toWin } from '../picks.js';
+import { formatOdds, formatUnits, selection, toWin } from '../picks.js';
 import { SPORT, SPORTS } from '../sports.js';
-import { PERIODS } from '../stats.js';
+import { MIN_RANKED, PERIODS } from '../stats.js';
 import { kickoff, when } from '../time.js';
 import { icons } from './icons.js';
 
@@ -78,7 +78,7 @@ export function boardTable(rows, { me } = {}) {
     <thead><tr><th>#</th><th>Player</th><th class="n">Record</th><th class="n hide-sm">Win</th><th class="n">Units</th><th class="n hide-sm">ROI</th></tr></thead>
     <tbody>
       ${rows.map((r, i) => html`<tr class="${r.id === me ? 'me' : ''}">
-        <td class="rank"><span class="rk">${i + 1}</span></td>
+        <td class="rank">${r.ranked === false ? html`<span class="rk unranked" title="Needs ${MIN_RANKED} graded picks for a rank">–</span>` : html`<span class="rk">${i + 1}</span>`}</td>
         <td><span class="player"><span class="avatar">${r.screen_name[0]}</span>${profileLink(r.screen_name)}</span></td>
         <td class="n">${recordText(r)}</td>
         <td class="n hide-sm">${pct(r.winPct)}</td>
@@ -102,17 +102,11 @@ const WAITING = { pre: ['open', 'Open'], in: ['live', 'Live'], post: ['grading',
 
 /**
  * One pick as a ticket, with its receipt: when it was locked and how far
- * ahead of the game. `who` shows the player's name (feeds); `actions` adds
- * owner-only buttons.
+ * ahead of the game. `mine` (the owner's own view) adds "to win" and a
+ * countdown; `who` shows the player's name; `actions` adds owner-only buttons.
  */
-/**
- * One pick as a ticket. `money` (the owner's own view) shows dollars and a
- * countdown; everyone else sees units. `who` shows the player's name;
- * `actions` adds owner-only buttons.
- */
-export function pickItem(p, { who = false, actions = null, money = false, now = null } = {}) {
+export function pickItem(p, { who = false, actions = null, mine = false, now = null } = {}) {
   const g = p.game;
-  const dollars = money && p.wager != null;
   const score = g.home.score != null ? `${g.away.abbr} ${g.away.score}, ${g.home.abbr} ${g.home.score}` : null;
   const soon = now && new Date(g.start) - now < 48 * 3_600_000;
   const status = p.result
@@ -121,17 +115,13 @@ export function pickItem(p, { who = false, actions = null, money = false, now = 
       ? soon ? `Starts in ${lead(now, g.start)}` : html`Starts ${at(g.start, 'long')}`
       : `${g.detail}${score ? ` · ${score}` : ''}`;
   const [kind, label] = p.result ? [p.result, RESULT[p.result]] : WAITING[g.state] ?? WAITING.pre;
-  const won = p.result === 'win' || p.result === 'loss'
-    ? dollars ? formatMoney(p.result === 'win' ? toWin(p.odds, p.wager) : -p.wager, { sign: true }) : formatUnits(p.profit, { sign: true })
-    : null;
+  const won = p.result === 'win' || p.result === 'loss' ? formatUnits(p.profit, { sign: true }) : null;
   const pl = won ? html` <span class="pl">${minus(won)}</span>` : '';
-  const stake = dollars
-    ? `${formatMoney(p.wager)}${p.result ? '' : ` to win ${formatMoney(toWin(p.odds, p.wager))}`}`
-    : formatUnits(p.units);
+  const stake = mine ? `${formatUnits(p.units)}${p.result ? '' : ` to win ${formatUnits(toWin(p.odds, p.units))}`}` : formatUnits(p.units);
   return html`<li class="ticket">
-    <div class="sel">${who ? html`${profileLink(p.screenName)} · ` : ''}${selection(p.market, p.side, p.line, g)}<span class="odds">${minus(formatOdds(p.odds))}</span>${dollars ? '' : html`<span class="units">${stake}</span>`}</div>
+    <div class="sel">${who ? html`${profileLink(p.screenName)} · ` : ''}${selection(p.market, p.side, p.line, g)}<span class="odds">${minus(formatOdds(p.odds))}</span>${mine ? '' : html`<span class="units">${stake}</span>`}</div>
     <div class="status ${kind}">${label}${pl}</div>
-    ${dollars || actions ? html`<div class="stake">${dollars ? stake : ''}</div>` : ''}
+    ${mine || actions ? html`<div class="stake">${mine ? stake : ''}</div>` : ''}
     ${actions ? html`<div class="act">${actions}</div>` : ''}
     <div class="meta">${SPORT[g.sport]?.short} · ${g.away.short} @ ${g.home.short} · ${status}</div>
     <div class="receipt">${icons.lock}<span>Locked ${at(p.madeAt, 'long')}, ${lead(p.madeAt, g.start)} before the game</span></div>

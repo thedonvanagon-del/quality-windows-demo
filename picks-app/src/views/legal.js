@@ -21,7 +21,7 @@ export function terms(ctx, { contact }) {
     <p>These terms cover your use of ${app}. By making an account you agree to them. If you don't agree, don't use ${app}.</p>
 
     <h2>What ${app} is</h2>
-    <p>${app} is a free game for tracking sports picks. You pick games, the app records the line at that moment, and it grades the pick off the final score. <strong>No real money is wagered, held, won or paid out here.</strong> Dollar amounts you enter are for your own tracking and are never charged.</p>
+    <p>${app} is a free game for tracking sports picks. You pick games, the app records the line at that moment, and it grades the pick off the final score. <strong>No real money is wagered, held, won or paid out here.</strong></p>
 
     <h2>Who can use it</h2>
     <p>You have to be 21 or older. One account per person. Keep your password to yourself; you're responsible for what happens on your account.</p>
@@ -57,7 +57,7 @@ export function privacy(ctx, { contact }) {
     <h2>What we collect</h2>
     <ul>
       <li><strong>Account:</strong> your email, a scrambled (hashed) copy of your password, your screen name, and, only if you add them, your first and last name, bio and a link.</li>
-      <li><strong>Picks:</strong> every pick you make, the line and time it was locked, the dollar amount you entered and your unit size.</li>
+      <li><strong>Picks:</strong> every pick you make, the line and time it was locked, and how many units you played.</li>
       <li><strong>Settings:</strong> your app color and the groups you're in.</li>
       <li><strong>Basics to keep the app working:</strong> a sign-in cookie, and your IP address for a short time to stop password guessing and spam signups.</li>
     </ul>
@@ -66,7 +66,7 @@ export function privacy(ctx, { contact }) {
     <h2>Who sees what</h2>
     <ul>
       <li><strong>Everyone:</strong> your screen name, name (if you added one), bio, link, record, and picks once their game has started.</li>
-      <li><strong>Only you:</strong> your email, your open picks before their games start, and every dollar amount.</li>
+      <li><strong>Only you:</strong> your email, and your open picks before their games start.</li>
       <li><strong>Your groups:</strong> members see each other's started picks and records.</li>
     </ul>
 

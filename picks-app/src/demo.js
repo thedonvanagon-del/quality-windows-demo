@@ -226,9 +226,9 @@ export async function seedDemo({ store, games, espn, now = () => new Date() }) {
         if (open && madeAt >= start) continue;
         const units = [1, 1, 1, 2, 0.5, 3][Math.floor(rand() * 6)];
         store.run(
-          `INSERT OR IGNORE INTO picks (user_id, game_id, sport, market, side, line, odds, units, wager, game_start, made_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-          ids[name], g.id, g.sport, market, side, chosen.line, chosen.odds, units, units * 100, g.start, new Date(madeAt).toISOString(),
+          `INSERT OR IGNORE INTO picks (user_id, game_id, sport, market, side, line, odds, units, game_start, made_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          ids[name], g.id, g.sport, market, side, chosen.line, chosen.odds, units, g.start, new Date(madeAt).toISOString(),
         );
       }
     }

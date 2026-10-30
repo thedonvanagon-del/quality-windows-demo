@@ -1,5 +1,5 @@
 import { html } from '../html.js';
-import { formatMoney, formatOdds, formatSpread, formatUnits, MARKET_NAME, MAX_UNITS, price, selection, toWin, unitsFor, WAGER_CHIPS, WAGER_MAX, WAGER_MIN } from '../picks.js';
+import { formatOdds, formatSpread, formatUnits, MARKET_NAME, MAX_UNITS, maxUnits, price, selection, toWin, UNIT_CHIPS, UNITS_MIN } from '../picks.js';
 import { SPORT } from '../sports.js';
 import { dayLabel, etDay } from '../time.js';
 import { csrfField, layout } from './layout.js';
@@ -60,9 +60,9 @@ function cell(game, market, side, mine) {
   return html`<a class="${kind}" href="/pick?${query}" aria-label="Pick ${label}">${inner}</a>`;
 }
 
-export function slip(ctx, { game, market, side, current, error, wager }) {
-  const unitSize = ctx.user.unitSize;
-  wager ??= unitSize;
+export function slip(ctx, { game, market, side, current, error, units }) {
+  const most = maxUnits(current.odds);
+  units ??= Math.min(1, most);
   const sport = SPORT[game.sport];
   const picked = side === 'home' || side === 'away' ? game[side] : null;
   return layout(ctx, {
@@ -85,21 +85,23 @@ export function slip(ctx, { game, market, side, current, error, wager }) {
               </div>
               <span class="odds-pill">${minus(formatOdds(current.odds))}</span>
             </div>
-            <form method="post" action="/picks" data-odds="${current.odds}" data-unit="${unitSize}">
+            <form method="post" action="/picks" data-odds="${current.odds}">
               ${csrfField(ctx)}
               <input type="hidden" name="game" value="${game.id}">
               <input type="hidden" name="market" value="${market}">
               <input type="hidden" name="side" value="${side}">
               <input type="hidden" name="line" value="${current.line ?? ''}">
               <input type="hidden" name="odds" value="${current.odds}">
-              <label class="wager">Wager
-                <span class="money-input"><span>$</span><input type="text" name="wager" value="${wager}" inputmode="decimal" autocomplete="off" required aria-describedby="wager-units"></span>
+              <label class="wager">Units
+                <span class="money-input suffix"><input type="text" name="units" value="${units}" inputmode="decimal" autocomplete="off" required aria-describedby="units-note"><span>u</span></span>
               </label>
               <div class="chips" hidden>
-                ${WAGER_CHIPS.filter((n) => n <= MAX_UNITS * unitSize).map((n) => html`<button type="button" class="chip" data-wager="${n}">${formatMoney(n)}</button>`)}
+                ${UNIT_CHIPS.filter((n) => n <= most).map((n) => html`<button type="button" class="chip" data-units="${n}">${n}u</button>`)}
               </div>
-              <div class="towin"><span>To win</span><b data-to-win>${formatMoney(toWin(current.odds, wager))}</b></div>
-              <p class="muted small" id="wager-units">Counts as <span data-units>${formatUnits(unitsFor(wager, unitSize))}</span> on your record at ${formatMoney(unitSize)} a unit, up to ${MAX_UNITS} units (${formatMoney(MAX_UNITS * unitSize)}) a pick. Only you see dollar amounts.</p>
+              <div class="towin"><span>To win</span><b data-to-win>${formatUnits(toWin(current.odds, units))}</b></div>
+              <p class="muted small" id="units-note">1u is a normal play, ${MAX_UNITS}u is a max play. ${most < MAX_UNITS
+                ? `At ${formatOdds(current.odds)}, ${formatUnits(most)} is the most you can play, so no pick wins more than ${MAX_UNITS} units.`
+                : `Play ${formatUnits(UNITS_MIN)} to ${formatUnits(MAX_UNITS)}.`}</p>
               <button class="btn block">Lock it in</button>
             </form>
             <p class="fine">You can delete it until the game starts. After that it's on your record for good.${game.lines.book ? ` Line from ${game.lines.book} via ESPN.` : ''}</p>
@@ -118,13 +120,13 @@ export function myPicks(ctx, { open, graded, tab, record }) {
     active: 'picks',
     body: html`
       <h1>My bets</h1>
-      <p class="lede">Your open bets stay hidden from everyone else until their game starts. Dollar amounts only ever show to you.</p>
+      <p class="lede">Your open bets stay hidden from everyone else until their game starts.</p>
       ${statStrip(record)}
       <div class="bets-tabs">${tabs('/picks', ctx.query, 'tab', [['', `Open (${open.length})`], ['settled', 'Settled']])}</div>
       ${list.length
         ? html`<ul class="tickets">${list.map((p) =>
             pickItem(p, {
-              money: true,
+              mine: true,
               now: ctx.now,
               actions: deletable(p)
                 ? html`<form method="post" action="/picks/${p.id}/delete" data-confirm="Delete this bet?">${csrfField(ctx)}<button class="btn danger small">Delete</button></form>`

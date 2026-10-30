@@ -13,7 +13,7 @@ import { THEMES } from './config.js';
 import { LOGO_HOST } from './espn.js';
 import { cleanLink } from './links.js';
 import { createMailer } from './mail.js';
-import { deletePick, formatLine, formatMoney, isLocked, makePick, MARKETS, price, toWin, WAGER_MAX, WAGER_MIN } from './picks.js';
+import { deletePick, formatLine, formatUnits, isLocked, makePick, MARKETS, price, toWin } from './picks.js';
 import { SPORT } from './sports.js';
 import { leaderboard, PERIODS, record, recordBySport } from './stats.js';
 import * as account from './views/account.js';
@@ -336,25 +336,25 @@ export function createApp({ store, games, config, mailer = createMailer({ log: {
     if (!signedIn(ctx)) return;
     const market = ctx.form.get('market');
     const side = ctx.form.get('side');
-    const wager = Number(String(ctx.form.get('wager') ?? '').replace(/[$,\s]/g, ''));
+    const units = Number(String(ctx.form.get('units') ?? '').replace(/[u,\s]/gi, ''));
     const seen = { line: ctx.form.get('line') ? Number(ctx.form.get('line')) : null, odds: Number(ctx.form.get('odds')) };
     const { game, stale } = await games.current(ctx.form.get('game') ?? '');
     if (!game || !MARKETS[market]?.includes(side)) return notFound(ctx);
     const back = `/games?sport=${game.sport}`;
     const current = price(game, market, side);
     if (!isLocked(game, ctx.now) && current && stale) {
-      return send(ctx, 503, play.slip(ctx, { game, market, side, current, wager, error: "Can't reach live lines right now, so picks are paused. Try again in a minute." }));
+      return send(ctx, 503, play.slip(ctx, { game, market, side, current, units, error: "Can't reach live lines right now, so picks are paused. Try again in a minute." }));
     }
-    const result = makePick(store, { userId: ctx.user.id, game, market, side, wager, unitSize: ctx.user.unitSize, seen, now: ctx.now });
-    if (result.moved) return send(ctx, 409, play.slip(ctx, { game, market, side, current: result.moved, wager, error: result.error }));
+    const result = makePick(store, { userId: ctx.user.id, game, market, side, units, seen, now: ctx.now });
+    if (result.moved) return send(ctx, 409, play.slip(ctx, { game, market, side, current: result.moved, units, error: result.error }));
     if (result.error) {
       if (current && !isLocked(game, ctx.now) && !/already/.test(result.error)) {
-        return send(ctx, 400, play.slip(ctx, { game, market, side, current, wager: Number.isFinite(wager) ? wager : undefined, error: result.error }));
+        return send(ctx, 400, play.slip(ctx, { game, market, side, current, units: Number.isFinite(units) ? units : undefined, error: result.error }));
       }
       flash(ctx, 'error', result.error);
       return redirect(ctx, back);
     }
-    flash(ctx, 'ok', `Locked in: ${formatLine(market, side, current, game)}, ${formatMoney(result.wager)} to win ${formatMoney(toWin(current.odds, result.wager))}.`);
+    flash(ctx, 'ok', `Locked in: ${formatLine(market, side, current, game)}, ${formatUnits(result.units)} to win ${formatUnits(toWin(current.odds, result.units))}.`);
     redirect(ctx, back);
   }
 
@@ -387,25 +387,13 @@ export function createApp({ store, games, config, mailer = createMailer({ log: {
     const mine = new Map();
     if (list.length) {
       const rows = store.all(
-        `SELECT game_id, market, side, line, odds, units, wager FROM picks
+        `SELECT game_id, market, side, line, odds, units FROM picks
           WHERE user_id = ? AND game_id IN (${list.map(() => '?').join(',')})`,
         ctx.user.id, ...list.map((g) => g.id),
       );
       for (const r of rows) mine.set(r.game_id, [...(mine.get(r.game_id) ?? []), r]);
     }
     send(ctx, 200, moreViews.live(ctx, { list, mine }));
-  }
-
-  function unitPost(ctx) {
-    if (!signedIn(ctx)) return;
-    const size = Number(String(ctx.form.get('unit_size') ?? '').replace(/[$,\s]/g, ''));
-    if (Number.isFinite(size) && size >= WAGER_MIN && size <= WAGER_MAX) {
-      store.run('UPDATE users SET unit_size = ? WHERE id = ?', Math.round(size * 100) / 100, ctx.user.id);
-      flash(ctx, 'ok', `One unit is ${formatMoney(size)} now. Bets you already made keep their units.`);
-    } else {
-      flash(ctx, 'error', `Set a unit between ${formatMoney(WAGER_MIN)} and ${formatMoney(WAGER_MAX)}.`);
-    }
-    redirect(ctx, `/u/${encodeURIComponent(ctx.user.screenName)}`);
   }
 
   function leaderboardPage(ctx) {
@@ -629,7 +617,6 @@ export function createApp({ store, games, config, mailer = createMailer({ log: {
     ['POST', '/verify/resend', verifyResend],
     ['GET', '/terms', (ctx) => send(ctx, 200, legal.terms(ctx, { contact }))],
     ['GET', '/privacy', (ctx) => send(ctx, 200, legal.privacy(ctx, { contact }))],
-    ['POST', '/unit', unitPost],
   ].map(([method, pattern, handler]) => {
     const keys = [];
     const regex = new RegExp(`^${pattern.replace(/:(\w+)/g, (_, key) => (keys.push(key), '([^/]+)'))}$`);

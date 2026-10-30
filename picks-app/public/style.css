@@ -410,6 +410,7 @@ td.rank { width: 3em; }
 .rk { display: inline-grid; place-items: center; min-width: 26px; height: 26px; border-radius: 7px; background: var(--raised); color: var(--muted); font-weight: 800; font-size: 0.8rem; font-variant-numeric: tabular-nums; }
 tbody tr:nth-child(1) .rk { background: var(--accent); color: var(--accent-ink); }
 tbody tr:nth-child(2) .rk, tbody tr:nth-child(3) .rk { background: var(--accent-soft); color: var(--accent); }
+tbody tr .rk.unranked { background: transparent; color: var(--faint); }
 .player { display: flex; align-items: center; gap: 10px; }
 tr.me td { background: var(--accent-soft); }
 @media (max-width: 520px) {
@@ -434,6 +435,8 @@ tr.me td { background: var(--accent-soft); }
 .money-input input { border: 0; background: transparent; font-size: 1.25rem; font-weight: 800; padding: 11px 13px 11px 6px; font-variant-numeric: tabular-nums; }
 .money-input input:focus { box-shadow: none; }
 .money-input:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.money-input.suffix { padding: 0 13px 0 0; }
+.money-input.suffix input { padding: 11px 6px 11px 13px; }
 .chips { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 10px; }
 .chip { font: inherit; font-weight: 800; font-size: 0.88rem; padding: 7px 12px; border-radius: 8px; border: 0; background: var(--tile); color: var(--ink); cursor: pointer; font-variant-numeric: tabular-nums; }
 .chip:hover { background: var(--tile-hover); }
@@ -460,9 +463,6 @@ tr.me td { background: var(--accent-soft); }
   font-variant-numeric: tabular-nums;
 }
 
-.unit-form { display: flex; gap: 8px; align-items: center; max-width: 320px; }
-.unit-form .money-input { flex: 1; }
-.unit-form .money-input input { font-size: 1rem; padding: 9px 12px 9px 6px; }
 
 /* ---- More and Live ------------------------------------------------------ */
 

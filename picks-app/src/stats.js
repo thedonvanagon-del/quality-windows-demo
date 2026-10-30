@@ -38,6 +38,10 @@ function filters({ sport, period, groupId, userId }, now) {
   return { where: where.join(' AND '), params };
 }
 
+// A player needs this many graded picks in the window to get a rank, so one
+// lucky max play can't sit on top of the board. Everyone still shows, below.
+export const MIN_RANKED = 5;
+
 export function leaderboard(store, scope, now, limit = 100) {
   const { where, params } = filters(scope, now);
   return store
@@ -46,11 +50,12 @@ export function leaderboard(store, scope, now, limit = 100) {
          FROM picks p JOIN users u ON u.id = p.user_id
         WHERE ${where} AND u.screen_name IS NOT NULL AND u.email_verified_at IS NOT NULL
         GROUP BY u.id
-        ORDER BY units DESC, wins DESC, u.screen_name
+        ORDER BY COUNT(*) >= ? DESC, units DESC, wins DESC, u.screen_name
         LIMIT ?`,
-      ...params, limit,
+      ...params, MIN_RANKED, limit,
     )
-    .map(withRates);
+    .map(withRates)
+    .map((row) => ({ ...row, ranked: row.graded >= MIN_RANKED }));
 }
 
 export function record(store, userId, scope = {}, now = new Date()) {
