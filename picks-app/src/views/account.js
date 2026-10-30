@@ -1,5 +1,5 @@
 import { html } from '../html.js';
-import { icons } from './icons.js';
+import { icons, trustMark } from './icons.js';
 import { csrfField, layout } from './layout.js';
 import { boardTable } from './parts.js';
 
@@ -7,7 +7,7 @@ export function home(ctx, { top }) {
   return layout(ctx, {
     body: html`
       <section class="hero">
-        <span class="eyebrow">${icons.lock} Picks lock at kickoff</span>
+        <div class="trust">${trustMark}<span>Trust Your Bets</span></div>
         <h1>Every pick on the record.</h1>
         <p>Make your picks before the game. They lock at the start, get graded off the final score, and nobody can edit them. Not even you.</p>
         <div class="row">

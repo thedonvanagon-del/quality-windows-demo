@@ -18,3 +18,10 @@ export const icons = {
   chevron: svg('<path d="M9 6l6 6-6 6"/>'),
   grade: svg('<circle cx="12" cy="12" r="9"/><path d="M8 12.5l3 3 5-6"/>'),
 };
+
+// The "Trust Your Bets" mark: a white check on a gold tile. Gold in every theme.
+export const trustMark = raw(`<svg class="trust-mark" viewBox="0 0 32 32" aria-hidden="true">
+<defs><linearGradient id="trust-gold" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffd257"/><stop offset="1" stop-color="#d99a06"/></linearGradient></defs>
+<rect width="32" height="32" rx="7" fill="url(#trust-gold)"/>
+<path d="M8.5 16.5l5 5 10-11" fill="none" stroke="#fff" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>`);
