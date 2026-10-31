@@ -841,3 +841,20 @@ a.chip { display: inline-block; text-decoration: none; }
   .get-app span { display: none; }
   .get-app::after { content: "App"; }
 }
+
+/* ---- iPhone: add-to-Home-Screen pop-up ------------------------------------- */
+
+.ios-install { position: fixed; inset: 0; z-index: 60; background: rgba(3, 6, 15, 0.7); display: flex; flex-direction: column; justify-content: flex-end; align-items: center; padding: 0 12px calc(78px + env(safe-area-inset-bottom)); }
+.ios-card { position: relative; width: min(100%, 420px); background: var(--card); border: 1px solid var(--line); border-top: 3px solid var(--accent); border-radius: 16px; padding: 18px 16px 16px; animation: sheet-up 0.25s ease-out; }
+.ios-close { position: absolute; top: 4px; right: 6px; width: 44px; height: 44px; border: 0; background: none; color: var(--muted); font-size: 1.6rem; cursor: pointer; }
+.ios-head { display: flex; gap: 12px; align-items: center; margin-bottom: 14px; padding-right: 36px; }
+.ios-head img { border-radius: 12px; flex: none; }
+.ios-head b { display: block; font-family: var(--cond); font-weight: 800; font-size: 1.3rem; line-height: 1.1; }
+.ios-head small { color: var(--muted); }
+.ios-steps { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; }
+.ios-steps li { display: flex; gap: 10px; align-items: flex-start; }
+.ios-steps small { display: block; color: var(--muted); font-size: 0.82rem; margin-top: 2px; }
+.ios-glyph { width: 22px; height: 22px; vertical-align: -5px; color: #3b8cff; margin: 0 2px; }
+.ios-arrow { margin-top: 10px; font-size: 2.6rem; line-height: 1; color: var(--accent); font-weight: 800; animation: ios-bounce 1s ease-in-out infinite; }
+@keyframes ios-bounce { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(12px); } }
+@media (prefers-reduced-motion: reduce) { .ios-arrow, .ios-card { animation: none; } }

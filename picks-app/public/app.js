@@ -30,7 +30,25 @@ async function promptInstall(event) {
   await installPrompt.userChoice.catch(() => {});
   installPrompt = null;
 }
-for (const link of document.querySelectorAll('[data-get-app]')) link.addEventListener('click', promptInstall);
+// iPhone Safari can't install from a button, so Get the app opens a pop-up
+// that points at Safari's own Share button instead of sending them away.
+const iosInstall = document.querySelector('[data-ios-install]');
+const iosSafari = /iPhone|iPod/.test(navigator.userAgent) && /Safari\//.test(navigator.userAgent)
+  && !/CriOS|FxiOS|EdgiOS|Instagram|FBAN|FBAV|TikTok|musical_ly|Snapchat|Twitter|LinkedInApp|GSA\//.test(navigator.userAgent);
+function showIosInstall(event) {
+  if (!iosInstall || !iosSafari || standalone) return false;
+  event.preventDefault();
+  iosInstall.hidden = false;
+  return true;
+}
+iosInstall?.addEventListener('click', (event) => {
+  if (event.target === iosInstall || event.target.closest('[data-ios-close]')) iosInstall.hidden = true;
+});
+for (const link of document.querySelectorAll('[data-get-app]')) {
+  link.addEventListener('click', (event) => {
+    if (!showIosInstall(event)) promptInstall(event);
+  });
+}
 document.querySelector('[data-install-now]')?.addEventListener('click', promptInstall);
 // The install page puts the viewer's own device first, with the steps for the
 // browser they're in. Apps' built-in browsers (Instagram, TikTok, Facebook...)
