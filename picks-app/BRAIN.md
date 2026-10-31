@@ -165,6 +165,12 @@ Launch log:
 - **2026-10-30:** App running on the server (`/healthz` ok). No games showed:
   ESPN answered 400 to the week-at-once request (`dates=FROM-TO`, `limit=1000`).
   Now asks one day at a time with `limit=400`, the way cfb-bot does.
+- **2026-10-31:** All of today's features deployed from CloudShell (`/hot` answers
+  200). **Email turned on:** sends from **originalbookiebullies@gmail.com** (Gmail
+  app password, 2-Step on), which is also the contact address on Terms and
+  Privacy. Move to an @bookiebullies.com address later: change `SMTP_USER`,
+  `SMTP_PASS`, `MAIL_FROM` and `CONTACT_EMAIL` in `/etc/bookie-bullies-app.env`
+  and restart. AWS account: 9385-2195-2366.
 
 - Email and password signup with 21+ and Terms checkboxes, email confirmation,
   optional first and last name, screen name, login, logout, password reset by
