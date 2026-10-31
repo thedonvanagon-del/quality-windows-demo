@@ -834,3 +834,10 @@ a.chip { display: inline-block; text-decoration: none; }
 .inapp-note { border-color: var(--accent); margin: 14px 0; }
 .inapp-note h2 { margin-top: 0; }
 .installed .get-app-row { display: none; }
+.nav a { white-space: nowrap; }
+/* Narrower laptops: the top nav and Get the app share the bar, so the button goes compact. */
+@media (min-width: 761px) and (max-width: 1200px) {
+  .top .wrap { gap: 18px; }
+  .get-app span { display: none; }
+  .get-app::after { content: "App"; }
+}
