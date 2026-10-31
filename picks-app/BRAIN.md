@@ -137,6 +137,15 @@ not dollars, and nothing is paid out.
   Chrome. In Instagram, TikTok, Facebook and other apps' built-in browsers
   (which can't install) it says to open in Safari or Chrome, with Copy link.
   Everything hides once the app is installed.
+- **2026-10-31:** On iPhone Safari, Get the app opens a pop-up with the three
+  steps (real Share and Add to Home Screen icons) and an arrow bouncing toward
+  Safari's bar. Apple lets no website add itself to the Home Screen; a real
+  App Store app ($99/year) is the only way to one tap, for later.
+- **2026-10-31:** www.bookiebullies.com's 3-hourly refresh was found switched off
+  by hand since 2026-07-27. The owner wants the site running all the time, so
+  it was turned back on (`refresh-site.yml`, bookie-bullies#4). The first run
+  deployed fine, Pick'em tab included. The main site still hides its tabs on
+  phones; a Get the app button there is offered, not built.
 
 ### Chat
 - **2026-10-30: Game chat**, one public thread per game (`/games/:id`, hub at
