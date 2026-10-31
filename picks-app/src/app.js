@@ -776,6 +776,7 @@ export function createApp({ store, games, config, mailer = createMailer({ log: {
     ['POST', '/push/unsubscribe', pushUnsubscribe],
     ['GET', '/sw.js', serviceWorker],
     ['GET', '/more', morePage],
+    ['GET', '/install', (ctx) => send(ctx, 200, moreViews.install(ctx))],
     ['GET', '/live', livePage],
     ['POST', '/theme', themePost],
     ['POST', '/bio', bioPost],

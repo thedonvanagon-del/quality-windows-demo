@@ -70,6 +70,7 @@
 }
 
 * { box-sizing: border-box; }
+[hidden] { display: none !important; }
 
 html { -webkit-text-size-adjust: 100%; }
 
@@ -797,3 +798,39 @@ a.chip { display: inline-block; text-decoration: none; }
   .hot th, .hot td { padding-left: 6px; padding-right: 6px; }
   .hot td:first-child, .hot th:first-child { display: none; }
 }
+
+/* ---- Get the app --------------------------------------------------------- */
+
+.get-app { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 999px; border: 1px solid color-mix(in srgb, var(--accent) 60%, transparent); color: var(--accent); font-family: var(--cond); font-weight: 800; font-size: 0.95rem; letter-spacing: 0.03em; text-transform: uppercase; white-space: nowrap; }
+.get-app:hover { background: var(--accent-soft); }
+.get-app svg { width: 16px; height: 16px; flex: none; }
+@media (max-width: 480px) {
+  .get-app { padding: 6px 10px; font-size: 0.85rem; }
+  .get-app span { display: none; }
+  .get-app::after { content: "App"; }
+  /* Signed out, the bar below the header already offers the app, and Log in needs the room. */
+  body:not(.signed-in) .get-app { display: none; }
+}
+/* Already installed: the button has nothing to offer. */
+@media (display-mode: standalone) { .get-app { display: none; } }
+.installed .get-app { display: none; }
+.installs { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); margin-top: 16px; }
+.install-card { background: var(--card); border: 1px solid var(--line); border-radius: var(--r); padding: 16px; }
+.install-card h2 { margin-top: 0; }
+.install-card.mine { border-color: var(--accent); order: -1; }
+.steps { list-style: none; margin: 0 0 10px; padding: 0; display: grid; gap: 10px; }
+.steps li { display: flex; gap: 10px; align-items: flex-start; }
+.step-n { flex: none; width: 26px; height: 26px; border-radius: 50%; background: var(--accent); color: var(--accent-ink); display: grid; place-items: center; font-family: var(--cond); font-weight: 800; }
+[data-install-now]:not([hidden]) { display: inline-flex; align-items: center; gap: 8px; }
+[data-install-now] svg { width: 18px; height: 18px; }
+.app-banner { background: var(--card); border-bottom: 1px solid var(--line); }
+.app-banner .wrap { display: flex; align-items: center; gap: 12px; padding-top: 10px; padding-bottom: 10px; }
+.app-banner img { border-radius: 9px; flex: none; }
+.app-banner span { display: grid; flex: 1; min-width: 0; line-height: 1.25; }
+.app-banner b { font-family: var(--cond); font-size: 1.05rem; }
+.app-banner small { color: var(--muted); }
+.app-banner-close { background: none; border: 0; color: var(--muted); font-size: 1.5rem; width: 36px; height: 36px; cursor: pointer; flex: none; }
+.installed .app-banner { display: none; }
+.inapp-note { border-color: var(--accent); margin: 14px 0; }
+.inapp-note h2 { margin-top: 0; }
+.installed .get-app-row { display: none; }

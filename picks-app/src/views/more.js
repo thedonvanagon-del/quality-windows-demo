@@ -8,7 +8,7 @@ import { at, minus, teamLogo } from './parts.js';
 
 /** The menu behind the three dots. New sections get a row here. */
 export function more(ctx, { liveCount }) {
-  const row = (href, icon, title, sub, extra = '') => html`<li><a href="${href}">
+  const row = (href, icon, title, sub, extra = '', cls = '') => html`<li class="${cls}"><a href="${href}">
     <span class="icon">${icon}</span>
     <span class="text">${title}<small>${sub}</small></span>
     ${extra}<span class="go">${icons.chevron}</span>
@@ -20,6 +20,7 @@ export function more(ctx, { liveCount }) {
       <h1>More</h1>
       <p class="lede">Everything else in the app.</p>
       <ul class="menu">
+        ${row('/install', icons.download, 'Get the app', 'Put Bookie Bullies on your Home Screen', '', 'get-app-row')}
         ${row('/live', icons.live, 'Live games', 'Scores right now, with your bets on them', liveCount ? html`<span class="count">${liveCount} live</span>` : '')}
         ${row('/hot', icons.line, 'Hot streaks', 'Who\'s on a heater: the best last ten')}
         ${row('/following', icons.groups, 'Following', 'Picks from players you follow')}
@@ -117,6 +118,60 @@ export function notifications(ctx, { list, prefs, phones, pushKey }) {
             ${phones ? html`<form method="post" action="/push/unsubscribe">${csrfField(ctx)}<button class="btn ghost small">Turn off on every device</button></form>` : ''}
           </div>`
         : html`<p class="muted">Phone notifications aren't set up on this server yet.</p>`}
+    `,
+  });
+}
+
+/** How to put the app on a phone or computer. The page shows the viewer's own device first. */
+export function install(ctx) {
+  const step = (n, text) => html`<li><span class="step-n">${n}</span><span>${text}</span></li>`;
+  return layout(ctx, {
+    title: 'Get the app',
+    active: 'install',
+    description: 'Put Bookie Bullies on your Home Screen. No app store, takes ten seconds.',
+    body: html`
+      <h1>Get the app</h1>
+      <p class="lede">Bookie Bullies installs straight from your browser: its own icon on your Home Screen, full screen, and updates on its own. No app store, about ten seconds.</p>
+      <button class="btn" type="button" data-install-now hidden>${icons.download} Install Bookie Bullies</button>
+      <div class="card inapp-note" data-inapp-note hidden>
+        <h2>Open this in <span data-browser-name>your browser</span> first</h2>
+        <p>You're in <b data-inapp-name>an app's built-in browser</b>, which can't add apps to your Home Screen.</p>
+        <ol class="steps">
+          ${step(1, html`Tap <b>⋯</b> or the share icon (usually top right) and choose <b>Open in <span data-browser-name>browser</span></b>.`)}
+          ${step(2, html`Or copy the link and paste it into <b data-browser-name>your browser</b>:`)}
+        </ol>
+        <button class="btn small" type="button" data-copy="${ctx.origin}/install" hidden>Copy link</button>
+      </div>
+      <div class="installs">
+        <section class="install-card" data-device="ios">
+          <h2>iPhone and iPad</h2>
+          <ol class="steps" data-ios="safari">
+            ${step(1, html`Tap the <b>Share</b> button: the square with an arrow pointing up, at the bottom of Safari (on newer iPhones, tap <b>⋯</b> first).`)}
+            ${step(2, html`Scroll down and tap <b>Add to Home Screen</b>.`)}
+            ${step(3, html`Tap <b>Add</b>. The bull crest is now on your Home Screen.`)}
+          </ol>
+          <ol class="steps" data-ios="other" hidden>
+            ${step(1, html`Tap the <b>Share</b> button next to the address bar (top right in Chrome).`)}
+            ${step(2, html`Tap <b>Add to Home Screen</b>, then <b>Add</b>.`)}
+            ${step(3, html`If you don't see it, open <b>app.bookiebullies.com/install</b> in <b>Safari</b> instead.`)}
+          </ol>
+          <p class="muted small">Then open it from your Home Screen and log in once. That's also where phone notifications work.</p>
+        </section>
+        <section class="install-card" data-device="android">
+          <h2>Android</h2>
+          <ol class="steps">
+            ${step(1, html`Open <b>app.bookiebullies.com</b> in <b>Chrome</b>.`)}
+            ${step(2, html`Tap <b>Install app</b> when it pops up, or the <b>⋮</b> menu → <b>Add to Home screen</b> → <b>Install</b>.`)}
+          </ol>
+        </section>
+        <section class="install-card" data-device="desktop">
+          <h2>Computer</h2>
+          <ol class="steps">
+            ${step(1, html`<b>Chrome or Edge:</b> click the install icon at the right end of the address bar, then <b>Install</b>.`)}
+            ${step(2, html`<b>Safari on a Mac:</b> File → <b>Add to Dock</b>.`)}
+          </ol>
+        </section>
+      </div>
     `,
   });
 }

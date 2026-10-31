@@ -129,6 +129,15 @@ not dollars, and nothing is paid out.
   player per half hour). Both can be turned off. iPhones get them once the app
   is on the Home Screen (iOS 16.4+). The App Store version isn't needed for this.
 
+### Getting the app
+- **2026-10-31: Get the app**, as easy as possible on both phones. A button at
+  the top and a one-time bar on phones (Not now hides it for good) lead to
+  `/install`. Chrome and Edge (Android, computers) get the real Install prompt
+  in one tap. iPhone gets the three Safari taps, or the Chrome steps when in
+  Chrome. In Instagram, TikTok, Facebook and other apps' built-in browsers
+  (which can't install) it says to open in Safari or Chrome, with Copy link.
+  Everything hides once the app is installed.
+
 ### Chat
 - **2026-10-30: Game chat**, one public thread per game (`/games/:id`, hub at
   `/chat`, linked from every game card and More). Plain text, 280 characters,

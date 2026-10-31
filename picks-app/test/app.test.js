@@ -561,6 +561,17 @@ describe('notifications', () => {
   });
 });
 
+describe('get the app', () => {
+  test('a Get the app button on every page, and an install page with steps for each phone', async () => {
+    const page = await app.browser().get('/');
+    assert.match(page.text, /href="\/install" data-get-app/);
+    const install = visible((await app.browser().get('/install')).text);
+    assert.match(install, /iPhone and iPad .* Add to Home Screen/);
+    assert.match(install, /Android .* Install app/);
+    assert.match(install, /Open this in your browser first/, 'help for app browsers like Instagram, shown by the script');
+  });
+});
+
 describe('more and live', () => {
   test('list games in progress with your bets on them', async () => {
     const ann = await player('ann@example.com', 'Ann');

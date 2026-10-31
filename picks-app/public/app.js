@@ -11,6 +11,66 @@ function localTimes(root) {
 }
 localTimes(document);
 
+// Get the app. Hidden once installed. Where the browser offers a real install
+// prompt (Chrome, Edge, Android), the button and the install page use it.
+const standalone = window.matchMedia?.('(display-mode: standalone)').matches || navigator.standalone === true;
+if (standalone) document.documentElement.classList.add('installed');
+let installPrompt = null;
+window.addEventListener('beforeinstallprompt', (event) => {
+  event.preventDefault();
+  installPrompt = event;
+  const now = document.querySelector('[data-install-now]');
+  if (now) now.hidden = false;
+});
+window.addEventListener('appinstalled', () => document.documentElement.classList.add('installed'));
+async function promptInstall(event) {
+  if (!installPrompt) return;
+  event.preventDefault();
+  installPrompt.prompt();
+  await installPrompt.userChoice.catch(() => {});
+  installPrompt = null;
+}
+for (const link of document.querySelectorAll('[data-get-app]')) link.addEventListener('click', promptInstall);
+document.querySelector('[data-install-now]')?.addEventListener('click', promptInstall);
+// The install page puts the viewer's own device first, with the steps for the
+// browser they're in. Apps' built-in browsers (Instagram, TikTok, Facebook...)
+// can't install anything, so those get "open it in Safari/Chrome" first.
+const ua = navigator.userAgent;
+const device = /iPhone|iPad|iPod/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1) ? 'ios' : /Android/.test(ua) ? 'android' : 'desktop';
+const inApp = [['Instagram', /Instagram/], ['Facebook', /FBAN|FBAV|FB_IAB/], ['TikTok', /TikTok|musical_ly|BytedanceWebview/], ['Snapchat', /Snapchat/], ['X', /Twitter/], ['LinkedIn', /LinkedInApp/], ['Google', /GSA\//]].find(([, re]) => re.test(ua))?.[0];
+document.querySelector(`.install-card[data-device="${device}"]`)?.classList.add('mine');
+if (device === 'ios' && /CriOS|FxiOS|EdgiOS/.test(ua)) {
+  document.querySelector('[data-ios="safari"]')?.setAttribute('hidden', '');
+  document.querySelector('[data-ios="other"]')?.removeAttribute('hidden');
+}
+const inAppNote = document.querySelector('[data-inapp-note]');
+if (inAppNote && inApp && device !== 'desktop') {
+  inAppNote.hidden = false;
+  inAppNote.querySelector('[data-inapp-name]').textContent = `${inApp}'s built-in browser`;
+  for (const el of inAppNote.querySelectorAll('[data-browser-name]')) el.textContent = device === 'ios' ? 'Safari' : 'Chrome';
+}
+
+// On a phone that hasn't installed the app, a small bar offers it once.
+// "Not now" hides it for good on that phone.
+const banner = document.querySelector('[data-app-banner]');
+if (banner && !standalone && device !== 'desktop') {
+  let dismissed = false;
+  try {
+    dismissed = localStorage.getItem('bb-app-banner') === 'no';
+  } catch {
+    // Private browsing: show it.
+  }
+  if (!dismissed) banner.hidden = false;
+  banner.querySelector('[data-banner-close]').addEventListener('click', () => {
+    banner.hidden = true;
+    try {
+      localStorage.setItem('bb-app-banner', 'no');
+    } catch {
+      // Nowhere to remember it; it'll show again next time.
+    }
+  });
+}
+
 // Ask before anything that can't be undone.
 for (const form of document.querySelectorAll('form[data-confirm]')) {
   form.addEventListener('submit', (event) => {
