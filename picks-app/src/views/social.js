@@ -1,8 +1,11 @@
 import { html } from '../html.js';
+import { formatUnits } from '../picks.js';
 import { SPORT, SPORTS } from '../sports.js';
+import { MIN_RANKED } from '../stats.js';
 import { joined } from '../time.js';
+import { trustMark } from './icons.js';
 import { csrfField, layout } from './layout.js';
-import { boardTable, periodTabs, pct, pickItem, profileLink, recordText, signedPct, sportTabs, statStrip, units } from './parts.js';
+import { boardTable, periodTabs, pct, pickItem, profileLink, recordText, signedPct, sportTabs, units } from './parts.js';
 
 export function leaderboard(ctx, { rows, sport }) {
   return layout(ctx, {
@@ -10,7 +13,7 @@ export function leaderboard(ctx, { rows, sport }) {
     active: 'board',
     body: html`
       <h1>${sport ? `${sport.name} leaderboard` : 'Leaderboard'}</h1>
-      <p class="lede">Ranked by units won. Every graded pick counts, losses included.</p>
+      <p class="lede">Ranked by units won, not win rate, so betting only big favorites doesn't pay. Every graded pick counts, losses included. You need ${MIN_RANKED} graded picks in the window for a rank.</p>
       ${sportTabs('/leaderboard', ctx.query)}
       ${periodTabs('/leaderboard', ctx.query)}
       ${boardTable(rows, { me: ctx.user?.id })}
@@ -179,18 +182,131 @@ function linkForm(ctx, player) {
     </form>`;
 }
 
-/** What one unit is worth to this player, so a dollar wager becomes units on the record. */
-function unitForm(ctx) {
-  return html`<h2>Your unit</h2>
-    <form class="unit-form" method="post" action="/unit">
-      ${csrfField(ctx)}
-      <span class="money-input"><span>$</span><input type="text" name="unit_size" value="${ctx.user.unitSize}" inputmode="decimal" autocomplete="off" aria-label="Dollars per unit" required></span>
-      <button class="btn small">Save</button>
-    </form>
-    <p class="muted small">A $${ctx.user.unitSize} bet counts as 1u on your record. Pick what you'd normally bet on a game.</p>`;
+const BREAKDOWN_LABELS = {
+  market: { spread: 'Spreads', total: 'Totals', ml: 'Moneylines' },
+  role: { fav: 'Favorites', dog: 'Underdogs' },
+  venue: { home: 'Home teams', away: 'Road teams' },
+};
+
+/** Where a player wins: bet type, favorite or dog, home or road. */
+function breakdownTable(split) {
+  const rows = ['market', 'role', 'venue'].flatMap((group) =>
+    Object.entries(BREAKDOWN_LABELS[group])
+      .map(([key, label]) => ({ label, group, ...(split[group].find((r) => r.key === key) ?? null) }))
+      .filter((r) => r.graded),
+  );
+  if (!rows.length) return '';
+  return html`<h2>Breakdown</h2>
+    <div class="table"><table class="breakdown">
+      <thead><tr><th>Bets on</th><th class="n">Record</th><th class="n hide-sm">Win</th><th class="n">Units</th><th class="n">ROI</th></tr></thead>
+      <tbody>${rows.map((r, i) => html`<tr class="${i && rows[i - 1].group !== r.group ? 'group-start' : ''}">
+        <td>${r.label}</td><td class="n">${recordText(r)}</td><td class="n hide-sm">${pct(r.winPct)}</td>
+        <td class="n"><b>${units(r.units)}</b></td><td class="n">${signedPct(r.roi)}</td>
+      </tr>`)}</tbody>
+    </table></div>`;
 }
 
-const COLORS = { ember: 'Ember', teal: 'Teal', violet: 'Violet' };
+/** Follow or unfollow; `next` brings the player back where they pressed it. */
+export function followButton(ctx, name, following, next = '') {
+  const path = `/u/${encodeURIComponent(name)}/${following ? 'unfollow' : 'follow'}`;
+  return html`<form method="post" action="${path}" class="follow-form">${csrfField(ctx)}${next ? html`<input type="hidden" name="next" value="${next}">` : ''}<button class="btn small ${following ? 'ghost' : ''}">${following ? 'Following' : 'Follow'}</button></form>`;
+}
+
+/** The best last-ten records right now, with a Follow button on each. */
+export function hot(ctx, { rows, followed }) {
+  const me = ctx.user?.screenName ? ctx.user.id : null;
+  return layout(ctx, {
+    title: 'Hot streaks',
+    active: 'more',
+    description: "Who's hot on Bookie Bullies: the best last ten picks over the past 30 days.",
+    body: html`
+      <a class="back" href="/more">← More</a>
+      <h1>Hot streaks</h1>
+      <p class="lede">The best last ten picks over the past 30 days, by units won. Players need ten graded picks in that time to show up.</p>
+      ${rows.length
+        ? html`<div class="table"><table class="hot">
+            <thead><tr><th>#</th><th>Player</th><th class="n">Last 10</th><th class="n">Units</th><th class="n">Streak</th>${me ? html`<th class="n"><span class="sr-only">Follow</span></th>` : ''}</tr></thead>
+            <tbody>${rows.map((r, i) => html`<tr class="${r.id === me ? 'me' : ''}">
+              <td class="rank"><span class="rk">${i + 1}</span></td>
+              <td>${profileLink(r.screen_name)}</td>
+              <td class="n">${recordText(r)}</td>
+              <td class="n"><b>${units(r.units)}</b></td>
+              <td class="n"><span class="streak ${r.streak.startsWith('W') ? 'hot' : ''}">${r.streak}</span></td>
+              ${me ? html`<td class="n">${r.id === me ? '' : followButton(ctx, r.screen_name, followed.has(r.id), '/hot')}</td>` : ''}
+            </tr>`)}</tbody>
+          </table></div>`
+        : html`<div class="card empty">Nobody's hot yet. Players show up once they have ten graded picks in 30 days and are up on them.</div>`}
+    `,
+  });
+}
+
+/** Picks from the people the player follows, once each game starts. */
+export function following(ctx, { feed, people }) {
+  return layout(ctx, {
+    title: 'Following',
+    active: 'more',
+    body: html`
+      <a class="back" href="/more">← More</a>
+      <h1>Following</h1>
+      <p class="lede">Picks from the players you follow, as each game starts. Open picks stay hidden until then, same as everywhere.</p>
+      ${people.length
+        ? html`<p class="chips-row">${people.map((p) => html`<a class="chip" href="/u/${encodeURIComponent(p.screen_name)}">${p.screen_name}</a>`)}</p>`
+        : html`<div class="card empty">You're not following anyone yet. Find players on the <a href="/hot">Hot streaks</a> page or the <a href="/leaderboard">leaderboard</a>, then press Follow on their profile.</div>`}
+      ${feed.length ? html`<ul class="tickets">${feed.map((p) => pickItem(p, { who: true }))}</ul>` : people.length ? html`<div class="card empty">No started picks from them yet.</div>` : ''}
+    `,
+  });
+}
+
+/**
+ * The record up top, built to be screenshotted: record, units, a 30-day units
+ * line, win rate, ROI, last ten and rank. Its data attributes feed the
+ * "Share as image" button, which draws the same card as a picture.
+ */
+function recordCard(ctx, { player, record, series, last10, rank }) {
+  const last = last10?.graded ? recordText(last10) : '–';
+  const url = `${ctx.origin}/u/${encodeURIComponent(player.screen_name)}`;
+  return html`<section class="record-card" aria-label="Record"
+      data-name="${player.screen_name}" data-record="${recordText(record)}" data-units="${record.units}"
+      data-win="${pct(record.winPct)}" data-roi="${signedPct(record.roi)}" data-last10="${last}"
+      data-rank="${rank ? `#${rank}` : ''}" data-series="${series.join(',')}" data-url="${url.replace(/^https?:\/\//, '')}">
+    <div class="rc-top">
+      <span class="trust-small">${trustMark}<span>Trust Your Bets</span></span>
+      ${rank ? html`<span class="rank-badge">#${rank} overall</span>` : html`<span class="rank-badge muted">Unranked: ${MIN_RANKED} picks for a rank</span>`}
+    </div>
+    <div class="rc-main">
+      <div><span class="rc-label">Record</span><b class="rc-big">${recordText(record)}</b></div>
+      <div class="rc-right"><span class="rc-label">Units</span><b class="rc-big">${units(record.units)}</b></div>
+    </div>
+    ${sparkline(series)}
+    <div class="rc-stats">
+      <div><span class="rc-label">Win</span><b>${pct(record.winPct)}</b></div>
+      <div><span class="rc-label">ROI</span><b>${signedPct(record.roi)}</b></div>
+      <div><span class="rc-label">Last 10</span><b>${last}</b></div>
+      <div><span class="rc-label">Picks</span><b>${record.graded}</b></div>
+    </div>
+    <button class="btn ghost small rc-share" type="button" data-share-image hidden>Share as image</button>
+  </section>`;
+}
+
+/** Units over the last 30 days as a line; flat when there's nothing yet. */
+function sparkline(series) {
+  if (series.length < 2) return '';
+  const w = 300;
+  const h = 64;
+  const lo = Math.min(0, ...series);
+  const hi = Math.max(0, ...series);
+  const span = hi - lo || 1;
+  const pts = series.map((v, i) => `${Math.round((i / (series.length - 1)) * w * 10) / 10},${Math.round((h - 4 - ((v - lo) / span) * (h - 8)) * 10) / 10}`);
+  const zero = Math.round((h - 4 - ((0 - lo) / span) * (h - 8)) * 10) / 10;
+  const end = series.at(-1);
+  return html`<svg class="spark ${end > 0 ? 'up' : end < 0 ? 'down' : ''}" viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" role="img" aria-label="Units over the last 30 days, now ${formatUnits(end, { sign: true })}">
+    <line x1="0" y1="${zero}" x2="${w}" y2="${zero}" class="spark-zero"></line>
+    <polygon points="0,${zero} ${pts.join(' ')} ${w},${zero}" class="spark-fill"></polygon>
+    <polyline points="${pts.join(' ')}" class="spark-line"></polyline>
+  </svg>`;
+}
+
+const COLORS = { scoreboard: 'Scoreboard', market: 'Bull Market', ember: 'Ember' };
 
 /** Three swatches; the player's pick colors the app on every device they use. */
 function colorPicker(ctx) {
@@ -202,7 +318,7 @@ function colorPicker(ctx) {
     </form>`;
 }
 
-export function profile(ctx, { player, record, bySport, picks, hidden }) {
+export function profile(ctx, { player, record, bySport, split = null, series = [], last10 = null, rank = null, follows = { followers: 0, following: 0 }, following = false, picks, hidden }) {
   return layout(ctx, {
     title: player.screen_name,
     active: ctx.user?.id === player.id ? 'me' : null,
@@ -212,13 +328,15 @@ export function profile(ctx, { player, record, bySport, picks, hidden }) {
       <div class="team"><span class="avatar big">${player.screen_name[0]}</span><h1>${player.screen_name}</h1></div>
       ${player.first_name || player.last_name ? html`<p class="real-name">${[player.first_name, player.last_name].filter(Boolean).join(' ')}</p>` : ''}
       ${player.bio ? html`<p class="bio">${player.bio}</p>` : ''}
+      <p class="follow-counts"><b>${follows.followers}</b> ${follows.followers === 1 ? 'follower' : 'followers'} · <b>${follows.following}</b> following</p>
       <div class="row profile-actions">
+        ${ctx.user?.screenName && ctx.user.id !== player.id ? followButton(ctx, player.screen_name, following) : ''}
         ${player.link_url ? html`<a class="btn small" href="${player.link_url}" target="_blank" rel="nofollow noopener noreferrer ugc">${player.link_label} ↗</a>` : ''}
         <button class="btn ghost small" type="button" data-share="${ctx.origin}/u/${encodeURIComponent(player.screen_name)}" data-share-text="${shareCard(player, record).title}" hidden>Share profile</button>
       </div>
       <p class="lede">On the record since ${joined(player.created_at)}. ${record.graded} graded ${record.graded === 1 ? 'pick' : 'picks'}, every one locked before its game.</p>
-      ${statStrip(record)}
-      ${ctx.user?.id === player.id ? html`${nameForm(ctx, player)}${bioForm(ctx, player)}${linkForm(ctx, player)}${unitForm(ctx)}${colorPicker(ctx)}` : ''}
+      ${recordCard(ctx, { player, record, series, last10, rank })}
+      ${ctx.user?.id === player.id ? html`${nameForm(ctx, player)}${bioForm(ctx, player)}${linkForm(ctx, player)}${colorPicker(ctx)}` : ''}
       ${bySport.length
         ? html`<h2>By sport</h2>
           <div class="table"><table>
@@ -230,6 +348,7 @@ export function profile(ctx, { player, record, bySport, picks, hidden }) {
             </tr>`)}</tbody>
           </table></div>`
         : ''}
+      ${split ? breakdownTable(split) : ''}
       <h2>Picks</h2>
       ${hidden ? html`<p class="muted">${hidden} open ${hidden === 1 ? 'pick' : 'picks'}, shown once the game starts.</p>` : ''}
       ${picks.length

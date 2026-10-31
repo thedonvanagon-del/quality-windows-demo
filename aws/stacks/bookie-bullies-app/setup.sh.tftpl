@@ -2,6 +2,10 @@
 # First boot of the Bookie Bullies app server (Ubuntu 24.04 on Lightsail).
 # Installs Node 22 and Caddy, and sets the app up as a service. The app's
 # code arrives later, from the GitHub deploy workflow.
+#
+# Lightsail pastes this after its own launch script and runs the lot with sh,
+# so the #! line above is ignored. Write the real setup out and run it with bash.
+cat > /root/bb-setup.sh <<'SETUP'
 set -euxo pipefail
 export DEBIAN_FRONTEND=noninteractive
 
@@ -76,3 +80,5 @@ ${domain} {
 }
 CADDY
 systemctl reload caddy || systemctl restart caddy
+SETUP
+bash /root/bb-setup.sh

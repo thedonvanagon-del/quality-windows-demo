@@ -16,8 +16,8 @@ take the line on the board, and grade off ESPN's final scores. Two uses:
 - **A game for friends.** Overall and per-sport leaderboards, plus private
   groups with invite codes.
 
-No real money changes hands in the app. Players log what they wager, but
-dollars stay private and nothing is paid out.
+No real money changes hands in the app. Picks are sized in units (1u to 5u),
+not dollars, and nothing is paid out.
 
 ## Decisions
 
@@ -36,6 +36,20 @@ dollars stay private and nothing is paid out.
   bookie-bullies repo) for the header, the browser tab and the phone icons.
 
 ### Look
+- **2026-10-30: The Scoreboard look** (option 2 of five mockups at
+  https://claude.ai/artifact/Anh377HozoaDPqYiL36388): navy, amber, tall condensed
+  type (Barlow Condensed, served from the app), team colors down each game,
+  a live-score strip on the board. Players can switch to **Bull Market** (black
+  and green, option 4) or **Ember** (the first orange look). Teal and violet are
+  retired; anyone on them gets the default.
+- **2026-10-30:** Game cards show the TV channel when ESPN lists one, each
+  team's record, a Fav tag, and logos (ESPN's standard logo address when the
+  feed sends none).
+- **2026-10-30:** Profiles open with a **record card**: record, units, a 30-day
+  units line, win rate, ROI, last 10, rank, and **Share as image** (a picture
+  made in the phone, for posting). ROI matters to the owner; it stays up front.
+- **2026-10-30:** Tapping a line slides the pick slip up over the board. A
+  locked pick gets a gold **LOCKED** stamp with the exact time.
 - **2026-10-25:** Dark and clean, like BetMGM, with our own colors. Odds
   tiles show the line in white and the price in the accent color.
 - **2026-10-25:** Orange ("ember") is the default because it's the easiest to
@@ -69,7 +83,21 @@ dollars stay private and nothing is paid out.
 - **2026-10-19:** Other people's open picks stay hidden until the game starts.
 - **2026-10-19:** One record per person. Sport boards and groups all read it.
 - **2026-10-19:** Leaderboards rank by units won, not win rate.
-- **2026-10-25:** Players wager **dollars** on the pick slip ($10 to $250 chips or
+- **2026-10-30:** **Units only, no dollars.** The slip has 1u to 5u buttons
+  (any amount from 0.1u). Replaces the 2026-10-25 dollar wagers below: with
+  dollars and a per-player unit size, a $1 unit plus a $1,000 bet counted as
+  1,000 units and one lucky hit owned the leaderboard. A $1,000-a-day dollar cap
+  was floated but wouldn't have fixed that. The unit-size setting is gone;
+  old dollar amounts stay in the database, unused.
+- **2026-10-30:** **No pick risks more than 5u or wins more than 5u.** On an
+  underdog the cap is what wins 5u: at +150 the most is 3.33u, at +400 1.25u. So
+  a long shot can't turn one hit into the leaderboard.
+- **2026-10-30:** Boards show W-L but **rank by units won**. W-L alone rewards
+  betting only heavy favorites: -400 favorites go 8-2 and still lose money.
+  No daily cap for now; add one if someone games it with volume.
+- **2026-10-30:** Home page leads with a gold check and **"Trust Your Bets"**.
+  Our own mark, styled after Trustpilot's tiles, gold in every theme.
+- **2026-10-25 (replaced 2026-10-30 by units only):** Players wager **dollars** on the pick slip ($10 to $250 chips or
   any amount). Each player sets what one unit is worth (starts at $100), and the
   record counts the wager in units, so a $10 bettor and a $1,000 bettor compete
   on skill. **Dollar amounts only ever show to the bettor.**
@@ -84,6 +112,39 @@ dollars stay private and nothing is paid out.
   as "Name · 47-31 · +17.5u" with the crest.
 - **2026-10-25:** Profiles have a short bio, up to 160 characters.
 
+### Following, streaks, splits, notifications
+- **2026-10-30: Follow players.** Follow anyone from their profile; **Following**
+  (in More) shows their picks once each game starts. Profiles show follower counts.
+- **2026-10-30: Hot streaks** (`/hot`): the best last ten over 30 days by units
+  (ten graded picks needed), with the current run (W5, L2) and Follow buttons.
+- **2026-10-30: Public split.** Game pages show what share of players took each
+  side, once a market has 5 picks (so it never points at one person's open
+  pick). Cards show the spread lean ("64% on KC").
+- **2026-10-30: Breakdown** on profiles: spreads, totals, moneylines; favorites
+  vs underdogs; home vs road.
+- **2026-10-30: Notifications.** A bell with a count, an inbox, and phone
+  notifications (Web Push, built in, no outside service, checked against the
+  spec's own example). Players hear when bets settle and when someone they
+  follow locks a pick (not the side; that waits for the start; at most one per
+  player per half hour). Both can be turned off. iPhones get them once the app
+  is on the Home Screen (iOS 16.4+). The App Store version isn't needed for this.
+
+### Getting the app
+- **2026-10-31: Get the app**, as easy as possible on both phones. A button at
+  the top and a one-time bar on phones (Not now hides it for good) lead to
+  `/install`. Chrome and Edge (Android, computers) get the real Install prompt
+  in one tap. iPhone gets the three Safari taps, or the Chrome steps when in
+  Chrome. In Instagram, TikTok, Facebook and other apps' built-in browsers
+  (which can't install) it says to open in Safari or Chrome, with Copy link.
+  Everything hides once the app is installed.
+
+### Chat
+- **2026-10-30: Game chat**, one public thread per game (`/games/:id`, hub at
+  `/chat`, linked from every game card and More). Plain text, 280 characters,
+  confirmed emails only, eight messages a minute. Picks show next to names once
+  the game starts. People delete their own; three reports hide a message.
+  No admin screen yet: hidden messages are looked at in the database.
+
 ### Hosting and money
 - **2026-10-26:** Host on **AWS Lightsail** (we already use AWS), one small
   server in Ohio (us-east-2), about $5 a month plus about $1 for nightly
@@ -97,22 +158,46 @@ dollars stay private and nothing is paid out.
 
 ## What's built
 
-All of it is in `picks-app/` on PR
-[thedonvanagon-del/quality-windows-demo#15](https://github.com/thedonvanagon-del/quality-windows-demo/pull/15),
-not merged yet.
+All of it is in `picks-app/`, merged to `main` on 2026-10-27 through
+[thedonvanagon-del/quality-windows-demo#15](https://github.com/thedonvanagon-del/quality-windows-demo/pull/15).
+**Beta launch started 2026-10-27.** Not live yet: waiting on the server setup below.
+
+Launch log:
+- **2026-10-28:** Server built with Terraform from CloudShell. Static IP
+  **3.136.213.29** (Lightsail, Ohio, `bookie-bullies-app`). Its first-boot setup
+  failed: Lightsail runs launch scripts with `sh`, which choked on `pipefail`.
+  Fixed in `setup.sh.tftpl` for future servers; this one gets the setup run by hand.
+- **2026-10-30:** GitHub settings (`APP_HOST`, `APP_SSH_KEY`) aren't in yet: the
+  browser is signed in as **NFTrapper**, a second GitHub account, and only
+  **thedonvanagon-del** (the repo owner) can see Settings. Until that login is
+  sorted, deploys go straight from CloudShell (`picks-app/README.md`).
+- **2026-10-30:** App running on the server (`/healthz` ok). No games showed:
+  ESPN answered 400 to the week-at-once request (`dates=FROM-TO`, `limit=1000`).
+  Now asks one day at a time with `limit=400`, the way cfb-bot does.
+- **2026-10-31:** All of today's features deployed from CloudShell (`/hot` answers
+  200). **Email turned on:** sends from **originalbookiebullies@gmail.com** (Gmail
+  app password, 2-Step on), which is also the contact address on Terms and
+  Privacy. Move to an @bookiebullies.com address later: change `SMTP_USER`,
+  `SMTP_PASS`, `MAIL_FROM` and `CONTACT_EMAIL` in `/etc/bookie-bullies-app.env`
+  and restart. AWS account: 9385-2195-2366.
 
 - Email and password signup with 21+ and Terms checkboxes, email confirmation,
   optional first and last name, screen name, login, logout, password reset by
   email, account deletion, Terms and Privacy pages
 - Games board for NFL, college football, NBA, college basketball, MLB, NHL
   (spread, total, moneyline)
-- Pick slip with dollar wagers and live "to win"
-- My bets: open (wager, to win, countdown, delete) and settled (won or lost in dollars)
+- Pick slip sized in units (1u to 5u) with live "to win"
+- My bets: open (units, to win, countdown, delete) and settled (won or lost in units)
 - Leaderboards: everyone or one sport, 7 days, 30 days or all time
 - Groups: create, invite code and link, group board, members' picks feed
-- Profiles: record, by sport, every pick with its lock time, bio, unit size,
+- Profiles: record, by sport, every pick with its lock time, bio,
   color, an outside link button, Share, and a record preview when shared
-- More tab with Live games (scores now, your bets on them)
+- More tab with Live games (scores now, your bets on them) and Game chat
+- Scoreboard look with three color choices, TV channel and team records on
+  cards, live-score strip, slide-up pick slip, LOCKED confirmation
+- Profile record card with a units line, ROI, last 10, rank, Share as image
+- Follow players and a Following feed; Hot streaks; public split; profile breakdown
+- Notifications: bell and inbox, phone notifications (Web Push)
 - Installable on phones (manifest, icons, iPhone full-screen)
 - Automatic grading every 10 minutes, with voids for postponed games
 - Demo mode: `npm run demo`, log in as demo@example.com / letmein123
@@ -124,17 +209,25 @@ not merged yet.
 
 ## Waiting on the owner
 
-1. **Merge the PR**, once happy with it.
-2. **Where is bookiebullies.com's DNS?** (Route 53, Namecheap, somewhere else?)
-   That's where the `app` record goes.
-3. **Run the one-time setup** in AWS CloudShell: `picks-app/README.md`,
-   "Putting it online". About 20 minutes.
-4. **Pick the sending email** (like hello@bookiebullies.com) and make a Google
-   app password for it, for reset emails.
-5. **Merge the Pick'em tab** on www.bookiebullies.com
+Beta launch checklist (2026-10-27). The app code is merged; these get it online.
+
+1. ~~Merge the PR~~: done 2026-10-27.
+2. **Run the one-time setup** in AWS CloudShell (`terraform apply` in
+   `aws/stacks/bookie-bullies-app`; steps in `picks-app/README.md`, "Putting it
+   online"). It prints the server's static IP.
+3. **Point `app.bookiebullies.com` at that IP**: an A record named `app` wherever
+   bookiebullies.com's DNS lives (Route 53, Namecheap, somewhere else?).
+4. **Add two GitHub settings** on this repo: variable `APP_HOST` (the IP) and
+   secret `APP_SSH_KEY` (the private deploy key from CloudShell). Then the
+   "picks-app deploy" workflow ships the app, and every merge after that.
+5. **Pick the sending email** (like hello@bookiebullies.com), make a Google app
+   password for it, and put the SMTP lines in `/etc/bookie-bullies-app.env` on
+   the server. Without it, signup still works but confirm and reset emails
+   don't go out, so nobody shows on leaderboards.
+6. **Merge the Pick'em tab** on www.bookiebullies.com
    ([bookie-bullies#3](https://github.com/thedonvanagon-del/bookie-bullies/pull/3)),
    after the app is live.
-6. **A phone menu for www.bookiebullies.com?** Its tabs disappear under 900px.
+7. **A phone menu for www.bookiebullies.com?** Its tabs disappear under 900px.
 
 ## Ideas, not built yet
 
@@ -142,20 +235,27 @@ In rough order of value:
 
 1. ~~Share cards~~ and ~~"hire me" link~~: built 2026-10-26 (text preview with
    the crest; a picture card with the record drawn on it would be the next step).
-2. **Paid picks in the app.** Cappers set a monthly price, subscribers see their
+2. **Tournaments with coin buy-ins** (owner's idea, 2026-10-30). Players buy
+   coins and spend them to enter contests (a $5 buy-in, say), best units over a
+   weekend or a week wins. **Talk to a gaming lawyer before building.** Paying
+   to enter a contest for a prize is a paid fantasy/sweepstakes question that
+   changes state by state: some states ban paid contests, most need a license or
+   registration, and coins that buy entries for cash prizes count as money.
+   Free tournaments with bragging rights (or sponsor prizes) can ship anytime.
+3. **Paid picks in the app.** Cappers set a monthly price, subscribers see their
    picks before games start, Bookie Bullies keeps 10 to 20% and Stripe Connect
    pays out the rest. Needs payouts, refunds and tax forms; Apple takes up to
    30% of digital subscriptions sold in an iPhone app; no "guaranteed win"
    claims allowed. Build once cappers are clearly selling through their links.
-3. **The Bookie Bullies model as a player.** The site's own daily picks posted
+4. **The Bookie Bullies model as a player.** The site's own daily picks posted
    into the app under an official account, with a public record.
-4. **cfb-bot as a player**, same idea, for college football and the NFL.
-5. **Streaks and badges:** "8-2 last 10", "Hot in NBA", "Top 3 this week".
-6. **Weekly winners in groups.**
-7. **Notifications** when bets settle or games start (and the App Store push).
-8. App Store and Google Play versions.
-9. Trash talk in groups, following players.
-10. Changing a screen name, props and parlays, admin tools.
+5. **cfb-bot as a player**, same idea, for college football and the NFL.
+6. **Streaks and badges:** "8-2 last 10", "Hot in NBA", "Top 3 this week".
+7. **Weekly winners in groups.**
+8. **Notifications** when bets settle or games start (and the App Store push).
+9. App Store and Google Play versions.
+10. Trash talk in groups, following players.
+11. Changing a screen name, props and parlays, admin tools.
 
 ## How to work on it
 

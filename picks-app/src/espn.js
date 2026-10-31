@@ -2,6 +2,8 @@
 // Bookie Bullies and cfb-bot read. It needs no key, but ESPN doesn't document
 // it, so everything here reads it defensively.
 
+import { addDays } from './time.js';
+
 const BASE = 'https://site.api.espn.com/apis/site/v2/sports';
 
 // Statuses that end a game without a result. Sportsbooks void these, so the
@@ -9,16 +11,26 @@ const BASE = 'https://site.api.espn.com/apis/site/v2/sports';
 export const VOID_STATUSES = new Set(['STATUS_POSTPONED', 'STATUS_CANCELED', 'STATUS_FORFEIT', 'STATUS_ABANDONED']);
 
 export function createEspn({ fetch = globalThis.fetch, timeoutMs = 8000 } = {}) {
+  async function day(sport, date) {
+    // One day per request, with the same limit cfb-bot uses: ESPN answers 400
+    // to the date-range and limit=1000 form.
+    const query = new URLSearchParams({ dates: date, limit: '400', ...sport.params });
+    const res = await fetch(`${BASE}/${sport.espnPath}/scoreboard?${query}`, {
+      headers: { accept: 'application/json', 'user-agent': 'bookiebullies-app/0.1' },
+      signal: AbortSignal.timeout(timeoutMs),
+    });
+    if (!res.ok) throw new Error(`ESPN ${sport.key} scoreboard answered ${res.status}`);
+    return parseScoreboard(sport, await res.json());
+  }
+
   return {
     /** Every game on the Eastern days `from` to `to` ("20261019"). */
     async scoreboard(sport, from, to = from) {
-      const query = new URLSearchParams({ dates: from === to ? from : `${from}-${to}`, limit: '1000', ...sport.params });
-      const res = await fetch(`${BASE}/${sport.espnPath}/scoreboard?${query}`, {
-        headers: { accept: 'application/json', 'user-agent': 'bookiebullies-app/0.1' },
-        signal: AbortSignal.timeout(timeoutMs),
-      });
-      if (!res.ok) throw new Error(`ESPN ${sport.key} scoreboard answered ${res.status}`);
-      return parseScoreboard(sport, await res.json());
+      const dates = [];
+      for (let d = from; d <= to; d = addDays(d, 1)) dates.push(d);
+      const days = await Promise.all(dates.map((date) => day(sport, date)));
+      // A game can show on two days' boards (late starts, ESPN's own day cutoff).
+      return [...new Map(days.flat().map((g) => [g.id, g])).values()];
     },
   };
 }
@@ -32,8 +44,8 @@ export function parseScoreboard(sport, data) {
     if (!sides.home || !sides.away || !event.id || Number.isNaN(+start)) continue;
     const type = (comp.status ?? event.status ?? {}).type ?? {};
     const state = ['pre', 'in', 'post'].includes(type.state) ? type.state : 'pre';
-    const home = team(sides.home, state);
-    const away = team(sides.away, state);
+    const home = team(sides.home, state, sport);
+    const away = team(sides.away, state, sport);
     games.push({
       id: `${sport.key}:${event.id}`,
       sport: sport.key,
@@ -42,6 +54,7 @@ export function parseScoreboard(sport, data) {
       status: type.name ?? '',
       detail: type.shortDetail ?? type.detail ?? '',
       completed: Boolean(type.completed),
+      tv: broadcast(comp),
       home,
       away,
       lines: parseLines(sport, firstOdds(comp.odds), home, away),
@@ -50,21 +63,44 @@ export function parseScoreboard(sport, data) {
   return games;
 }
 
-function team(competitor, state) {
+function team(competitor, state, sport) {
   const t = competitor.team ?? {};
   const score = Number.parseInt(competitor.score?.value ?? competitor.score, 10);
   return {
     name: t.displayName ?? t.shortDisplayName ?? t.abbreviation ?? '?',
     short: t.shortDisplayName ?? t.name ?? t.abbreviation ?? '?',
     abbr: t.abbreviation ?? '',
-    logo: espnLogo(t.logo ?? t.logos?.[0]?.href),
+    logo: espnLogo(t.logo ?? t.logos?.[0]?.href) ?? fallbackLogo(sport, t),
     score: state === 'pre' || Number.isNaN(score) ? null : score,
+    record: teamRecord(competitor.records),
+    color: /^[0-9a-f]{6}$/i.test(t.color ?? '') ? `#${t.color.toLowerCase()}` : null,
   };
+}
+
+/** "6-2", "10-5-1": the team's overall record, if ESPN sends one. */
+function teamRecord(records) {
+  const all = Array.isArray(records) ? records.find((r) => r?.type === 'total' || r?.name === 'overall') ?? records[0] : null;
+  return /^\d{1,3}-\d{1,3}(-\d{1,3})?$/.test(all?.summary ?? '') ? all.summary : null;
+}
+
+/** The TV channel or stream ("CBS", "ESPN+"), if ESPN lists one. */
+function broadcast(comp) {
+  const name = comp.broadcasts?.[0]?.names?.[0] ?? comp.geoBroadcasts?.[0]?.media?.shortName;
+  return typeof name === 'string' && name.trim() ? name.trim().slice(0, 20) : null;
 }
 
 // Team logos load straight from ESPN's image server, the way Bookie Bullies
 // shows them. Only that host: the page's security policy allows nothing else.
 export const LOGO_HOST = 'a.espncdn.com';
+
+/** ESPN's standard logo address, for a team the feed sent without one. */
+function fallbackLogo(sport, t) {
+  const league = sport.espnPath.split('/')[1];
+  if (league.startsWith('college') || league.startsWith('mens-college')) {
+    return /^\d{1,6}$/.test(String(t.id ?? '')) ? `https://${LOGO_HOST}/i/teamlogos/ncaa/500/${t.id}.png` : null;
+  }
+  return /^[A-Za-z]{2,4}$/.test(t.abbreviation ?? '') ? `https://${LOGO_HOST}/i/teamlogos/${league}/500/${t.abbreviation.toLowerCase()}.png` : null;
+}
 
 function espnLogo(url) {
   try {

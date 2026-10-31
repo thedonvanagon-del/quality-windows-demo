@@ -50,14 +50,14 @@ five.
 | Page | What it does |
 |---|---|
 | `/games` | Upcoming games by sport, with spread, total and moneyline. Tap a number to pick it. |
-| `/picks` | My bets: open bets with the wager, to-win and a countdown (deletable until the start), and settled ones. A badge on the tab counts what is open. |
+| `/picks` | My bets: open bets with their units, to-win and a countdown (deletable until the start), and settled ones. A badge on the tab counts what is open. |
 | `/leaderboard` | Everyone, or one sport, over 7 days, 30 days or all time. Public. |
 | `/groups` | Start a group (all sports or one), join with a code, see its board and its picks feed. |
 | `/u/<name>` | A player's public record: overall, by sport, and every pick with when it was locked. |
 
 It looks like a sportsbook: dark, with odds tiles, team logos from ESPN's
 image server, and an app-style tab bar on phones. Players pick their accent
-color (orange, teal or violet) on their profile.
+look (Scoreboard navy and amber, Bull Market black and green, or Ember orange) on their profile.
 
 Sports: NFL, college football, NBA, college basketball, MLB and NHL. Run lines
 and puck lines only go up when ESPN posts a price for them.
@@ -78,7 +78,7 @@ npm start       # the real thing, against ESPN, with the database in data/bookie
 | `PORT` | `3000` | Where it listens. |
 | `DATABASE_PATH` | `data/bookiebullies.db` | The SQLite file. This holds every account and every record. |
 | `APP_NAME` | `Bookie Bullies` | The name in the header and the page titles. |
-| `THEME` | `ember` | The accent color for visitors and new players: `ember` (orange), `teal` or `violet`. Each player can switch on their own profile. |
+| `THEME` | `scoreboard` | The look for visitors and new players: `scoreboard` (navy and amber), `market` (black and green) or `ember` (orange). Each player can switch on their own profile. |
 | `TRUST_PROXY` | off | Turn on behind a host's proxy (Fly, Render, Railway) so it reads the real visitor IP and knows the site is on https. |
 | `DEMO` | off | Fake games and players. Never in production. |
 
@@ -122,6 +122,14 @@ One-time setup, from AWS CloudShell (the >_ icon in the AWS console, Ohio region
    sudo systemctl restart bookie-bullies-app
    ```
 
+**Deploying from CloudShell instead.** Without the GitHub settings in step 4,
+ship the code straight from CloudShell, where the key and a clone already are:
+```
+cd ~/quality-windows-demo && git pull -q
+tar czf - -C picks-app package.json src public | ssh -i ~/bb-deploy ubuntu@<ip> \
+  'tar xzf - -C /opt/bookie-bullies-app && sudo systemctl restart bookie-bullies-app'
+```
+
 On the server: the code is in `/opt/bookie-bullies-app`, the database in
 `/var/lib/bookie-bullies-app/bookiebullies.db`, settings in
 `/etc/bookie-bullies-app.env`, and logs from
@@ -143,8 +151,6 @@ There's also a Dockerfile, for any host that runs containers and keeps a disk.
 
 ## Not built yet
 
-- **Password reset and email verification.** Both need the app to send email.
-  The Buddha Beans Google Workspace could do it over SMTP.
 - **Changing a screen name.** It stays fixed for now so shared profile links
   keep working.
 - **Props, parlays, futures.** Sides, totals and moneylines only.

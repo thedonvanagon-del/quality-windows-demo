@@ -7,15 +7,20 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import * as auth from './auth.js';
+import { chatCounts, chatGames, deleteMessage, gameOfMessage, messages, postMessage, reportMessage } from './chat.js';
 import { createGroup, deleteGroup, findByCode, groupFor, groupsOf, joinGroup, leaveGroup, membersOf } from './groups.js';
-import { groupFeed, ownPicks, picksOnGames, publicPicks } from './history.js';
+import { follow, followCounts, followingAmong, followingList, isFollowing, unfollow } from './follows.js';
+import { followFeed, groupFeed, ownPicks, picksOnGames, publicPicks } from './history.js';
 import { THEMES } from './config.js';
 import { LOGO_HOST } from './espn.js';
+import { toGame } from './games.js';
 import { cleanLink } from './links.js';
 import { createMailer } from './mail.js';
-import { deletePick, formatLine, formatMoney, isLocked, makePick, MARKETS, price, toWin, WAGER_MAX, WAGER_MIN } from './picks.js';
+import { createNotifier } from './notify.js';
+import { validSubscription } from './push.js';
+import { deletePick, formatLine, formatUnits, isLocked, makePick, MARKETS, price, toWin } from './picks.js';
 import { SPORT } from './sports.js';
-import { leaderboard, PERIODS, record, recordBySport } from './stats.js';
+import { breakdown, hotStreaks, lastTen, leaderboard, PERIODS, rankOf, record, recordBySport, splits, unitsSeries } from './stats.js';
 import * as account from './views/account.js';
 import * as legal from './views/legal.js';
 import * as moreViews from './views/more.js';
@@ -36,7 +41,7 @@ const SECURITY_HEADERS = {
   'Permissions-Policy': 'camera=(), microphone=(), geolocation=()',
 };
 
-export function createApp({ store, games, config, mailer = createMailer({ log: { log() {} } }), now = () => new Date(), log = console }) {
+export function createApp({ store, games, config, mailer = createMailer({ log: { log() {} } }), notifier = createNotifier({ store }), push = null, now = () => new Date(), log = console }) {
   const assets = loadAssets();
   const app = {
     name: config.appName,
@@ -54,6 +59,7 @@ export function createApp({ store, games, config, mailer = createMailer({ log: {
   const joinLimit = auth.rateLimiter({ limit: 30, windowMs: 60 * 60_000 });
   const forgotLimit = auth.rateLimiter({ limit: 5, windowMs: 60 * 60_000 });
   const resendLimit = auth.rateLimiter({ limit: 5, windowMs: 60 * 60_000 });
+  const chatLimit = auth.rateLimiter({ limit: 8, windowMs: 60_000 });
   const contact = config.contactEmail ?? 'hello@bookiebullies.com';
 
   /** Email a link that confirms this address. Mail trouble is logged, never shown. */
@@ -92,8 +98,8 @@ export function createApp({ store, games, config, mailer = createMailer({ log: {
     ctx.cookies.push(parts.join('; '));
   }
 
-  function flash(ctx, type, text) {
-    setCookie(ctx, 'flash', Buffer.from(JSON.stringify({ type, text })).toString('base64url'), 60);
+  function flash(ctx, type, text, at) {
+    setCookie(ctx, 'flash', Buffer.from(JSON.stringify({ type, text, at })).toString('base64url'), 60);
   }
 
   function headers(ctx, extra) {
@@ -310,7 +316,9 @@ export function createApp({ store, games, config, mailer = createMailer({ log: {
     ctx.query.set('sport', sport.key);
     const list = await games.upcoming(sport.key);
     const mine = picksOnGames(store, ctx.user.id, list.map((g) => g.id));
-    send(ctx, 200, play.games(ctx, { sport, list, mine, problem: games.problem(sport.key) }));
+    const chats = chatCounts(store, list.map((g) => g.id));
+    const split = splits(store, list.map((g) => g.id));
+    send(ctx, 200, play.games(ctx, { sport, list, mine, chats, split, live: games.liveNow(), problem: games.problem(sport.key) }));
   }
 
   async function pickForm(ctx) {
@@ -336,25 +344,26 @@ export function createApp({ store, games, config, mailer = createMailer({ log: {
     if (!signedIn(ctx)) return;
     const market = ctx.form.get('market');
     const side = ctx.form.get('side');
-    const wager = Number(String(ctx.form.get('wager') ?? '').replace(/[$,\s]/g, ''));
+    const units = Number(String(ctx.form.get('units') ?? '').replace(/[u,\s]/gi, ''));
     const seen = { line: ctx.form.get('line') ? Number(ctx.form.get('line')) : null, odds: Number(ctx.form.get('odds')) };
     const { game, stale } = await games.current(ctx.form.get('game') ?? '');
     if (!game || !MARKETS[market]?.includes(side)) return notFound(ctx);
     const back = `/games?sport=${game.sport}`;
     const current = price(game, market, side);
     if (!isLocked(game, ctx.now) && current && stale) {
-      return send(ctx, 503, play.slip(ctx, { game, market, side, current, wager, error: "Can't reach live lines right now, so picks are paused. Try again in a minute." }));
+      return send(ctx, 503, play.slip(ctx, { game, market, side, current, units, error: "Can't reach live lines right now, so picks are paused. Try again in a minute." }));
     }
-    const result = makePick(store, { userId: ctx.user.id, game, market, side, wager, unitSize: ctx.user.unitSize, seen, now: ctx.now });
-    if (result.moved) return send(ctx, 409, play.slip(ctx, { game, market, side, current: result.moved, wager, error: result.error }));
+    const result = makePick(store, { userId: ctx.user.id, game, market, side, units, seen, now: ctx.now });
+    if (result.moved) return send(ctx, 409, play.slip(ctx, { game, market, side, current: result.moved, units, error: result.error }));
     if (result.error) {
       if (current && !isLocked(game, ctx.now) && !/already/.test(result.error)) {
-        return send(ctx, 400, play.slip(ctx, { game, market, side, current, wager: Number.isFinite(wager) ? wager : undefined, error: result.error }));
+        return send(ctx, 400, play.slip(ctx, { game, market, side, current, units: Number.isFinite(units) ? units : undefined, error: result.error }));
       }
       flash(ctx, 'error', result.error);
       return redirect(ctx, back);
     }
-    flash(ctx, 'ok', `Locked in: ${formatLine(market, side, current, game)}, ${formatMoney(result.wager)} to win ${formatMoney(toWin(current.odds, result.wager))}.`);
+    notifier.pickMade({ player: ctx.user, game, now: ctx.now });
+    flash(ctx, 'locked', `${formatLine(market, side, current, game)}, ${formatUnits(result.units)} to win ${formatUnits(toWin(current.odds, result.units))}`, ctx.now.toISOString());
     redirect(ctx, back);
   }
 
@@ -375,6 +384,64 @@ export function createApp({ store, games, config, mailer = createMailer({ log: {
     send(ctx, 200, play.myPicks(ctx, { open, graded, tab, record: record(store, ctx.user.id) }));
   }
 
+  // ---- game chat ------------------------------------------------------------
+
+  const gamePath = (id) => `/games/${encodeURIComponent(id)}`;
+
+  /** One game: its lines (or score), and the chat about it. */
+  function gamePage(ctx, { id }) {
+    if (!signedIn(ctx)) return;
+    const game = games.get(id);
+    if (!game) return notFound(ctx);
+    const started = isLocked(game, ctx.now);
+    const list = messages(store, game.id);
+    // Picks show beside names only once the game starts, like everywhere else.
+    const picksBy = new Map();
+    if (started && list.length) {
+      for (const p of store.all('SELECT user_id, market, side, line, odds, units FROM picks WHERE game_id = ?', game.id)) {
+        picksBy.set(p.user_id, [...(picksBy.get(p.user_id) ?? []), p]);
+      }
+    }
+    const mine = picksOnGames(store, ctx.user.id, [game.id]).get(game.id) ?? {};
+    send(ctx, 200, play.gamePage(ctx, { game, started, messages: list, picksBy, mine, split: splits(store, [game.id]).get(game.id) ?? null }));
+  }
+
+  function chatPost(ctx, { id }) {
+    if (!signedIn(ctx)) return;
+    const game = games.get(id);
+    if (!game) return notFound(ctx);
+    if (!ctx.user.verified) {
+      flash(ctx, 'error', 'Confirm your email to chat. The link is in your inbox.');
+    } else if (!chatLimit.allow(`user ${ctx.user.id}`, ctx.now)) {
+      flash(ctx, 'error', 'Slow down a little. Try again in a minute.');
+    } else {
+      const result = postMessage(store, { gameId: game.id, userId: ctx.user.id, text: ctx.form.get('body'), now: ctx.now });
+      if (result.error) flash(ctx, 'error', result.error);
+    }
+    redirect(ctx, `${gamePath(game.id)}#chat`);
+  }
+
+  function chatDelete(ctx, { id }) {
+    if (!signedIn(ctx)) return;
+    const gameId = gameOfMessage(store, Number(id));
+    const result = deleteMessage(store, { id: Number(id), userId: ctx.user.id, now: ctx.now });
+    if (result.error) flash(ctx, 'error', result.error);
+    redirect(ctx, gameId ? `${gamePath(gameId)}#chat` : '/chat');
+  }
+
+  function chatReport(ctx, { id }) {
+    if (!signedIn(ctx)) return;
+    const result = reportMessage(store, { id: Number(id), userId: ctx.user.id, now: ctx.now });
+    flash(ctx, result.error ? 'error' : 'ok', result.error ?? 'Thanks. Messages enough people report get hidden.');
+    redirect(ctx, result.gameId ? `${gamePath(result.gameId)}#chat` : '/chat');
+  }
+
+  /** Every game worth talking about right now, busiest chats first. */
+  function chatHub(ctx) {
+    if (!signedIn(ctx)) return;
+    send(ctx, 200, moreViews.chatHub(ctx, { list: chatGames(store, ctx.now).map((row) => ({ game: toGame(row), count: row.chat_count })) }));
+  }
+
   async function morePage(ctx) {
     if (!signedIn(ctx)) return;
     const liveCount = store.get("SELECT COUNT(*) AS n FROM games WHERE state = 'in'").n;
@@ -387,25 +454,13 @@ export function createApp({ store, games, config, mailer = createMailer({ log: {
     const mine = new Map();
     if (list.length) {
       const rows = store.all(
-        `SELECT game_id, market, side, line, odds, units, wager FROM picks
+        `SELECT game_id, market, side, line, odds, units FROM picks
           WHERE user_id = ? AND game_id IN (${list.map(() => '?').join(',')})`,
         ctx.user.id, ...list.map((g) => g.id),
       );
       for (const r of rows) mine.set(r.game_id, [...(mine.get(r.game_id) ?? []), r]);
     }
     send(ctx, 200, moreViews.live(ctx, { list, mine }));
-  }
-
-  function unitPost(ctx) {
-    if (!signedIn(ctx)) return;
-    const size = Number(String(ctx.form.get('unit_size') ?? '').replace(/[$,\s]/g, ''));
-    if (Number.isFinite(size) && size >= WAGER_MIN && size <= WAGER_MAX) {
-      store.run('UPDATE users SET unit_size = ? WHERE id = ?', Math.round(size * 100) / 100, ctx.user.id);
-      flash(ctx, 'ok', `One unit is ${formatMoney(size)} now. Bets you already made keep their units.`);
-    } else {
-      flash(ctx, 'error', `Set a unit between ${formatMoney(WAGER_MIN)} and ${formatMoney(WAGER_MAX)}.`);
-    }
-    redirect(ctx, `/u/${encodeURIComponent(ctx.user.screenName)}`);
   }
 
   function leaderboardPage(ctx) {
@@ -500,9 +555,97 @@ export function createApp({ store, games, config, mailer = createMailer({ log: {
       player,
       record: record(store, player.id),
       bySport: recordBySport(store, player.id),
+      split: breakdown(store, player.id),
+      series: unitsSeries(store, player.id, ctx.now),
+      last10: lastTen(store, player.id),
+      rank: rankOf(store, player.id, ctx.now),
+      follows: followCounts(store, player.id),
+      following: isFollowing(store, ctx.user?.id, player.id),
       picks,
       hidden,
     }));
+  }
+
+  function followPost(ctx, { name }) {
+    if (!signedIn(ctx)) return;
+    const player = store.get('SELECT id, screen_name FROM users WHERE screen_name = ?', name);
+    if (!player) return notFound(ctx);
+    const result = follow(store, { followerId: ctx.user.id, followeeId: player.id, now: ctx.now });
+    flash(ctx, result.error ? 'error' : 'ok', result.error ?? `Following ${player.screen_name}. Their picks show in Following once each game starts.`);
+    redirect(ctx, safeNext(ctx.form.get('next')) ?? `/u/${encodeURIComponent(player.screen_name)}`);
+  }
+
+  function unfollowPost(ctx, { name }) {
+    if (!signedIn(ctx)) return;
+    const player = store.get('SELECT id, screen_name FROM users WHERE screen_name = ?', name);
+    if (!player) return notFound(ctx);
+    unfollow(store, { followerId: ctx.user.id, followeeId: player.id });
+    redirect(ctx, safeNext(ctx.form.get('next')) ?? `/u/${encodeURIComponent(player.screen_name)}`);
+  }
+
+  /** Who's on a heater: the best last ten over the past 30 days. */
+  function hotPage(ctx) {
+    const rows = hotStreaks(store, ctx.now);
+    const followed = followingAmong(store, ctx.user?.id, rows.map((r) => r.id));
+    send(ctx, 200, social.hot(ctx, { rows, followed }));
+  }
+
+  /** Picks from everyone the player follows, once each game starts. */
+  function followingPage(ctx) {
+    if (!signedIn(ctx)) return;
+    send(ctx, 200, social.following(ctx, { feed: followFeed(store, ctx.user.id, ctx.now), people: followingList(store, ctx.user.id) }));
+  }
+
+  // ---- notifications ------------------------------------------------------
+
+  /** The inbox. Opening it marks everything read. */
+  function notificationsPage(ctx) {
+    if (!signedIn(ctx)) return;
+    const list = notifier.list(ctx.user.id);
+    const prefs = store.get('SELECT notify_settled, notify_follows FROM users WHERE id = ?', ctx.user.id);
+    const phones = store.get('SELECT COUNT(*) AS n FROM push_subscriptions WHERE user_id = ?', ctx.user.id).n;
+    notifier.markRead(ctx.user.id, ctx.now);
+    ctx.unread = 0;
+    send(ctx, 200, moreViews.notifications(ctx, { list, prefs, phones, pushKey: push?.publicKey() ?? null }));
+  }
+
+  function notifyPrefs(ctx) {
+    if (!signedIn(ctx)) return;
+    store.run(
+      'UPDATE users SET notify_settled = ?, notify_follows = ? WHERE id = ?',
+      ctx.form.get('settled') === 'on' ? 1 : 0, ctx.form.get('follows') === 'on' ? 1 : 0, ctx.user.id,
+    );
+    flash(ctx, 'ok', 'Saved.');
+    redirect(ctx, '/notifications');
+  }
+
+  /** A phone turning push on: keep its subscription, tied to this player. */
+  function pushSubscribe(ctx) {
+    if (!signedIn(ctx)) return;
+    const sub = { endpoint: ctx.form.get('endpoint') ?? '', p256dh: ctx.form.get('p256dh') ?? '', auth: ctx.form.get('auth') ?? '' };
+    if (!push || !validSubscription(sub)) return send(ctx, 400, 'That subscription was turned down.');
+    const count = store.get('SELECT COUNT(*) AS n FROM push_subscriptions WHERE user_id = ?', ctx.user.id).n;
+    if (count >= 10) store.run('DELETE FROM push_subscriptions WHERE id = (SELECT MIN(id) FROM push_subscriptions WHERE user_id = ?)', ctx.user.id);
+    store.run(
+      `INSERT INTO push_subscriptions (user_id, endpoint, p256dh, auth, created_at) VALUES (?, ?, ?, ?, ?)
+       ON CONFLICT (endpoint) DO UPDATE SET user_id = excluded.user_id, p256dh = excluded.p256dh, auth = excluded.auth`,
+      ctx.user.id, sub.endpoint, sub.p256dh, sub.auth, ctx.now.toISOString(),
+    );
+    send(ctx, 204, '');
+  }
+
+  function pushUnsubscribe(ctx) {
+    if (!signedIn(ctx)) return;
+    store.run('DELETE FROM push_subscriptions WHERE user_id = ?', ctx.user.id);
+    flash(ctx, 'ok', 'Phone notifications are off on every device.');
+    redirect(ctx, '/notifications');
+  }
+
+  /** The service worker has to come from the site's root to cover every page. */
+  function serviceWorker(ctx) {
+    const file = assets.files.get('sw.js');
+    ctx.res.writeHead(200, { ...SECURITY_HEADERS, 'Content-Type': file.type, 'Cache-Control': 'no-cache' });
+    ctx.res.end(file.body);
   }
 
   function themePost(ctx) {
@@ -604,6 +747,11 @@ export function createApp({ store, games, config, mailer = createMailer({ log: {
     ['GET', '/welcome', welcomeForm],
     ['POST', '/welcome', welcome],
     ['GET', '/games', gamesPage],
+    ['GET', '/games/:id', gamePage],
+    ['POST', '/games/:id/chat', chatPost],
+    ['POST', '/chat/:id/delete', chatDelete],
+    ['POST', '/chat/:id/report', chatReport],
+    ['GET', '/chat', chatHub],
     ['GET', '/pick', pickForm],
     ['POST', '/picks', pickPost],
     ['GET', '/picks', myPicks],
@@ -618,7 +766,17 @@ export function createApp({ store, games, config, mailer = createMailer({ log: {
     ['GET', '/join/:code', joinPage],
     ['POST', '/join/:code', joinPost],
     ['GET', '/u/:name', profilePage],
+    ['POST', '/u/:name/follow', followPost],
+    ['POST', '/u/:name/unfollow', unfollowPost],
+    ['GET', '/following', followingPage],
+    ['GET', '/hot', hotPage],
+    ['GET', '/notifications', notificationsPage],
+    ['POST', '/notifications/settings', notifyPrefs],
+    ['POST', '/push/subscribe', pushSubscribe],
+    ['POST', '/push/unsubscribe', pushUnsubscribe],
+    ['GET', '/sw.js', serviceWorker],
     ['GET', '/more', morePage],
+    ['GET', '/install', (ctx) => send(ctx, 200, moreViews.install(ctx))],
     ['GET', '/live', livePage],
     ['POST', '/theme', themePost],
     ['POST', '/bio', bioPost],
@@ -629,7 +787,6 @@ export function createApp({ store, games, config, mailer = createMailer({ log: {
     ['POST', '/verify/resend', verifyResend],
     ['GET', '/terms', (ctx) => send(ctx, 200, legal.terms(ctx, { contact }))],
     ['GET', '/privacy', (ctx) => send(ctx, 200, legal.privacy(ctx, { contact }))],
-    ['POST', '/unit', unitPost],
   ].map(([method, pattern, handler]) => {
     const keys = [];
     const regex = new RegExp(`^${pattern.replace(/:(\w+)/g, (_, key) => (keys.push(key), '([^/]+)'))}$`);
@@ -663,7 +820,10 @@ export function createApp({ store, games, config, mailer = createMailer({ log: {
       ctx.session = auth.readSession(store, cookies.sid, ctx.now);
       ctx.user = ctx.session?.user ?? null;
       // The count on the My bets tab.
-      if (ctx.user?.screenName) ctx.openBets = store.get('SELECT COUNT(*) AS n FROM picks WHERE user_id = ? AND result IS NULL', ctx.user.id).n;
+      if (ctx.user?.screenName) {
+        ctx.openBets = store.get('SELECT COUNT(*) AS n FROM picks WHERE user_id = ? AND result IS NULL', ctx.user.id).n;
+        ctx.unread = notifier.unread(ctx.user.id);
+      }
       if (cookies.flash) {
         ctx.flash = readFlash(cookies.flash);
         setCookie(ctx, 'flash', '', 0);
@@ -699,8 +859,10 @@ function parseCookies(header = '') {
 
 function readFlash(value) {
   try {
-    const { type, text } = JSON.parse(Buffer.from(value, 'base64url').toString('utf8'));
-    return typeof text === 'string' && text.length < 300 ? { type: type === 'error' ? 'error' : 'ok', text } : null;
+    const { type, text, at } = JSON.parse(Buffer.from(value, 'base64url').toString('utf8'));
+    if (typeof text !== 'string' || text.length >= 300) return null;
+    const time = typeof at === 'string' && !Number.isNaN(Date.parse(at)) ? new Date(at).toISOString() : null;
+    return { type: ['error', 'locked'].includes(type) ? type : 'ok', text, at: time };
   } catch {
     return null;
   }
@@ -757,6 +919,7 @@ function loadAssets() {
     '.css': 'text/css; charset=utf-8',
     '.js': 'text/javascript; charset=utf-8',
     '.png': 'image/png',
+    '.woff2': 'font/woff2',
     '.webmanifest': 'application/manifest+json',
   };
   const files = new Map();

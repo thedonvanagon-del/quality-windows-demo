@@ -1,4 +1,6 @@
+import { THEMES } from '../config.js';
 import { html } from '../html.js';
+import { when } from '../time.js';
 import { icons } from './icons.js';
 
 /**
@@ -7,7 +9,8 @@ import { icons } from './icons.js';
  */
 export function layout(ctx, { title, active, body, description, share }) {
   const { user, flash, app } = ctx;
-  const theme = user?.theme ?? app.theme;
+  // Players who chose a color that has since been retired get the default.
+  const theme = THEMES.includes(user?.theme) ? user.theme : app.theme;
   const playing = Boolean(user?.screenName);
   const profile = playing ? `/u/${encodeURIComponent(user.screenName)}` : null;
   const nav = playing
@@ -30,7 +33,7 @@ export function layout(ctx, { title, active, body, description, share }) {
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>${title ? `${title} · ${app.name}` : app.name}</title>
 <meta name="description" content="${description ?? 'Make your picks before kickoff. They lock, they get graded off the final score, and nobody can edit them.'}">
-<meta name="theme-color" content="#0f141b">
+<meta name="theme-color" content="#0e1a3a">
 <meta property="og:site_name" content="${app.name}">
 <meta property="og:type" content="${share ? 'profile' : 'website'}">
 <meta property="og:title" content="${share?.title ?? (title ? `${title} · ${app.name}` : app.name)}">
@@ -54,6 +57,8 @@ export function layout(ctx, { title, active, body, description, share }) {
     <a class="brand" href="/"><img class="brand-logo" src="${app.assets.logo}" alt="" width="34" height="34">${app.name}</a>
     <nav class="nav" aria-label="Main">${nav.map(link)}</nav>
     <div class="top-right">
+      ${active === 'install' ? '' : html`<a class="get-app" href="/install" data-get-app>${icons.download}<span>Get the app</span></a>`}
+      ${playing ? html`<a class="bell ${active === 'notifications' ? 'on' : ''}" href="/notifications" aria-label="Notifications${ctx.unread ? `, ${ctx.unread} new` : ''}">${icons.bell}${ctx.unread ? html`<b class="badge">${ctx.unread > 99 ? '99+' : ctx.unread}</b>` : ''}</a>` : ''}
       ${playing
         ? html`<a class="user-chip ${active === 'me' ? 'on' : ''}" href="${profile}"><span class="avatar">${user.screenName[0]}</span><span class="name">${user.screenName}</span></a>`
         : user
@@ -68,8 +73,16 @@ ${user && !user.verified
       <form method="post" action="/verify/resend">${csrfField(ctx)}<input type="hidden" name="next" value="${ctx.url.pathname}"><button class="btn small ghost">Send a new link</button></form>
     </div></div>`
   : ''}
+${active === 'install' ? '' : html`<div class="app-banner" data-app-banner hidden>
+  <div class="wrap">
+    <img src="${app.assets.touchIcon}" alt="" width="36" height="36">
+    <span><b>Get the Bookie Bullies app</b><small>Free. Home Screen icon, phone alerts.</small></span>
+    <a class="btn small" href="/install" data-get-app>Get it</a>
+    <button type="button" class="app-banner-close" data-banner-close aria-label="Not now">×</button>
+  </div>
+</div>`}
 <main class="wrap">
-  ${flash ? html`<div class="flash ${flash.type === 'error' ? 'err' : 'ok'}" role="status">${flash.text}</div>` : ''}
+  ${flash?.type === 'locked' ? lockedTicket(flash) : flash ? html`<div class="flash ${flash.type === 'error' ? 'err' : 'ok'}" role="status">${flash.text}</div>` : ''}
   ${body}
 </main>
 <footer>
@@ -91,4 +104,15 @@ ${playing
 
 export function csrfField(ctx) {
   return ctx.session ? html`<input type="hidden" name="_csrf" value="${ctx.session.csrf}">` : '';
+}
+
+/** The receipt a pick gets the moment it goes in: the bet, a LOCKED stamp and the exact time. */
+function lockedTicket(flash) {
+  return html`<div class="locked-ticket" role="status">
+    <span class="stamp">Locked</span>
+    <div class="lt-body">
+      <b>${flash.text}</b>
+      ${flash.at ? html`<span>On the record <time datetime="${flash.at}" data-local="long">${when(flash.at)}</time>. It can't be edited after the game starts.</span>` : ''}
+    </div>
+  </div>`;
 }

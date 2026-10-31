@@ -4,6 +4,8 @@ import { createApp } from '../src/app.js';
 import { openStore } from '../src/db.js';
 import { parseScoreboard } from '../src/espn.js';
 import { createGames } from '../src/games.js';
+import { createNotifier } from '../src/notify.js';
+import { createPush } from '../src/push.js';
 import { SPORTS } from '../src/sports.js';
 import { etDay } from '../src/time.js';
 
@@ -97,12 +99,16 @@ export function setStatus(e, state, name) {
 
 export async function startApp({ time, espn = fakeEspn() }) {
   const store = openStore(':memory:');
-  const games = createGames({ store, espn, now: time.now, log: quiet });
+  // Pushes go to a fake push service that only records them.
+  const pushed = [];
+  const push = createPush({ store, subject: 'mailto:test@example.test', log: quiet, fetch: async (url, init) => (pushed.push({ url, init }), new Response(null, { status: 201 })) });
+  const notifier = createNotifier({ store, push, log: quiet });
+  const games = createGames({ store, espn, now: time.now, log: quiet, onGraded: (ids) => notifier.settled(ids, time.now()) });
   // Collects mail instead of sending it.
   const outbox = [];
   const mailer = { configured: true, send: async (message) => void outbox.push(message) };
   const handler = createApp({
-    store, games, mailer, now: time.now, log: quiet,
+    store, games, mailer, notifier, push, now: time.now, log: quiet,
     config: { appName: 'Bookie Bullies', trustProxy: false, appUrl: 'https://app.example.test' },
   });
   const server = http.createServer(handler);
@@ -114,6 +120,7 @@ export async function startApp({ time, espn = fakeEspn() }) {
     games,
     espn,
     outbox,
+    pushed,
     browser: () => new Browser(base, outbox),
     async close() {
       server.closeAllConnections();

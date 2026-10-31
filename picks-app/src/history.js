@@ -3,7 +3,7 @@
 
 import { toGame } from './games.js';
 
-const COLUMNS = `p.id AS pick_id, p.user_id, p.market, p.side, p.line, p.odds, p.units, p.wager, p.made_at,
+const COLUMNS = `p.id AS pick_id, p.user_id, p.market, p.side, p.line, p.odds, p.units, p.made_at,
                  p.result, p.profit, u.screen_name, g.*`;
 
 function toPick(row) {
@@ -16,7 +16,6 @@ function toPick(row) {
     line: row.line,
     odds: row.odds,
     units: row.units,
-    wager: row.wager,
     madeAt: row.made_at,
     result: row.result,
     profit: row.profit,
@@ -70,6 +69,19 @@ export function groupFeed(store, group, now, limit = 30) {
           AND (g.start_time <= ? OR g.state != 'pre') AND (? IS NULL OR p.sport = ?)
         ORDER BY g.start_time DESC, p.id DESC LIMIT ?`,
       group.id, now.toISOString(), group.sport, group.sport, limit,
+    )
+    .map(toPick);
+}
+
+/** Picks from the players someone follows, on games that have started, newest first. */
+export function followFeed(store, followerId, now, limit = 60) {
+  return store
+    .all(
+      `SELECT ${COLUMNS} FROM picks p JOIN games g ON g.id = p.game_id JOIN users u ON u.id = p.user_id
+        WHERE p.user_id IN (SELECT followee_id FROM follows WHERE follower_id = ?)
+          AND (g.start_time <= ? OR g.state != 'pre')
+        ORDER BY g.start_time DESC, p.id DESC LIMIT ?`,
+      followerId, now.toISOString(), limit,
     )
     .map(toPick);
 }

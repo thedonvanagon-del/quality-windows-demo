@@ -132,6 +132,60 @@ const MIGRATIONS = [
   );
   CREATE INDEX email_verifications_user ON email_verifications(user_id);
   `,
+  `
+  ALTER TABLE games ADD COLUMN tv TEXT;
+  ALTER TABLE games ADD COLUMN home_record TEXT;
+  ALTER TABLE games ADD COLUMN away_record TEXT;
+  ALTER TABLE games ADD COLUMN home_color TEXT;
+  ALTER TABLE games ADD COLUMN away_color TEXT;
+  `,
+  `
+  CREATE TABLE chat_messages (
+    id INTEGER PRIMARY KEY,
+    game_id TEXT NOT NULL REFERENCES games(id),
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    body TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    deleted_at TEXT
+  );
+  CREATE INDEX chat_messages_game ON chat_messages(game_id, id);
+  CREATE TABLE chat_reports (
+    message_id INTEGER NOT NULL REFERENCES chat_messages(id) ON DELETE CASCADE,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    created_at TEXT NOT NULL,
+    PRIMARY KEY (message_id, user_id)
+  );
+  `,
+  `
+  CREATE TABLE follows (
+    follower_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    followee_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    created_at TEXT NOT NULL,
+    PRIMARY KEY (follower_id, followee_id)
+  );
+  CREATE INDEX follows_followee ON follows(followee_id);
+  CREATE TABLE notifications (
+    id INTEGER PRIMARY KEY,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    kind TEXT NOT NULL,
+    text TEXT NOT NULL,
+    url TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    read_at TEXT
+  );
+  CREATE INDEX notifications_user ON notifications(user_id, id);
+  CREATE TABLE push_subscriptions (
+    id INTEGER PRIMARY KEY,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    endpoint TEXT NOT NULL UNIQUE,
+    p256dh TEXT NOT NULL,
+    auth TEXT NOT NULL,
+    created_at TEXT NOT NULL
+  );
+  CREATE TABLE settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+  ALTER TABLE users ADD COLUMN notify_settled INTEGER NOT NULL DEFAULT 1;
+  ALTER TABLE users ADD COLUMN notify_follows INTEGER NOT NULL DEFAULT 1;
+  `,
 ];
 
 export function openStore(file) {

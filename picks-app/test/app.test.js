@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import crypto from 'node:crypto';
 import { afterEach, beforeEach, describe, test } from 'node:test';
 
 import { clock, event, setFinal, setLine, setLive, startApp, visible } from './helpers.js';
@@ -6,7 +7,7 @@ import { clock, event, setFinal, setLine, setLive, startApp, visible } from './h
 // Sunday 8am Eastern; Bills at Chiefs kicks off at 1pm.
 const MORNING = '2026-10-25T12:00:00.000Z';
 const KICKOFF = '2026-10-25T17:00:00.000Z';
-const BILLS_PLUS = { game: 'nfl:1', market: 'spread', side: 'away', line: '3.5', odds: '-110', wager: '100' };
+const BILLS_PLUS = { game: 'nfl:1', market: 'spread', side: 'away', line: '3.5', odds: '-110', units: '1' };
 
 let time;
 let app;
@@ -112,7 +113,7 @@ describe('accounts', () => {
 
   test('show the record when a profile link is shared', async () => {
     const ann = await player('ann@example.com', 'Ann');
-    await ann.post('/picks', { ...BILLS_PLUS, wager: '200' });
+    await ann.post('/picks', { ...BILLS_PLUS, units: '2' });
     setFinal(game, 27, 24);
     time.set('2026-10-25T21:00:00.000Z');
     await app.games.checkFinals();
@@ -126,13 +127,13 @@ describe('accounts', () => {
 
   test('pick an app color that sticks to the account', async () => {
     const b = await player('ann@example.com', 'Ann');
-    assert.match((await b.get('/games')).text, /data-theme="ember"/, 'orange by default');
+    assert.match((await b.get('/games')).text, /data-theme="scoreboard"/, 'the Scoreboard look by default');
     await b.get('/u/Ann');
-    assert.equal((await b.post('/theme', { theme: 'violet' })).location, '/u/Ann');
-    assert.match((await b.get('/games')).text, /data-theme="violet"/);
+    assert.equal((await b.post('/theme', { theme: 'market' })).location, '/u/Ann');
+    assert.match((await b.get('/games')).text, /data-theme="market"/);
     await b.post('/theme', { theme: 'hotpink' });
-    assert.match((await b.get('/games')).text, /data-theme="violet"/, 'unknown colors are ignored');
-    assert.match((await app.browser().get('/')).text, /data-theme="ember"/, 'visitors see the default');
+    assert.match((await b.get('/games')).text, /data-theme="market"/, 'unknown colors are ignored');
+    assert.match((await app.browser().get('/')).text, /data-theme="scoreboard"/, 'visitors see the default');
   });
 
   test('reset a forgotten password by email', async () => {
@@ -197,7 +198,7 @@ describe('accounts', () => {
     const ann = app.browser();
     await ann.join('ann@example.com', 'Ann', 'correct horse', { confirm: false });
     assert.match(visible((await ann.get('/games')).text), /Confirm your email to put your record on the leaderboards/);
-    await ann.post('/picks', { ...BILLS_PLUS, wager: '100' });
+    await ann.post('/picks', { ...BILLS_PLUS, units: '1' });
     setFinal(game, 27, 24);
     time.set('2026-10-25T21:00:00.000Z');
     await app.games.checkFinals();
@@ -266,54 +267,55 @@ describe('picks', () => {
     const slip = await b.get('/pick?game=nfl:1&market=spread&side=away');
     assert.match(visible(slip.text), /Bills \+3\.5/);
 
-    const res = await b.post('/picks', { ...BILLS_PLUS, wager: '200' });
+    const res = await b.post('/picks', { ...BILLS_PLUS, units: '2' });
     assert.equal(res.location, '/games?sport=nfl');
-    assert.match(visible((await b.get(res.location)).text), /Locked in: Bills \+3\.5 \(-110\), \$200 to win \$181\.82\./);
+    assert.match(visible((await b.get(res.location)).text), /Locked Bills \+3\.5 \(-110\), 2u to win 1\.82u On the record Oct 25, 8:00 AM ET/);
     const [p] = picks();
     assert.equal(p.line, 3.5);
     assert.equal(p.odds, -110);
     assert.equal(p.units, 2);
-    assert.equal(p.wager, 200);
     assert.equal(p.made_at, MORNING);
 
     await b.post('/picks', { ...BILLS_PLUS, side: 'home', line: '-3.5' });
     assert.match(visible((await b.get('/games')).text), /already have a spread pick/);
     assert.equal(picks().length, 1);
 
-    await b.post('/picks', { game: 'nfl:1', market: 'total', side: 'over', line: '47.5', odds: '-110', wager: '100' });
+    await b.post('/picks', { game: 'nfl:1', market: 'total', side: 'over', line: '47.5', odds: '-110', units: '1' });
     assert.equal(picks().length, 2, 'a total on the same game is its own pick');
     assert.match((await b.get('/games')).text, /cell mine/);
   });
 
-  test('wager dollars, counted in units, private to the bettor', async () => {
+  test('size a pick in units, with "to win" for the bettor', async () => {
     const b = await player('ann@example.com', 'Ann');
-    await b.get('/u/Ann');
-    await b.post('/unit', { unit_size: '$50' });
-    await b.get('/games');
-    await b.post('/picks', { ...BILLS_PLUS, wager: '$125' });
+    await b.post('/picks', { ...BILLS_PLUS, units: '2.5u' });
     const [p] = picks();
-    assert.deepEqual([p.wager, p.units], [125, 2.5]);
+    assert.equal(p.units, 2.5);
 
     const mine = visible((await b.get('/picks')).text);
-    assert.match(mine, /\$125 to win \$113\.64/);
+    assert.match(mine, /2\.5u to win 2\.27u/);
     assert.match(mine, /Starts in 5h 0m/);
     assert.match((await b.get('/games')).text, /class="badge"[^>]*>1</, 'one open bet on the My bets tab');
 
     const bob = await player('bob@example.com', 'Bob');
     time.set('2026-10-25T17:05:00.000Z');
-    const seen = visible((await bob.get('/u/Ann')).text);
-    assert.match(seen, /Bills \+3\.5 −110 2\.5u/);
-    assert.doesNotMatch(seen, /\$125/, 'nobody else sees dollars');
+    assert.match(visible((await bob.get('/u/Ann')).text), /Bills \+3\.5 −110 2\.5u/);
   });
 
-  test('turn away a wager out of range', async () => {
+  test('turn away a pick bigger than a max play', async () => {
     const b = await player('ann@example.com', 'Ann');
-    for (const wager of ['0', 'lots', '1000000']) {
-      const res = await b.post('/picks', { ...BILLS_PLUS, wager });
-      assert.equal(res.status, 400, wager);
-      assert.match(visible(res.text), /Wager between \$1 and \$100,000/);
+    for (const units of ['0', 'lots', '6', '1000']) {
+      const res = await b.post('/picks', { ...BILLS_PLUS, units });
+      assert.equal(res.status, 400, units);
+      assert.match(visible(res.text), /Play between 0\.1u and 5u/);
     }
+    // At +150, 5u would win 7.5u: the most is 3.33u, so no pick wins more than 5.
+    const slip = visible((await b.get('/pick?game=nfl:1&market=ml&side=away')).text);
+    assert.match(slip, /At \+150, 3\.33u is the most you can play/);
+    const dog = { game: 'nfl:1', market: 'ml', side: 'away', line: '', odds: '150' };
+    assert.match(visible((await b.post('/picks', { ...dog, units: '5' })).text), /At \+150, 3\.33u is the most you can play/);
     assert.equal(picks().length, 0);
+    await b.post('/picks', { ...dog, units: '3.33' });
+    assert.equal(picks()[0].units, 3.33);
   });
 
   test('ask again when the line moves', async () => {
@@ -402,10 +404,178 @@ describe('picks', () => {
   });
 });
 
+describe('game chat', () => {
+  const page = '/games/nfl%3A1';
+
+  test('talk about a game, with picks showing once it starts', async () => {
+    const ann = await player('ann@example.com', 'Ann');
+    await ann.post('/picks', { ...BILLS_PLUS, units: '2' });
+    assert.match(visible((await ann.get('/games')).text), /Chat/, 'every card links to its chat');
+    await ann.get(page);
+    const sent = await ann.post(`${page}/chat`, { body: 'Bills cover <b>easy</b>' });
+    assert.equal(sent.location, `${page}#chat`);
+
+    const bob = await player('bob@example.com', 'Bob');
+    let seen = await bob.get(page);
+    assert.match(seen.text, /Bills cover &lt;b&gt;easy&lt;\/b&gt;/, 'messages are plain text');
+    assert.doesNotMatch(visible(seen.text), /Ann Bills \+3\.5 2u/, 'no picks before the start');
+
+    time.set('2026-10-25T17:05:00.000Z');
+    seen = await bob.get(page);
+    assert.match(visible(seen.text), /Ann Bills \+3\.5 2u/);
+    assert.match(visible((await bob.get('/chat')).text), /Bills @ Chiefs NFL · .* 1 message/);
+  });
+
+  test('turn away empty, long and unconfirmed messages, and slow down floods', async () => {
+    const ann = await player('ann@example.com', 'Ann');
+    await ann.get(page);
+    await ann.post(`${page}/chat`, { body: '   ' });
+    assert.match(visible((await ann.get(page)).text), /Type something first/);
+    await ann.post(`${page}/chat`, { body: 'x'.repeat(281) });
+    assert.match(visible((await ann.get(page)).text), /Keep it under 280 characters/);
+    for (let i = 0; i < 9; i++) await ann.post(`${page}/chat`, { body: `msg ${i}` });
+    assert.match(visible((await ann.get(page)).text), /Slow down a little/);
+    assert.equal(app.store.get('SELECT COUNT(*) AS n FROM chat_messages').n, 6, 'eight tries a minute, the two turned away included');
+
+    const cal = app.browser();
+    await cal.join('cal@example.com', 'Cal', 'correct horse', { confirm: false });
+    const unconfirmed = await cal.get(page);
+    assert.match(visible(unconfirmed.text), /Confirm your email to join the chat/);
+    await cal.post(`${page}/chat`, { body: 'hi' });
+    assert.equal(app.store.get("SELECT COUNT(*) AS n FROM chat_messages WHERE body = 'hi'").n, 0);
+  });
+
+  test('delete your own, report someone else, and hide what enough people report', async () => {
+    const ann = await player('ann@example.com', 'Ann');
+    await ann.get(page);
+    await ann.post(`${page}/chat`, { body: 'first' });
+    await ann.post(`${page}/chat`, { body: 'buy my picks at scam.example' });
+    const [first, spam] = app.store.all('SELECT id FROM chat_messages ORDER BY id');
+
+    const bob = await player('bob@example.com', 'Bob');
+    await bob.get(page);
+    await bob.post(`/chat/${first.id}/delete`);
+    assert.match(visible((await bob.get(page)).text), /first/, "can't delete someone else's");
+    await ann.get(page);
+    await ann.post(`/chat/${first.id}/delete`);
+    assert.doesNotMatch(visible((await ann.get(page)).text), /first/);
+
+    for (const [email, name] of [['bob@example.com', null], ['cal@example.com', 'Cal'], ['dee@example.com', 'Dee']]) {
+      const b = name ? await player(email, name) : bob;
+      await b.get(page);
+      await b.post(`/chat/${spam.id}/report`);
+    }
+    const after = visible((await ann.get(page)).text);
+    assert.doesNotMatch(after, /scam\.example/);
+    assert.match(after, /Hidden after reports/);
+  });
+});
+
+describe('following', () => {
+  test('follow a player and see their picks once games start', async () => {
+    const ann = await player('ann@example.com', 'Ann');
+    await ann.post('/picks', { ...BILLS_PLUS, units: '2' });
+    const bob = await player('bob@example.com', 'Bob');
+    await bob.get('/u/Ann');
+    const done = await bob.post('/u/Ann/follow');
+    assert.equal(done.location, '/u/Ann');
+    let profile = visible((await bob.get('/u/Ann')).text);
+    assert.match(profile, /1 follower · 0 following/);
+    assert.match(profile, /Following/);
+    assert.match(visible((await bob.get('/following')).text), /Ann No started picks from them yet/);
+
+    time.set('2026-10-25T17:05:00.000Z');
+    assert.match(visible((await bob.get('/following')).text), /Ann · Bills \+3\.5/);
+
+    await bob.get('/u/Bob');
+    await bob.post('/u/Bob/follow');
+    assert.match(visible((await bob.get('/u/Bob')).text), /0 followers · 1 following/, "can't follow yourself");
+    await bob.get('/u/Ann');
+    await bob.post('/u/Ann/unfollow');
+    assert.match(visible((await bob.get('/u/Ann')).text), /0 followers/);
+  });
+});
+
+describe('public split', () => {
+  test('shows where players lean once five have picked a market', async () => {
+    const sides = [['away', '3.5'], ['away', '3.5'], ['away', '3.5'], ['home', '-3.5']];
+    for (const [i, [side, line]] of sides.entries()) {
+      const b = await player(`p${i}@example.com`, `Player${i}`);
+      await b.post('/picks', { ...BILLS_PLUS, side, line });
+    }
+    const viewer = await player('v@example.com', 'Viewer');
+    assert.doesNotMatch(visible((await viewer.get('/games/nfl%3A1')).text), /Public split/, 'four picks are too few to show');
+    await viewer.post('/picks', { ...BILLS_PLUS, side: 'home', line: '-3.5' });
+    const page = visible((await viewer.get('/games/nfl%3A1')).text);
+    assert.match(page, /Public split BUF 60% Spread · 5 picks 40% KC/);
+    assert.match(visible((await viewer.get('/games')).text), /60% on BUF/);
+  });
+});
+
+describe('notifications', () => {
+  const phone = () => {
+    const ecdh = crypto.createECDH('prime256v1');
+    ecdh.generateKeys();
+    return { endpoint: `https://fcm.googleapis.com/fcm/send/${crypto.randomUUID()}`, p256dh: ecdh.getPublicKey().toString('base64url'), auth: crypto.randomBytes(16).toString('base64url') };
+  };
+
+  test('a settled bet lands in the inbox and on the phone', async () => {
+    const ann = await player('ann@example.com', 'Ann');
+    await ann.get('/notifications');
+    assert.equal((await ann.post('/push/subscribe', phone())).status, 204);
+    assert.equal((await ann.post('/push/subscribe', { ...phone(), endpoint: 'https://evil.example/x' })).status, 400, 'only real push services');
+    await ann.get('/games');
+    await ann.post('/picks', { ...BILLS_PLUS, units: '2' });
+
+    setFinal(game, 27, 24);
+    time.set('2026-10-25T21:00:00.000Z');
+    await app.games.checkFinals();
+    await new Promise((resolve) => setImmediate(resolve));
+    const page = await ann.get('/games');
+    assert.match(page.text, /aria-label="Notifications, 1 new"/);
+    assert.match(visible((await ann.get('/notifications')).text), /Won \+1\.82u: Bills \+3\.5 \(BUF 24, KC 27\)/);
+    assert.doesNotMatch((await ann.get('/games')).text, /Notifications, 1 new/, 'opening the inbox reads it');
+    assert.equal(app.pushed.length, 1);
+    assert.match(app.pushed[0].url, /^https:\/\/fcm\.googleapis\.com\//);
+    assert.match(app.pushed[0].init.headers.Authorization, /^vapid t=.+, k=B/);
+  });
+
+  test('followers hear when a player locks a pick, once per half hour, never which side', async () => {
+    const ann = await player('ann@example.com', 'Ann');
+    const bob = await player('bob@example.com', 'Bob');
+    await bob.get('/u/Ann');
+    await bob.post('/u/Ann/follow');
+    await ann.get('/games');
+    await ann.post('/picks', BILLS_PLUS);
+    await ann.post('/picks', { game: 'nfl:1', market: 'total', side: 'over', line: '47.5', odds: '-110', units: '1' });
+    const inbox = visible((await bob.get('/notifications')).text);
+    assert.match(inbox, /Ann locked a pick on Bills @ Chiefs\. It shows when the game starts\./);
+    assert.equal(app.store.get("SELECT COUNT(*) AS n FROM notifications WHERE kind = 'follow'").n, 1);
+    assert.doesNotMatch(inbox, /\+3\.5|Over/);
+
+    await bob.post('/notifications/settings', { settled: 'on' });
+    time.advance(31 * 60_000);
+    await ann.get('/games');
+    await ann.post('/picks', { game: 'nfl:1', market: 'ml', side: 'away', line: '', odds: '150', units: '1' });
+    assert.equal(app.store.get("SELECT COUNT(*) AS n FROM notifications WHERE kind = 'follow'").n, 1, 'Bob turned these off');
+  });
+});
+
+describe('get the app', () => {
+  test('a Get the app button on every page, and an install page with steps for each phone', async () => {
+    const page = await app.browser().get('/');
+    assert.match(page.text, /href="\/install" data-get-app/);
+    const install = visible((await app.browser().get('/install')).text);
+    assert.match(install, /iPhone and iPad .* Add to Home Screen/);
+    assert.match(install, /Android .* Install app/);
+    assert.match(install, /Open this in your browser first/, 'help for app browsers like Instagram, shown by the script');
+  });
+});
+
 describe('more and live', () => {
   test('list games in progress with your bets on them', async () => {
     const ann = await player('ann@example.com', 'Ann');
-    await ann.post('/picks', { ...BILLS_PLUS, wager: '40' });
+    await ann.post('/picks', { ...BILLS_PLUS, units: '0.5' });
     assert.match(visible((await ann.get('/live')).text), /Nothing on right now/);
 
     time.set('2026-10-25T17:30:00.000Z');
@@ -413,8 +583,8 @@ describe('more and live', () => {
     game.competitions[0].competitors[0].score = '7';
     game.competitions[0].competitors[1].score = '3';
     const page = visible((await ann.get('/live')).text);
-    assert.match(page, /Live NFL · 2nd Qtr BUF Bills 3 KC Chiefs 7/);
-    assert.match(page, /Your bet Bills \+3\.5 −110 \$40/);
+    assert.match(page, /Live NFL · 2nd Qtr Chat BUF Bills 3 KC Chiefs 7/);
+    assert.match(page, /Your bet Bills \+3\.5 −110 0\.5u/);
     assert.match(visible((await ann.get('/more')).text), /Live games Scores right now, with your bets on them 1 live/);
 
     const bob = await player('bob@example.com', 'Bob');
@@ -426,11 +596,11 @@ describe('more and live', () => {
 describe('grading and boards', () => {
   test('grade off the final and rank by units', async () => {
     const ann = await player('ann@example.com', 'Ann');
-    await ann.post('/picks', { ...BILLS_PLUS, wager: '200' });
+    await ann.post('/picks', { ...BILLS_PLUS, units: '2' });
     const bob = await player('bob@example.com', 'Bob');
-    await bob.post('/picks', { game: 'nfl:1', market: 'ml', side: 'home', line: '', odds: '-170', wager: '100' });
+    await bob.post('/picks', { game: 'nfl:1', market: 'ml', side: 'home', line: '', odds: '-170', units: '1' });
     const cat = await player('cat@example.com', 'Cat');
-    await cat.post('/picks', { game: 'nfl:1', market: 'total', side: 'under', line: '47.5', odds: '-110', wager: '100' });
+    await cat.post('/picks', { game: 'nfl:1', market: 'total', side: 'under', line: '47.5', odds: '-110', units: '1' });
 
     setFinal(game, 27, 24);
     time.set('2026-10-25T21:00:00.000Z');
@@ -441,8 +611,15 @@ describe('grading and boards', () => {
     assert.ok(board.indexOf('Ann') < board.indexOf('Bob') && board.indexOf('Bob') < board.indexOf('Cat'), board);
     assert.match(board, /Ann 1-0 100% \+1\.82u \+91%/);
     assert.match(visible((await app.browser().get('/leaderboard?sport=nba')).text), /No graded picks here yet/);
-    assert.match(visible((await ann.get('/picks?tab=settled')).text), /Won \+\$181\.82/);
+    assert.match(visible((await ann.get('/picks?tab=settled')).text), /Won \+1\.82u/);
     assert.match(visible((await app.browser().get('/u/Cat')).text), /0-1/);
+    const card = (await app.browser().get('/u/Ann')).text;
+    assert.match(visible(card), /Unranked: 5 picks for a rank Record 1-0 Units \+1\.82u/);
+    assert.match(visible(card), /Win 100% ROI \+91% Last 10 1-0 Picks 1/);
+    assert.match(card, /data-series="[^"]*,1\.82"/, 'the units line ends at today\'s total');
+    assert.match(visible(card), /Breakdown .* Spreads 1-0 100% \+1\.82u \+91% Underdogs 1-0 100% \+1\.82u \+91% Road teams 1-0/);
+    assert.match(visible((await app.browser().get('/u/Bob')).text), /Moneylines 1-0 .* Favorites 1-0 .* Home teams 1-0/);
+    assert.match(visible((await app.browser().get('/u/Cat')).text), /Totals 0-1 0% −1u −100% Picks/, 'totals sit out of favorite and home splits');
   });
 
   test('push a spread that lands on the number', async () => {
