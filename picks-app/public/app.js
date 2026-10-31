@@ -33,11 +33,19 @@ async function promptInstall(event) {
 // iPhone Safari can't install from a button, so Get the app opens a pop-up
 // that points at Safari's own Share button instead of sending them away.
 const iosInstall = document.querySelector('[data-ios-install]');
-const iosSafari = /iPhone|iPod/.test(navigator.userAgent) && /Safari\//.test(navigator.userAgent)
-  && !/CriOS|FxiOS|EdgiOS|Instagram|FBAN|FBAV|TikTok|musical_ly|Snapchat|Twitter|LinkedInApp|GSA\//.test(navigator.userAgent);
+// Safari keeps Share in its bottom bar; Chrome, Edge and Firefox on iPhone keep
+// it by the address bar at the top. Apps' built-in browsers can't add to the
+// Home Screen at all, so they go to the install page instead.
+const iosUa = navigator.userAgent;
+const iosBrowser = !/iPhone|iPod/.test(iosUa) || /Instagram|FBAN|FBAV|TikTok|musical_ly|Snapchat|Twitter|LinkedInApp|GSA\//.test(iosUa)
+  ? null
+  : /CriOS|EdgiOS|FxiOS/.test(iosUa) ? 'chrome' : /Safari\//.test(iosUa) ? 'safari' : null;
 function showIosInstall(event) {
-  if (!iosInstall || !iosSafari || standalone) return false;
+  if (!iosInstall || !iosBrowser || standalone) return false;
   event.preventDefault();
+  iosInstall.classList.toggle('top', iosBrowser === 'chrome');
+  iosInstall.querySelector('.ios-arrow').textContent = iosBrowser === 'chrome' ? '↑' : '↓';
+  for (const el of iosInstall.querySelectorAll('[data-where]')) el.hidden = el.dataset.where !== iosBrowser;
   iosInstall.hidden = false;
   return true;
 }

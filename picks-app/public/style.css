@@ -826,7 +826,7 @@ a.chip { display: inline-block; text-decoration: none; }
 .app-banner { background: var(--card); border-bottom: 1px solid var(--line); }
 .app-banner .wrap { display: flex; align-items: center; gap: 12px; padding-top: 10px; padding-bottom: 10px; }
 .app-banner img { border-radius: 9px; flex: none; }
-.app-banner span { display: grid; flex: 1; min-width: 0; line-height: 1.25; }
+.app-banner-go { flex: 1; justify-content: center; text-align: center; text-transform: uppercase; letter-spacing: 0.03em; }
 .app-banner b { font-family: var(--cond); font-size: 1.05rem; }
 .app-banner small { color: var(--muted); }
 .app-banner-close { background: none; border: 0; color: var(--muted); font-size: 1.5rem; width: 36px; height: 36px; cursor: pointer; flex: none; }
@@ -858,3 +858,7 @@ a.chip { display: inline-block; text-decoration: none; }
 .ios-arrow { margin-top: 10px; font-size: 2.6rem; line-height: 1; color: var(--accent); font-weight: 800; animation: ios-bounce 1s ease-in-out infinite; }
 @keyframes ios-bounce { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(12px); } }
 @media (prefers-reduced-motion: reduce) { .ios-arrow, .ios-card { animation: none; } }
+/* Chrome on iPhone keeps its Share button at the top right, so the arrow points there. */
+.ios-install.top { justify-content: flex-start; padding: calc(8px + env(safe-area-inset-top)) 12px 0; }
+.ios-install.top .ios-arrow { order: -1; align-self: flex-end; margin: 0 6px 8px 0; animation-name: ios-bounce-up; }
+@keyframes ios-bounce-up { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-12px); } }

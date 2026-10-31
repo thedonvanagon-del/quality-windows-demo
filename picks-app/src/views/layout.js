@@ -76,8 +76,7 @@ ${user && !user.verified
 ${active === 'install' ? '' : html`<div class="app-banner" data-app-banner hidden>
   <div class="wrap">
     <img src="${app.assets.touchIcon}" alt="" width="36" height="36">
-    <span><b>Get the Bookie Bullies app</b><small>Free. Home Screen icon, phone alerts.</small></span>
-    <a class="btn small" href="/install" data-get-app>Get it</a>
+    <a class="btn app-banner-go" href="/install" data-get-app>Get Bookie Bullies App</a>
     <button type="button" class="app-banner-close" data-banner-close aria-label="Not now">×</button>
   </div>
 </div>`}
@@ -86,7 +85,7 @@ ${active === 'install' ? '' : html`<div class="ios-install" data-ios-install hid
     <button type="button" class="ios-close" data-ios-close aria-label="Close">×</button>
     <div class="ios-head"><img src="${app.assets.touchIcon}" alt="" width="52" height="52"><div><b id="ios-install-title">Add Bookie Bullies to your Home Screen</b><small>Free. About ten seconds.</small></div></div>
     <ol class="ios-steps">
-      <li><span class="step-n">1</span><span>Tap the Share button <svg class="ios-glyph" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12M8 7l4-4 4 4"/><path d="M6 11H5a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-8a1 1 0 0 0-1-1h-1"/></svg> in Safari's bar below<small>On newer iPhones, tap <b>⋯</b>, then <b>Share</b>.</small></span></li>
+      <li><span class="step-n">1</span><span>Tap the Share button <svg class="ios-glyph" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12M8 7l4-4 4 4"/><path d="M6 11H5a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-8a1 1 0 0 0-1-1h-1"/></svg> <span data-where="safari">in Safari's bar below<small>On newer iPhones, tap <b>⋯</b>, then <b>Share</b>.</small></span><span data-where="chrome" hidden>next to the address bar, top right</span></span></li>
       <li><span class="step-n">2</span><span>Scroll down and tap <svg class="ios-glyph" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="3.5" width="17" height="17" rx="4"/><path d="M12 8v8M8 12h8"/></svg> <b>Add to Home Screen</b></span></li>
       <li><span class="step-n">3</span><span>Tap <b>Add</b>, then open it from your Home Screen</span></li>
     </ol>
