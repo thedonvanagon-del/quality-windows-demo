@@ -7,7 +7,7 @@ import { csrfField, layout } from './layout.js';
 import { at, minus, pickItem, sportTabs, statStrip, tabs, teamLogo } from './parts.js';
 
 /** `mine` maps game id -> { spread: 'home', total: 'over', ... } for the player's picks. */
-export function games(ctx, { sport, list, mine, chats = new Map(), split = new Map(), live = [], problem }) {
+export function games(ctx, { sport, list, mine, chats = new Map(), split = new Map(), problem }) {
   const days = [];
   for (const game of list) {
     const day = etDay(game.start);
@@ -18,7 +18,6 @@ export function games(ctx, { sport, list, mine, chats = new Map(), split = new M
     title: `${sport.name} games`,
     active: 'games',
     body: html`
-      ${ticker(live)}
       <h1>Games</h1>
       <p class="lede">Tap a number to pick it. You get the line on the board right now, and it locks when the game starts.</p>
       ${sportTabs('/games', ctx.query, { all: false })}
@@ -31,15 +30,6 @@ export function games(ctx, { sport, list, mine, chats = new Map(), split = new M
         : html`<div class="card empty">No ${sport.name} games on the board in the next ${sport.days} days.</div>`}
     `,
   });
-}
-
-/** The scores of games in progress, in a strip across the top, the way a broadcast runs them. */
-function ticker(live) {
-  if (!live.length) return '';
-  return html`<a class="ticker" href="/live" aria-label="Live scores">
-    <span class="live-tag">Live</span>
-    ${live.map((g) => html`<span class="tick">${g.away.abbr} ${g.away.score ?? 0} <b>${g.home.abbr} ${g.home.score ?? 0}</b> <em>${g.detail}</em></span>`)}
-  </a>`;
 }
 
 function gameCard(game, mine, sport, chatCount = null, split = null) {

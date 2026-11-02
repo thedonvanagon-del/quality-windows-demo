@@ -39,7 +39,8 @@ not dollars, and nothing is paid out.
 - **2026-10-30: The Scoreboard look** (option 2 of five mockups at
   https://claude.ai/artifact/Anh377HozoaDPqYiL36388): navy, amber, tall condensed
   type (Barlow Condensed, served from the app), team colors down each game,
-  a live-score strip on the board. Players can switch to **Bull Market** (black
+  a live-score strip on the board (taken out 2026-11-02: it didn't work well
+  live; scores stay on More → Live games). Players can switch to **Bull Market** (black
   and green, option 4) or **Ember** (the first orange look). Teal and violet are
   retired; anyone on them gets the default.
 - **2026-10-30:** Game cards show the TV channel when ESPN lists one, each
@@ -203,7 +204,7 @@ Launch log:
   color, an outside link button, Share, and a record preview when shared
 - More tab with Live games (scores now, your bets on them) and Game chat
 - Scoreboard look with three color choices, TV channel and team records on
-  cards, live-score strip, slide-up pick slip, LOCKED confirmation
+  cards, slide-up pick slip, LOCKED confirmation
 - Profile record card with a units line, ROI, last 10, rank, Share as image
 - Follow players and a Following feed; Hot streaks; public split; profile breakdown
 - Notifications: bell and inbox, phone notifications (Web Push)

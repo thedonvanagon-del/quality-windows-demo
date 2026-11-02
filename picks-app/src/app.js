@@ -318,7 +318,7 @@ export function createApp({ store, games, config, mailer = createMailer({ log: {
     const mine = picksOnGames(store, ctx.user.id, list.map((g) => g.id));
     const chats = chatCounts(store, list.map((g) => g.id));
     const split = splits(store, list.map((g) => g.id));
-    send(ctx, 200, play.games(ctx, { sport, list, mine, chats, split, live: games.liveNow(), problem: games.problem(sport.key) }));
+    send(ctx, 200, play.games(ctx, { sport, list, mine, chats, split, problem: games.problem(sport.key) }));
   }
 
   async function pickForm(ctx) {
