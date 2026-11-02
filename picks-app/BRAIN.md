@@ -155,6 +155,23 @@ not dollars, and nothing is paid out.
   the game starts. People delete their own; three reports hide a message.
   No admin screen yet: hidden messages are looked at in the database.
 
+### College basketball (the site)
+- **2026-11-02: College hoops picks on www.bookiebullies.com first**, app
+  later (owner's call). A separate engine (`cbb_picks.py` in the
+  bookie-bullies repo) so the MLB/NBA code isn't touched. It blends ESPN's
+  matchup predictor 50/50 with the betting line. Spread pick when they disagree
+  by 2.5+ points, moneyline at a 4%+ edge. Stakes are 1/8 Kelly, capped at
+  2u while in beta, at most 8 a day. Each game is logged once, before tip.
+  Lives at `/cbb.html` ("College Hoops" in the nav) and is graded nightly. It
+  counts in the track record.
+- **2026-11-02: Skip lopsided games.** The first live run picked eight
+  +28 to +44 underdogs. ESPN's win chance flattens near 100%, so a 99%
+  favorite read as about 25 points against a 44-point line. Now it skips lines
+  over 14 and predictor calls outside 12–88%. Those eight picks were pulled
+  before any game tipped.
+- Next: our own college ratings to replace ESPN's predictor once there's a
+  season of games. CBB games and picks in the app.
+
 ### Hosting and money
 - **2026-10-26:** Host on **AWS Lightsail** (we already use AWS), one small
   server in Ohio (us-east-2), about $5 a month plus about $1 for nightly
