@@ -579,7 +579,7 @@ footer .logout { float: right; margin-left: 12px; }
 /* ---- Scoreboard type and details --------------------------------------- */
 
 h1, .brand, .tabs a, .seg a, .day, .board .when, .board .colhead, .cell, .stat b, .rk,
-.tabbar a, .ticket .sel, .status, .btn, .ticker, .team .tname, .slip-head, .pickname, .odds-pill, .towin b {
+.tabbar a, .ticket .sel, .status, .btn, .team .tname, .slip-head, .pickname, .odds-pill, .towin b {
   font-family: var(--cond);
 }
 h1 { font-size: 2rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.01em; line-height: 1.05; }
@@ -593,27 +593,7 @@ h2 { font-family: var(--cond); font-size: 0.95rem; letter-spacing: 0.08em; }
 .tabbar { border-top: 2px solid var(--accent) !important; }
 .tabbar a { font-size: 0.78rem !important; letter-spacing: 0.04em; text-transform: uppercase; }
 
-/* Live scores across the top of the board. */
-.ticker {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  margin: -6px -16px 18px;
-  padding: 8px 16px;
-  background: #050a18;
-  border-top: 2px solid var(--live);
-  white-space: nowrap;
-  overflow-x: auto;
-  scrollbar-width: none;
-  font-weight: 700;
-  font-size: 0.95rem;
-}
-.ticker::-webkit-scrollbar { display: none; }
 .live-tag { background: var(--live); color: #fff; padding: 1px 7px; border-radius: 3px; font-size: 0.78rem; letter-spacing: 0.08em; text-transform: uppercase; }
-.tick { color: var(--muted); }
-.tick b { color: var(--ink); font-weight: 700; }
-.tick em { font-style: normal; color: var(--accent); margin-left: 4px; }
-:root[data-theme="market"] .ticker { background: #000; }
 
 /* Game cards: team color bar, bigger logos, the channel next to the time. */
 .day { font-size: 1.05rem; letter-spacing: 0.06em; color: var(--ink); }

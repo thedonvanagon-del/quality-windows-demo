@@ -98,10 +98,6 @@ export function createGames({ store, espn, now = () => new Date(), log = console
       await Promise.all(SPORTS.map(freshBoard));
       return store.all(`SELECT * FROM games WHERE state = 'in' ORDER BY start_time, sport, home_name`).map(toGame);
     },
-    /** Live scores as last stored, without asking ESPN: cheap enough for a ticker on every board. */
-    liveNow(limit = 12) {
-      return store.all(`SELECT * FROM games WHERE state = 'in' ORDER BY start_time, sport, home_name LIMIT ?`, limit).map(toGame);
-    },
     problem: (sportKey) => problems.get(sportKey) ?? null,
 
     /** Games still to start in the sport's window, freshest lines first fetched if stale. */
