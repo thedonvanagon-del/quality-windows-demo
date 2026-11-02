@@ -169,6 +169,11 @@ not dollars, and nothing is paid out.
   favorite read as about 25 points against a 44-point line. Now it skips lines
   over 14 and predictor calls outside 12–88%. Those eight picks were pulled
   before any game tipped.
+- **2026-11-02: One board for every sport.** The homepage Locks and Card
+  rank all sports together (MLB, NBA, college hoops) by the same score,
+  with a sport filter. Each sport still has its own page (/free-mlb-picks/,
+  /free-nba-picks/, /cbb.html). The team we're on shows gold for a lock,
+  green for a good pick. College 5-star picks count as Locks.
 - Next: our own college ratings to replace ESPN's predictor once there's a
   season of games. CBB games and picks in the app.
 
