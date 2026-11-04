@@ -313,6 +313,7 @@ input:focus, select:focus { outline: none; border-color: var(--accent); box-shad
 .day { font-size: 0.75rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); margin: 24px 0 8px; }
 .event { background: var(--card); border: 1px solid var(--line); border-radius: var(--r); padding: 10px 12px 12px; }
 .event + .event { margin-top: 8px; }
+.event, .locked-ticket, .flash { scroll-margin-top: 96px; }
 
 .board { display: grid; grid-template-columns: minmax(0, 1fr) repeat(3, minmax(66px, 98px)); gap: 6px; align-items: center; }
 .board .when { font-size: 0.78rem; font-weight: 700; color: var(--muted); }
