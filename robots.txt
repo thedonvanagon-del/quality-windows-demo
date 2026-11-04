@@ -1,0 +1,31 @@
+# Not A Nosy Neighbor · Buddha Beans Coffee Co
+
+User-agent: *
+Allow: /
+Disallow: /secret.html
+
+# AI search crawlers, explicitly allowed. These are the ones that feed
+# ChatGPT, Claude, Perplexity and Google's AI surfaces. Blocking them by
+# accident is the most common way a small site stays invisible in AI answers.
+User-agent: GPTBot
+Allow: /
+
+User-agent: OAI-SearchBot
+Allow: /
+
+User-agent: ChatGPT-User
+Allow: /
+
+User-agent: ClaudeBot
+Allow: /
+
+User-agent: PerplexityBot
+Allow: /
+
+User-agent: Google-Extended
+Allow: /
+
+User-agent: Applebot-Extended
+Allow: /
+
+Sitemap: https://nosyneighbors.coffee/sitemap.xml

@@ -1,0 +1,210 @@
+/* ==========================================================================
+   Not A Nosy Neighbor  ·  site styles
+   Sterile and modern. A flat orange field, cream panels, hairline rules,
+   a strict grid and a lot of air. No shadows, no ornament, no texture.
+   One display serif used sparingly; everything else is set in the text face.
+   ========================================================================== */
+
+:root {
+  --orange:  #DC5A22;
+  --cream:   #FBF4EC;
+  --ink:     #1F1006;
+  --ink-60:  rgba(31,16,6,.62);
+  --hair:    rgba(31,16,6,.16);
+  --hair-on: rgba(251,244,236,.28);   /* hairline on the orange ground */
+
+  /* Fat, rounded, soft-terminal display serif in the Cooper Black family.
+     Cooper Black itself ships with macOS/Office, so it is a real fallback
+     for anyone who has it before the webfont lands. */
+  --display: "Bagel Fat One", "Cooper Black", "Bookman Old Style", Georgia, serif;
+  --text:    "Karla", "Helvetica Neue", Arial, sans-serif;
+
+  --wrap: 1120px;
+  --pad: clamp(1.15rem, 4vw, 3rem);
+  --gap: clamp(1rem, 2vw, 1.5rem);
+
+  color-scheme: light;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html { -webkit-text-size-adjust: 100%; scroll-behavior: smooth; }
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+
+body {
+  margin: 0;
+  background: var(--orange);
+  color: var(--cream);
+  font-family: var(--text);
+  font-size: clamp(.95rem, .93rem + .12vw, 1rem);
+  line-height: 1.65;
+  overflow-x: hidden;
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  -webkit-font-smoothing: antialiased;
+}
+
+img { max-width: 100%; display: block; }
+[hidden] { display: none !important; }
+a { color: inherit; }
+
+h1, h2, h3 { font-family: var(--display); font-weight: 400; line-height: 1.04;
+  margin: 0; letter-spacing: -.01em; }
+p { margin: 0 0 1rem; }
+
+.wrap { width: 100%; max-width: var(--wrap); margin-inline: auto; padding-inline: var(--pad); }
+
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden;
+  clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap; }
+.skip { position: absolute; left: -9999px; background: var(--ink); color: var(--cream);
+  padding: .7rem 1.2rem; z-index: 999; }
+.skip:focus { left: 1rem; top: 1rem; }
+:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; }
+
+/* every decorative element from earlier passes stays out */
+.sparkles, .sticker, .ring, .claim svg { display: none !important; }
+.glitter { color: inherit; }
+
+/* one label style, used everywhere */
+.label, .cover__tape, .cover__sub, .rivals__kicker,
+.outro__note, .topbar, .sig b {
+  font-size: .68rem; font-weight: 600; letter-spacing: .16em; text-transform: uppercase;
+}
+
+/* ---------- buttons ---------- */
+.bigbtn {
+  display: inline-block; font-family: var(--text); font-weight: 600;
+  font-size: .78rem; letter-spacing: .14em; text-transform: uppercase;
+  text-decoration: none; background: transparent; color: var(--cream);
+  padding: .9rem 1.8rem; border: 1px solid var(--cream); border-radius: 0; cursor: pointer;
+  transition: background .18s ease, color .18s ease;
+}
+.bigbtn:hover { background: var(--cream); color: var(--ink); }
+.bigbtn--light { background: var(--cream); color: var(--ink); border-color: var(--cream); }
+.bigbtn--light:hover { background: transparent; color: var(--cream); }
+/* on a cream panel the button inverts */
+.rivals__paper .bigbtn, .signs__paper .bigbtn {
+  color: var(--ink); border-color: var(--ink);
+}
+.rivals__paper .bigbtn:hover, .signs__paper .bigbtn:hover {
+  background: var(--ink); color: var(--cream);
+}
+
+/* ---------- top bar ---------- */
+.topbar {
+  display: flex; align-items: center; gap: 1.4rem; flex-wrap: wrap;
+  padding: 1.6rem 0; border-bottom: 1px solid var(--hair-on);
+}
+.topbar a { text-decoration: none; opacity: .75; }
+.topbar a:hover { opacity: 1; }
+.topbar .home { font-family: var(--display); font-weight: 400; font-size: 1.05rem;
+  letter-spacing: 0; text-transform: none; opacity: 1; margin-right: auto;
+  display: inline-flex; align-items: center; gap: .6rem; }
+.topbar__logo { width: 46px; height: auto; flex: none; }
+
+/* ---------- cover ---------- */
+.cover { padding: clamp(3.5rem,10vw,8rem) 0 clamp(2.5rem,6vw,4.5rem); }
+.cover__tape { display: block; opacity: .75; margin-bottom: 2rem; }
+.cover h1 { font-size: clamp(2.4rem, 7.5vw, 5rem); margin: 0; }
+.cover h1 span { display: block; }
+.cover h1 .small { font-size: .34em; opacity: .7; margin-bottom: .4rem; }
+.cover__sub { opacity: .7; margin: 2rem 0 0; }
+.cover__scrawl { font-size: clamp(1rem,1.8vw,1.15rem); opacity: .82; margin: 1rem 0 0; max-width: 44ch; }
+
+/* ---------- three, blacked out ----------
+   The silhouette is a drawn SVG of a flat-bottom box pouch, so it is already
+   solid black and needs no filter. It also stays crisp at any size and weighs
+   a few hundred bytes instead of 45KB per tile.                             */
+.soon {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: var(--gap);
+  padding: clamp(2.5rem,6vw,4.5rem) 0 clamp(3.5rem,8vw,6rem);
+}
+.soon__item { background: var(--cream); display: flex; flex-direction: column; }
+/* the image is pinned so its own proportions cannot stretch the tile */
+.soon__art { flex: none; aspect-ratio: 4/5; position: relative; }
+.soon__art img {
+  position: absolute; top: 1.6rem; right: 1.6rem; bottom: 1.6rem; left: 1.6rem;
+  margin: auto; width: auto; height: auto;
+  max-width: calc(100% - 3.2rem); max-height: calc(100% - 3.2rem);
+  object-fit: contain;
+  opacity: .92;
+}
+.soon__cap {
+  flex: 1 1 auto; padding: .9rem 1.2rem 1.1rem; border-top: 1px solid var(--hair);
+  display: flex; align-items: baseline; justify-content: space-between; gap: 1rem;
+  color: var(--ink);
+}
+.soon__no { font-family: var(--display); font-size: .95rem; opacity: .35; }
+.soon__label { font-size: .68rem; font-weight: 600; letter-spacing: .16em; text-transform: uppercase; }
+
+/* ---------- FAQ ---------- */
+.faq h3 {
+  font-family: var(--text); font-size: .68rem; font-weight: 600;
+  letter-spacing: .16em; text-transform: uppercase; color: var(--ink-60);
+  margin: 1.6rem 0 .5rem;
+}
+.faq h3:first-child { margin-top: 0; }
+.faq p { margin: 0; max-width: 62ch; font-size: .95rem; line-height: 1.6; }
+.faq p + h3 { padding-top: 1.6rem; border-top: 1px solid var(--hair); }
+
+/* ---------- panels ---------- */
+.rivals, .signs { padding: clamp(1rem,2.5vw,2rem) 0; }
+.rivals__paper, .signs__paper {
+  background: var(--cream); color: var(--ink);
+  padding: clamp(1.8rem,5vw,4rem);
+}
+.rivals__kicker { color: var(--ink-60); margin: 0 0 1.4rem; }
+.rivals h2, .signs h2 { font-size: clamp(1.5rem,3.8vw,2.4rem); margin: 0 0 1.2rem; }
+.rivals__lede { font-size: 1rem; max-width: 56ch; color: var(--ink-60); margin: 0 0 2.5rem; }
+
+.claim { margin: 0 0 2.5rem; padding: 1.6rem 0; border-top: 1px solid var(--ink); border-bottom: 1px solid var(--ink); }
+.claim p { font-family: var(--display); font-size: clamp(1.2rem,3vw,1.8rem); line-height: 1.22;
+  margin: 0; max-width: 26ch; }
+
+.vs { display: grid; gap: 0; grid-template-columns: 1fr; }
+@media (min-width: 720px) { .vs { grid-template-columns: 1fr auto 1fr; } }
+.vs__side { padding: 1.4rem 0; }
+@media (min-width: 720px) {
+  .vs__side { padding: 0 2rem; }
+  .vs__side:first-child { padding-left: 0; }
+  .vs__side:last-child { padding-right: 0; }
+}
+.vs__side h3 { font-size: .68rem; font-weight: 600; letter-spacing: .16em; text-transform: uppercase;
+  font-family: var(--text); color: var(--ink-60); margin: 0 0 1rem; }
+.vs__side ul { list-style: none; margin: 0; padding: 0; }
+.vs__side li { padding: .6rem 0; margin: 0; line-height: 1.45; font-size: .92rem;
+  border-bottom: 1px solid var(--hair); }
+.vs__side li:last-child { border-bottom: 0; }
+.vs__side--them { color: var(--ink-60); }
+.vs__bar { display: none; }
+@media (min-width: 720px) { .vs__bar { display: block; width: 1px; background: var(--hair); padding: 0; font-size: 0; } }
+
+.detour {
+  margin-top: 2.5rem; padding-top: 1.5rem; border-top: 1px solid var(--ink);
+  display: flex; align-items: flex-start; gap: 1rem; flex-wrap: wrap;
+}
+.detour__pin { flex: none; width: 22px; height: 22px; margin-top: .25rem; }
+.detour p { margin: 0; }
+.detour b { font-family: var(--display); font-weight: 400; display: block; font-size: 1.02rem; margin-bottom: .2rem; }
+.detour small { font-size: .82rem; color: var(--ink-60); }
+
+/* ---------- signatures ---------- */
+.signs__grid { display: grid; gap: 0; grid-template-columns: 1fr; }
+@media (min-width: 680px) { .signs__grid { grid-template-columns: 1fr 1fr; column-gap: 3rem; } }
+.sig { font-size: .92rem; line-height: 1.5; color: var(--ink-60); margin: 0;
+  padding: 1rem 0; border-bottom: 1px solid var(--hair); }
+.sig b { display: block; margin-top: .45rem; color: var(--ink); opacity: .55; }
+
+/* ---------- outro ---------- */
+.outro { padding: clamp(3rem,7vw,5rem) 0 clamp(3.5rem,9vw,7rem); border-top: 1px solid var(--hair-on); }
+.outro__note { display: block; opacity: .7; margin-bottom: 1.4rem; }
+.outro h2 { font-size: clamp(1.6rem,4.4vw,2.6rem); margin: 0 0 1rem; }
+.outro p { max-width: 48ch; margin: 0 0 2rem; opacity: .82; }
+
+.footnote { font-size: .68rem; letter-spacing: .12em; text-transform: uppercase; opacity: .55;
+  padding: 0 var(--pad) 3rem; max-width: var(--wrap); margin-inline: auto; }
+
+@media (prefers-reduced-motion: reduce) {
+  .bigbtn { transition: none; }
+}
