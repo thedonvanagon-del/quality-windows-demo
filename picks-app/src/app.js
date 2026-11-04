@@ -348,7 +348,8 @@ export function createApp({ store, games, config, mailer = createMailer({ log: {
     const seen = { line: ctx.form.get('line') ? Number(ctx.form.get('line')) : null, odds: Number(ctx.form.get('odds')) };
     const { game, stale } = await games.current(ctx.form.get('game') ?? '');
     if (!game || !MARKETS[market]?.includes(side)) return notFound(ctx);
-    const back = `/games?sport=${game.sport}`;
+    // Back to the same game on the board, not the top of the page.
+    const back = `/games?sport=${game.sport}#${play.cardId(game.id)}`;
     const current = price(game, market, side);
     if (!isLocked(game, ctx.now) && current && stale) {
       return send(ctx, 503, play.slip(ctx, { game, market, side, current, units, error: "Can't reach live lines right now, so picks are paused. Try again in a minute." }));

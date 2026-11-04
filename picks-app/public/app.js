@@ -97,6 +97,16 @@ if (banner && !standalone && device !== 'desktop') {
   });
 }
 
+// After a pick the board comes back at the game that was picked (#g-...), not
+// the top. Move the LOCKED ticket (or an error) next to that game so it's seen.
+const pickedCard = window.location.hash.startsWith('#g-') && document.getElementById(window.location.hash.slice(1));
+if (pickedCard) {
+  const notice = document.querySelector('.locked-ticket, main .flash');
+  if (notice) pickedCard.before(notice);
+  (notice ?? pickedCard).scrollIntoView({ block: 'start' });
+  history.replaceState(null, '', window.location.pathname + window.location.search);
+}
+
 // Ask before anything that can't be undone.
 for (const form of document.querySelectorAll('form[data-confirm]')) {
   form.addEventListener('submit', (event) => {

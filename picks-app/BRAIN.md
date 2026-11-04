@@ -51,6 +51,8 @@ not dollars, and nothing is paid out.
   made in the phone, for posting). ROI matters to the owner; it stays up front.
 - **2026-10-30:** Tapping a line slides the pick slip up over the board. A
   locked pick gets a gold **LOCKED** stamp with the exact time.
+- **2026-11-04:** After a pick, the board comes back at the game you picked,
+  not the top, with the LOCKED stamp right above that game (owner's ask).
 - **2026-10-25:** Dark and clean, like BetMGM, with our own colors. Odds
   tiles show the line in white and the price in the accent color.
 - **2026-10-25:** Orange ("ember") is the default because it's the easiest to

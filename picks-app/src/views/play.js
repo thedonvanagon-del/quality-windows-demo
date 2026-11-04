@@ -6,6 +6,11 @@ import { icons } from './icons.js';
 import { csrfField, layout } from './layout.js';
 import { at, minus, pickItem, sportTabs, statStrip, tabs, teamLogo } from './parts.js';
 
+/** The id a game's card carries, so a pick can come back to the same spot on the board. */
+export function cardId(gameId) {
+  return `g-${String(gameId).replace(/[^a-zA-Z0-9_-]/g, '-')}`;
+}
+
 /** `mine` maps game id -> { spread: 'home', total: 'over', ... } for the player's picks. */
 export function games(ctx, { sport, list, mine, chats = new Map(), split = new Map(), problem }) {
   const days = [];
@@ -39,7 +44,7 @@ function gameCard(game, mine, sport, chatCount = null, split = null) {
     ${cell(game, 'spread', side, mine)}
     ${cell(game, 'total', totalSide, mine)}
     ${cell(game, 'ml', side, mine)}`;
-  return html`<article class="event" aria-label="${game.away.name} at ${game.home.name}">
+  return html`<article class="event" id="${cardId(game.id)}" aria-label="${game.away.name} at ${game.home.name}">
     <div class="board">
       <span class="when">${at(game.start)}${game.tv ? html`<span class="tv">${game.tv}</span>` : ''}</span><span class="colhead">${sport.spread}</span><span class="colhead">Total</span><span class="colhead">Money</span>
       ${row('away', 'over')}
