@@ -106,7 +106,7 @@ function espnSummary(g, list, at) {
         return {
           athlete: { displayName: INJURY_NAMES[k % INJURY_NAMES.length], position: { abbreviation: POSITIONS[g.sport][k % POSITIONS[g.sport].length] } },
           status: INJURY_STATUSES[(k >> 3) % INJURY_STATUSES.length],
-          details: { type: INJURY_TYPES[(k >> 5) % INJURY_TYPES.length] },
+          details: { type: INJURY_TYPES[seed(`${g.id}${side}${i}type`) % INJURY_TYPES.length] },
         };
       }),
     };
@@ -257,6 +257,7 @@ export async function seedDemo({ store, games, espn, now = () => new Date() }) {
   }
 
   const rand = prng(7);
+  const clvRand = prng(11);
   const ids = {};
   for (const [name] of PLAYERS) {
     const email = name === 'SharpShooter' ? DEMO_LOGIN.email : `${name.toLowerCase()}@example.com`;
@@ -291,7 +292,14 @@ export async function seedDemo({ store, games, espn, now = () => new Date() }) {
         }
         // A past pick went in hours before the close, so its number often
         // differs from the closing one: more often in a sharp player's favor.
-        const chosen = open ? price(g, market, side) : earlyNumber(price(g, market, side), market, side, skill, rand);
+        // Its own random numbers, and never a different result, so the
+        // records come out the same as without it.
+        const close = price(g, market, side);
+        let chosen = close;
+        if (!open) {
+          const early = earlyNumber(close, g.sport, market, side, skill, clvRand);
+          if (grade({ market, side, line: early.line }, g.homeScore, g.awayScore) === grade({ market, side, line: close.line }, g.homeScore, g.awayScore)) chosen = early;
+        }
         const start = new Date(g.start).getTime();
         const madeAt = open ? at.getTime() - rand() * 6 * HOUR : start - (1 + rand() * 30) * HOUR;
         if (open && madeAt >= start) continue;
@@ -432,18 +440,18 @@ function seedStreaks(store, ids, today, rand) {
 
 /**
  * The number a pick got before the line settled at its close: up to a point
- * either way on a spread or total, up to 15 cents on a moneyline. A sharper
- * player's moves lean their way.
+ * either way on a spread or total, up to 15 cents on a moneyline (or a run
+ * line or puck line, which stay at 1.5). A sharper player's moves lean their way.
  */
-function earlyNumber(close, market, side, skill, rand) {
+function earlyNumber(close, sport, market, side, skill, rand) {
   const size = [0, 0, 0.5, 0.5, 1][Math.floor(rand() * 5)];
   const good = rand() < 0.5 + (skill - 0.5) * 3 ? 1 : -1;
-  if (market === 'ml') {
+  if (market === 'ml' || (market === 'spread' && SHAPE[sport].spread === 0)) {
     const cents = size * 15 * good;
     let odds = close.odds + cents;
     if (close.odds < 0 && odds > -100) odds += 200;
     if (close.odds > 0 && odds < 100) odds -= 200;
-    return { line: null, odds: Math.round(odds) };
+    return { line: close.line, odds: Math.round(odds) };
   }
   // A higher spread is better for its side; a total is better lower for an over, higher for an under.
   const better = market === 'total' && side === 'over' ? -1 : 1;

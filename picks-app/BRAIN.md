@@ -36,6 +36,17 @@ not dollars, and nothing is paid out.
   bookie-bullies repo) for the header, the browser tab and the phone icons.
 
 ### Look
+- **2026-11-05: Injuries and recent form on game pages** (owner approved),
+  before the start only: each team's listed injuries (worst status first,
+  six a team, with position and the injury) and last five results as W/L
+  chips ("W 112-104 vs BOS"), newest first, from ESPN's game summary
+  (`summary?event=`). A section with nothing in it is hidden. The page
+  **never waits on ESPN**: `src/summaries.js` keeps each game's summary 30
+  minutes in memory, one request per game at a time; with nothing cached the
+  page shows without them and a fetch starts in the background for the next
+  view. A failure is logged, shows nothing, and is tried again after 5
+  minutes. **The parser hasn't been checked against live ESPN** (see Waiting
+  on the owner).
 - **2026-10-30: The Scoreboard look** (option 2 of five mockups at
   https://claude.ai/artifact/Anh377HozoaDPqYiL36388): navy, amber, tall condensed
   type (Barlow Condensed, served from the app), team colors down each game,
@@ -93,6 +104,30 @@ not dollars, and nothing is paid out.
   They name hello@bookiebullies.com as the contact (setting: CONTACT_EMAIL).
 
 ### How picks work
+- **2026-11-05: Closing line value (CLV)** on straight picks (owner approved).
+  - **The close** is the last pregame line the app saw for each market. Until
+    the start it's tracked on the game (`games.closing_lines`; a market the
+    book pulls keeps its last number); when the game starts, by ESPN's status
+    or the clock, it's **frozen once** (`closing_at`) and nothing changes it,
+    live odds included. A game the app only saw after it started (or that
+    started before this shipped) takes its close from its last stored lines
+    at grading.
+  - **Per pick**, stored once the close is frozen: `clv_points` for spreads
+    and totals, positive when the pick got the better number (+3.5 that
+    closed +2.5 is +1.0; Over 44 that closed 45.5 is +1.5; Under the other
+    way), and `clv_pct`, the win chance gained on the price, in percentage
+    points, with the vig taken out using both closing prices.
+  - **Decided differently from the brief:** the pick's own price is scaled by
+    the same vig as the close, so a pick at exactly the closing price shows
+    0%, not −2.4% (raw −110 against a no-vig 50%). Otherwise every pick that
+    matched the close would read as "lost to the close".
+  - **Shown** as a "CLV +1.0" (points) or "CLV +2.3%" (price, for moneylines,
+    and for spreads and totals whose number didn't move) tag on My bets,
+    profile and feed rows, green or red. Profiles show "Beat the close: 58% ·
+    Avg CLV +1.2% · 40 picks" with a What's CLV? note. Beat the close counts
+    the number on the tag; the average is the price number over every pick
+    with one, so flat −110 spreads pull it toward 0. Voids are left out.
+    Parlays skip CLV for now. Picks graded before 2026-11-05 have none.
 - **2026-11-05: Parlays** (owner approved). 2 to 6 legs, each on a **different
   game** (no same-game parlays: those legs move together). A leg is any
   spread, total or moneyline on the board, before that game starts.
@@ -272,6 +307,20 @@ not dollars, and nothing is paid out.
   phones; a Get the app button there is offered, not built.
 
 ### Chat
+- **2026-11-05: Group chat (trash talk)**, owner approved. Every group has a
+  Chat section on its page (`/groups/:id#chat`), members only: anyone else
+  gets a 404, and leaving a group takes it away. Same rules as game chat
+  (plain text, 280 characters, confirmed emails, eight messages a minute
+  across games and groups, delete your own, three reports hide), and the
+  **group's owner can delete any message** in their group. Reported group
+  messages show on `/admin/reports` as "Group: name" (no link: admins aren't
+  members). **No push per message**, no mentions: the Groups list shows
+  "3 new" by each group, counted from when the player last opened the group
+  (`group_members.chat_read_at`; their join time before that), leaving out
+  their own and hidden messages. Opening the group, or its chat refreshing,
+  reads them. Deleting a group deletes its chat. One `chat.js` serves both
+  kinds of thread; `chat_messages` was rebuilt with `game_id` optional and a
+  `group_id`, and `chat_reports` with it, so no report was lost.
 - **2026-11-05: Admin page for reported chat** (`/admin/reports`, an Admin row
   in More). Lists every reported message with its author, game, report count
   and time. Restore puts it back and clears its reports; Delete takes it down.
@@ -383,6 +432,8 @@ Launch log:
   same 5u caps, graded with picks, one bet on every record and board
 - A free weekly contest with a winners wall, the streak game, badges, invite
   links, and the Lines are up and Streak reminders
+- Group chat with unread counts on the Groups list; closing line value on
+  straight picks and profiles; injuries and recent form on game pages
 - Demo mode: `npm run demo`, log in as demo@example.com / letmein123
 - Server setup in `aws/stacks/bookie-bullies-app` and a deploy-on-merge
   workflow (`.github/workflows/picks-app-deploy.yml`)
@@ -415,6 +466,13 @@ Beta launch checklist (2026-10-27). The app code is merged; these get it online.
    `ADMIN_EMAILS=originalbookiebullies@gmail.com`, then restart. That email
    needs an app account, confirmed, to see Admin in More. The official picks
    import needs nothing set: it reads www.bookiebullies.com/picks_log.jsonl.
+9. **Check injuries and form against live ESPN** (2026-11-05). The session
+   that built them couldn't reach site.api.espn.com, so `parseSummary` in
+   `src/espn.js` was written from ESPN's known response shape and tested on
+   made-up fixtures. A session with ESPN access should fetch a real summary
+   per sport (NFL, college football, NBA, college hoops, MLB, NHL) and check
+   that the sections fill in. If ESPN's shape differs, the sections just stay
+   hidden; nothing breaks.
 
 ## Ideas, not built yet
 
@@ -444,9 +502,11 @@ In rough order of value:
 8. ~~**Notifications** when bets settle~~ (built 2026-10-30) ~~or lines go up~~
    (built 2026-11-05, Lines are up). Game-start alerts and the App Store push are still open.
 9. App Store and Google Play versions.
-10. Trash talk in groups. (~~Following players~~: built 2026-10-30.)
+10. ~~Trash talk in groups~~ (built 2026-11-05, group chat). (~~Following players~~: built 2026-10-30.)
 11. ~~Changing a screen name~~ (built 2026-11-05), props, ~~parlays~~ (built 2026-11-05), more admin
     tools (~~reported chat~~ built 2026-11-05; fixing a bad grade is still by hand).
+12. ~~Closing line value~~ and ~~injuries and form on game pages~~: built
+    2026-11-05. CLV on parlay legs is still open.
 
 ## How to work on it
 
