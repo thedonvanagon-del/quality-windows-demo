@@ -33,7 +33,12 @@ const games = createGames({
   espn,
   onGraded: (ids, parlayIds) => {
     notifier.settled(ids, new Date(), parlayIds);
-    badgesAfterGrading(store, { pickIds: ids, parlayIds, now: new Date(), notifier });
+    // A badge problem must never get in the way of grading.
+    try {
+      badgesAfterGrading(store, { pickIds: ids, parlayIds, now: new Date(), notifier });
+    } catch (err) {
+      console.error(`badges after grading: ${err.message}`);
+    }
   },
 });
 if (config.demo && !store.get('SELECT 1 FROM users LIMIT 1')) await seedDemo({ store, games, espn });
