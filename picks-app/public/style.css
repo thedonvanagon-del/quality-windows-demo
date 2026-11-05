@@ -365,6 +365,11 @@ a.cell:hover { background: var(--tile-hover); border-color: color-mix(in srgb, v
 .cell.mine, .cell.mine.price { background: var(--accent); color: var(--accent-ink); }
 .cell.mine small { color: var(--accent-ink); opacity: 0.75; }
 .cell.taken { opacity: 0.32; }
+.cell.loading { border-color: var(--accent); animation: cell-pulse 0.9s ease-in-out infinite; }
+@keyframes cell-pulse { 50% { opacity: 0.55; } }
+.sheet-loading { max-width: 440px; margin: 0 auto; padding: 44px 16px calc(44px + env(safe-area-inset-bottom)); text-align: center; color: var(--muted); font-weight: 600; background: var(--card); border: 1px solid var(--line); border-bottom: 0; border-radius: 14px 14px 0 0; }
+.btn.busy { opacity: 0.75; pointer-events: none; }
+@media (prefers-reduced-motion: reduce) { .cell.loading { animation: none; } }
 
 /* ---- Pick slip ---------------------------------------------------------- */
 
@@ -668,6 +673,7 @@ dialog.sheet {
 }
 dialog.sheet[open] { animation: sheet-up 0.22s ease-out; }
 dialog.sheet::backdrop { background: rgba(3, 6, 15, 0.66); }
+dialog.sheet:focus, dialog.sheet:focus-visible { outline: none; }
 dialog.sheet .slip-head { padding-right: 52px; }
 dialog.sheet .slip { border-radius: 14px 14px 0 0; border-bottom: 0; padding-bottom: env(safe-area-inset-bottom); max-height: 92vh; overflow-y: auto; }
 .sheet-close {
@@ -688,6 +694,7 @@ dialog.sheet .slip { border-radius: 14px 14px 0 0; border-bottom: 0; padding-bot
 @media (min-width: 761px) {
   dialog.sheet { margin: auto; }
   dialog.sheet .slip { border-radius: 14px; border-bottom: 1px solid var(--line); }
+  .sheet-loading { border-radius: 14px; border-bottom: 1px solid var(--line); }
 }
 @keyframes sheet-up { from { transform: translateY(40px); opacity: 0; } to { transform: none; opacity: 1; } }
 @media (prefers-reduced-motion: reduce) { dialog.sheet[open], .locked-ticket .stamp { animation: none; } }

@@ -115,20 +115,34 @@ export function createGames({ store, espn, now = () => new Date(), log = console
     },
 
     /**
-     * One game, refreshed if its board is more than a minute old, so a pick
-     * is checked against the latest line and status. Returns { game, stale }
-     * where stale means ESPN couldn't be reached and the cached copy is too
-     * old to take a pick on.
+     * One game, refreshed if its lines are more than a minute old, so a pick
+     * is checked against the latest line and status. Only the game's own day
+     * is re-fetched (one ESPN request, not the whole multi-day board), which
+     * keeps a pick quick on a big slate like college basketball.
+     *
+     * With `wait: false` (opening the pick slip) a cached line under ten
+     * minutes old comes back at once and the refresh runs in the background;
+     * the pick itself is still checked against the live line when it's sent.
+     *
+     * Returns { game, stale } where stale means ESPN couldn't be reached and
+     * the cached copy is too old to take a pick on.
      */
-    async current(gameId) {
+    async current(gameId, { wait = true } = {}) {
       const row = store.get('SELECT * FROM games WHERE id = ?', gameId);
       if (!row) return { game: null };
       const sport = SPORT[row.sport];
       const [from, to] = boardRange(sport);
       const day = etDay(row.start_time);
-      const key = day >= from && day <= to ? [from, to] : [day, day];
-      const age = now().getTime() - (fetchedAt.get(`${sport.key} ${key[0]}-${key[1]}`) ?? 0);
-      if (age > PICK_MAX_AGE) await refresh(sport, ...key);
+      const lastFetch = Math.max(
+        fetchedAt.get(`${sport.key} ${day}-${day}`) ?? 0,
+        day >= from && day <= to ? fetchedAt.get(`${sport.key} ${from}-${to}`) ?? 0 : 0,
+      );
+      const age = now().getTime() - lastFetch;
+      const cachedAge = now().getTime() - new Date(row.updated_at).getTime();
+      if (age > PICK_MAX_AGE) {
+        const job = refresh(sport, day);
+        if (wait || cachedAge > PICK_FALLBACK_AGE) await job;
+      }
       const game = toGame(store.get('SELECT * FROM games WHERE id = ?', gameId));
       const stale = now().getTime() - new Date(game.updatedAt).getTime() > PICK_FALLBACK_AGE;
       return { game, stale };

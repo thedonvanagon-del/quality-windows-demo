@@ -333,6 +333,40 @@ describe('picks', () => {
     assert.equal(picks()[0].line, 4.5);
   });
 
+  test("open the slip without waiting on ESPN, and check only the game's day on a pick", async () => {
+    const b = await player('ann@example.com', 'Ann');
+    time.advance(2 * 60_000);
+    const real = app.espn.scoreboard;
+    const asked = [];
+    let release;
+    const held = new Promise((resolve) => (release = resolve));
+    app.espn.scoreboard = async function (sport, from, to = from) {
+      asked.push([from, to]);
+      await held;
+      return real.call(this, sport, from, to);
+    };
+    try {
+      // A slow ESPN must not hold up the slip: it comes from the cached line.
+      const slip = await Promise.race([
+        b.get('/pick?game=nfl:1&market=spread&side=away'),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('slip waited on ESPN')), 1000)),
+      ]);
+      assert.match(visible(slip.text), /Bills \+3\.5/);
+      release();
+      await new Promise((resolve) => setTimeout(resolve, 20)); // let the background refresh land
+      // The pick itself re-checks the live line, fetching just that one day.
+      time.advance(2 * 60_000);
+      asked.length = 0;
+      await b.post('/picks', BILLS_PLUS);
+      assert.equal(picks().length, 1);
+      assert.equal(asked.length, 1);
+      assert.equal(asked[0][0], asked[0][1]);
+    } finally {
+      release();
+      app.espn.scoreboard = real;
+    }
+  });
+
   test('take a line the player never saw', async () => {
     const b = await player('ann@example.com', 'Ann');
     const res = await b.post('/picks', { ...BILLS_PLUS, line: '10.5' });
