@@ -83,7 +83,7 @@ body {
 }
 
 a { color: inherit; text-decoration: none; }
-main p a, .fine a, .empty a { color: var(--accent); font-weight: 600; }
+main p a, .fine a, .empty a:not(.btn) { color: var(--accent); font-weight: 600; }
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
 .num, .odds, .units, td.n { font-variant-numeric: tabular-nums; }
@@ -933,3 +933,67 @@ body.has-parlay { padding-bottom: 64px; }
 .ticket .leg-sel { font-weight: 700; font-size: 0.92rem; }
 .ticket .leg-sel .odds { color: var(--accent); margin-left: 6px; white-space: nowrap; }
 .ticket .leg-meta { color: var(--muted); font-size: 0.8rem; }
+
+/* ---- Weekly contest, streaks, badges, invites (2026-11-05) ---------------- */
+
+/* A row-like link to the weekly contest, at the top of the leaderboard. */
+.promo { display: flex; align-items: center; gap: 12px; margin: 0 0 14px; padding: 12px 14px; background: var(--card); border: 1px solid var(--line); border-left: 3px solid var(--accent); border-radius: var(--r); color: var(--ink); }
+.promo:hover { background: var(--raised); }
+.promo > svg { width: 22px; height: 22px; flex: none; color: var(--accent); }
+.promo > span:first-of-type { flex: 1; min-width: 0; }
+.promo small { display: block; color: var(--muted); font-size: 0.84rem; }
+.promo .go { color: var(--faint); }
+.promo .go svg { width: 18px; height: 18px; }
+
+.contest-clock { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; margin: 0 0 14px; padding: 12px 14px; border-radius: var(--r); background: var(--accent-soft); }
+.contest-clock b { font-family: var(--cond); font-size: 1.15rem; letter-spacing: 0.03em; text-transform: uppercase; color: var(--accent); }
+.contest-clock .cc-week { color: var(--muted); font-weight: 700; font-size: 0.85rem; }
+.contest-clock .cc-left { font-weight: 700; font-variant-numeric: tabular-nums; }
+
+.my-standing { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; padding: 12px 14px; border-color: var(--accent); }
+.my-standing .ms-place { font-family: var(--cond); font-weight: 800; font-size: 1.6rem; color: var(--accent); min-width: 2ch; }
+.my-standing .ms-text { flex: 1; min-width: 0; }
+.my-standing .ms-text small { display: block; color: var(--muted); font-size: 0.84rem; }
+.my-standing .ms-units { font-size: 1.15rem; font-variant-numeric: tabular-nums; }
+
+.podium { list-style: none; margin: 0 0 6px; padding: 0; display: grid; gap: 6px; }
+.podium li { display: grid; grid-template-columns: 2.6em minmax(0, 1fr) auto auto; align-items: center; gap: 10px; padding: 10px 12px; background: var(--card); border: 1px solid var(--line); border-radius: var(--r); }
+.podium .place { font-family: var(--cond); font-weight: 800; font-size: 1.2rem; color: var(--muted); }
+.podium .p1 .place { color: var(--accent); }
+.podium .who-cell { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.podium .rec { color: var(--muted); font-size: 0.85rem; font-variant-numeric: tabular-nums; }
+.podium b { font-variant-numeric: tabular-nums; }
+.week-card { margin-bottom: 12px; padding: 12px; }
+.week-card h3 { margin: 0 0 8px; font-family: var(--cond); font-size: 1.05rem; letter-spacing: 0.04em; text-transform: uppercase; color: var(--muted); }
+.week-card .podium li { background: var(--raised); border-color: transparent; }
+.winners-link { margin-top: 16px; }
+
+.stats.two { grid-template-columns: repeat(2, 1fr); }
+.streak-now { display: inline-flex; align-items: center; gap: 4px; color: var(--accent); }
+.streak-now svg { width: 22px; height: 22px; }
+.streak-tag { display: inline-flex; align-items: center; gap: 2px; vertical-align: 1px; margin-right: 6px; padding: 1px 6px 1px 4px; border-radius: 4px; background: var(--accent); color: var(--accent-ink); font-family: var(--cond); font-size: 0.78rem; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; }
+.streak-tag svg { width: 12px; height: 12px; }
+label.check.streak-check { margin: 10px 0 2px; padding: 10px 12px; border-radius: var(--r); background: var(--accent-soft); }
+.streak-check span { display: inline-flex; align-items: center; gap: 6px; }
+.streak-check svg { width: 16px; height: 16px; color: var(--accent); flex: none; }
+.streak-line { margin: 12px 0 0; }
+.streak-line a { display: inline-flex; align-items: center; gap: 6px; font-weight: 700; color: var(--ink); }
+.streak-line svg { width: 18px; height: 18px; color: var(--accent); }
+.ticket .act { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+
+.badge-chips { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; }
+.badge-chip { display: inline-flex; padding: 5px 10px 5px 7px; border-radius: 999px; background: var(--raised); border: 1px solid var(--line); font-weight: 700; font-size: 0.85rem; }
+.badge-chip > span[aria-hidden] { display: inline-flex; align-items: center; gap: 5px; }
+.badge-chip svg { width: 15px; height: 15px; color: var(--accent); }
+.badge-mark { display: inline-block; margin-left: 6px; padding: 0 5px; border-radius: 4px; background: var(--accent-soft); color: var(--accent); font-family: var(--cond); font-size: 0.72rem; font-weight: 800; letter-spacing: 0.05em; text-transform: uppercase; line-height: 1.5; white-space: nowrap; }
+
+.invited-by { display: flex; gap: 10px; align-items: flex-start; padding: 12px 14px; border-radius: var(--r); background: var(--accent-soft); margin: 0 0 12px; }
+.invited-by svg { width: 20px; height: 20px; flex: none; color: var(--accent); }
+.invite-url { font-weight: 700; font-variant-numeric: tabular-nums; }
+.recruit p { margin: 0; }
+.recruit-count { font-family: var(--cond); font-size: 1.6rem; color: var(--accent); }
+.recruit progress { width: 100%; height: 10px; appearance: none; border: 0; border-radius: 999px; background: var(--raised); overflow: hidden; accent-color: var(--accent); }
+.recruit progress::-webkit-progress-bar { background: var(--raised); border-radius: 999px; }
+.recruit progress::-webkit-progress-value { background: var(--accent); border-radius: 999px; }
+.recruit progress::-moz-progress-bar { background: var(--accent); border-radius: 999px; }
+.player .badge-mark { margin-left: -4px; }

@@ -1,6 +1,7 @@
 import http from 'node:http';
 
 import { createApp } from '../src/app.js';
+import { badgesAfterGrading } from '../src/badges.js';
 import { openStore } from '../src/db.js';
 import { parseScoreboard } from '../src/espn.js';
 import { createGames } from '../src/games.js';
@@ -103,7 +104,13 @@ export async function startApp({ time, espn = fakeEspn(), config = {} }) {
   const pushed = [];
   const push = createPush({ store, subject: 'mailto:test@example.test', log: quiet, fetch: async (url, init) => (pushed.push({ url, init }), new Response(null, { status: 201 })) });
   const notifier = createNotifier({ store, push, log: quiet });
-  const games = createGames({ store, espn, now: time.now, log: quiet, onGraded: (ids, parlayIds) => notifier.settled(ids, time.now(), parlayIds) });
+  const games = createGames({
+    store, espn, now: time.now, log: quiet,
+    onGraded: (ids, parlayIds) => {
+      notifier.settled(ids, time.now(), parlayIds);
+      badgesAfterGrading(store, { pickIds: ids, parlayIds, now: time.now(), notifier });
+    },
+  });
   // Collects mail instead of sending it.
   const outbox = [];
   const mailer = { configured: true, send: async (message) => void outbox.push(message) };
@@ -119,6 +126,7 @@ export async function startApp({ time, espn = fakeEspn(), config = {} }) {
     store,
     games,
     espn,
+    notifier,
     outbox,
     pushed,
     browser: () => new Browser(base, outbox),
@@ -194,4 +202,57 @@ export class Browser {
 /** Text with tags stripped and whitespace squeezed, for matching what a reader sees. */
 export function visible(htmlText) {
   return htmlText.replace(/<[^>]+>/g, ' ').replace(/&#39;/g, "'").replace(/&amp;/g, '&').replace(/\s+/g, ' ');
+}
+
+let made = 0;
+
+/** A finished game straight into the games table, for records made by hand. */
+export function addGame(store, { start, sport = 'nfl', state = 'post', id = `${sport}:x${++made}` }) {
+  store.run(
+    `INSERT INTO games (id, sport, start_time, state, status, detail, completed, home_name, home_short, home_abbr, home_score,
+                        away_name, away_short, away_abbr, away_score, lines, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, 'Chiefs', 'Chiefs', 'KC', ?, 'Bills', 'Bills', 'BUF', ?, '{}', ?)`,
+    id, sport, start, state, state === 'post' ? 'STATUS_FINAL' : 'STATUS_SCHEDULED', state === 'post' ? 'Final' : '',
+    state === 'post' ? 1 : 0, state === 'post' ? 24 : null, state === 'post' ? 20 : null, start,
+  );
+  return id;
+}
+
+/**
+ * A straight bet straight into the record, on a game of its own. `result`
+ * null leaves it open. A win at -110 pays 0.91u a unit unless `profit` says.
+ */
+export function addBet(store, { userId, start, result = 'win', units = 1, odds = -110, profit, sport = 'nfl', streak = false }) {
+  const gameId = addGame(store, { start, sport, state: result ? 'post' : 'pre' });
+  const paid = profit ?? (result === 'win' ? Math.round((units * 100) / -odds * 100) / 100 : result === 'loss' ? -units : result ? 0 : null);
+  return Number(store.run(
+    `INSERT INTO picks (user_id, game_id, sport, market, side, line, odds, units, game_start, made_at, result, profit, graded_at, streak_day)
+     VALUES (?, ?, ?, 'ml', 'home', NULL, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    userId, gameId, sport, odds, units, start, start, result, paid, result ? start : null, streak ? etDay(start) : null,
+  ).lastInsertRowid);
+}
+
+/** A parlay straight into the record, with `legs` legs on games of their own. */
+export function addParlay(store, { userId, start, legs = 2, result = 'win', units = 0.5, odds = 264, profit }) {
+  const id = Number(store.run(
+    'INSERT INTO parlays (user_id, sport, units, odds, made_at, first_start, result, profit, graded_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+    userId, 'nfl', units, odds, start, start, result, profit ?? (result === 'win' ? Math.round(units * odds) / 100 : result === 'loss' ? -units : 0), result ? start : null,
+  ).lastInsertRowid);
+  for (let i = 0; i < legs; i++) {
+    store.run(
+      "INSERT INTO parlay_legs (parlay_id, game_id, sport, market, side, line, odds, result) VALUES (?, ?, 'nfl', 'ml', 'home', NULL, -110, ?)",
+      id, addGame(store, { start }), result === 'loss' && i === 0 ? 'loss' : result ? 'win' : null,
+    );
+  }
+  return id;
+}
+
+/** A confirmed player with a screen name, straight into the database. */
+export function addPlayer(store, name, { official = false, favSports = null } = {}) {
+  const at = '2026-10-01T00:00:00.000Z';
+  return Number(store.run(
+    `INSERT INTO users (email, password_hash, screen_name, created_at, email_verified_at, official, setup_done, fav_sports)
+     VALUES (?, '!', ?, ?, ?, ?, 1, ?)`,
+    `${name.toLowerCase()}@example.com`, name, at, at, official ? 1 : 0, favSports,
+  ).lastInsertRowid);
 }

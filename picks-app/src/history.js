@@ -6,7 +6,7 @@
 import { toGame } from './games.js';
 
 const COLUMNS = `p.id AS pick_id, p.user_id, p.market, p.side, p.line, p.odds, p.units, p.made_at,
-                 p.result, p.profit, u.screen_name, u.official,
+                 p.result, p.profit, p.streak_day, u.screen_name, u.official,
                  (SELECT o.is_lock FROM official_picks o WHERE o.pick_id = p.id) AS is_lock, g.*`;
 
 function toPick(row) {
@@ -17,6 +17,8 @@ function toPick(row) {
     official: Boolean(row.official),
     // An official pick the site marked as a lock.
     lock: Boolean(row.is_lock),
+    // The player's Streak pick for that day (the streak game).
+    streakDay: row.streak_day ?? null,
     market: row.market,
     side: row.side,
     line: row.line,
@@ -27,6 +29,15 @@ function toPick(row) {
     profit: row.profit,
     game: toGame(row),
   };
+}
+
+/** One of the owner's own picks, with its game, or null. */
+export function ownPick(store, userId, pickId) {
+  const row = store.get(
+    `SELECT ${COLUMNS} FROM picks p JOIN games g ON g.id = p.game_id JOIN users u ON u.id = p.user_id WHERE p.id = ? AND p.user_id = ?`,
+    pickId, userId,
+  );
+  return row ? toPick(row) : null;
 }
 
 /** The owner's own picks: every open one, and the latest graded ones. */

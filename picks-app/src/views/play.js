@@ -2,7 +2,7 @@ import { html } from '../html.js';
 import { formatOdds, formatSpread, formatUnits, MARKET_NAME, MAX_UNITS, maxUnits, PARLAY_MAX_LEGS, PARLAY_MIN_LEGS, parlayMaxUnits, parlayPrice, parlayToWin, price, selection, toWin, UNIT_CHIPS, UNITS_MIN } from '../picks.js';
 import { draftSignature } from '../parlays.js';
 import { SPORT } from '../sports.js';
-import { dayLabel, etDay, when } from '../time.js';
+import { dayLabel, dayShort, etDay, when } from '../time.js';
 import { icons } from './icons.js';
 import { csrfField, layout } from './layout.js';
 import { at, betItem, minus, sportTabs, statStrip, tabs, teamLogo } from './parts.js';
@@ -117,7 +117,11 @@ function cell(game, market, side, mine, leg = null) {
   return html`<a class="${kind}" href="/pick?${query}" aria-label="Pick ${label}">${inner}</a>`;
 }
 
-export function slip(ctx, { game, market, side, current, error, units }) {
+/**
+ * The pick slip. `streak` is set when the game's day has no Streak pick yet:
+ * { today, day, checked }, and the slip offers to make this one it.
+ */
+export function slip(ctx, { game, market, side, current, error, units, streak = null }) {
   const most = maxUnits(current.odds);
   units ??= Math.min(1, most);
   const sport = SPORT[game.sport];
@@ -159,6 +163,9 @@ export function slip(ctx, { game, market, side, current, error, units }) {
               <p class="muted small" id="units-note">1u is a normal play, ${MAX_UNITS}u is a max play. ${most < MAX_UNITS
                 ? `At ${formatOdds(current.odds)}, ${formatUnits(most)} is the most you can play, so no pick wins more than ${MAX_UNITS} units.`
                 : `Play ${formatUnits(UNITS_MIN)} to ${formatUnits(MAX_UNITS)}.`}</p>
+              ${streak
+                ? html`<label class="check streak-check"><input type="checkbox" name="streak" ${streak.checked ? 'checked' : ''}><span>${icons.flame}Make this my Streak pick for ${streak.today ? 'today' : dayShort(streak.day)}</span></label>`
+                : ''}
               <div class="slip-actions">
                 <button class="btn" data-busy="Locking it in…">Lock it in</button>
                 <button class="btn ghost" formaction="/parlay/legs" formnovalidate data-busy="Adding…">Add to parlay</button>
@@ -238,11 +245,18 @@ export function parlayPage(ctx, { legs, notes = [], error = null, units }) {
   });
 }
 
-export function myPicks(ctx, { open, graded, tab, record }) {
+export function myPicks(ctx, { open, graded, tab, record, streakDays = new Set() }) {
   const unstarted = (g) => g.state === 'pre' && new Date(g.start) > ctx.now;
   // A parlay can go until its first leg starts.
   const deletable = (p) => (p.kind === 'parlay' ? p.legs.every((l) => unstarted(l.game)) : unstarted(p.game));
   const path = (p) => (p.kind === 'parlay' ? `/parlays/${p.id}/delete` : `/picks/${p.id}/delete`);
+  // A straight pick can become the day's Streak pick (or stop being it) until its game starts.
+  const streakButton = (p) => {
+    if (p.kind === 'parlay' || !unstarted(p.game)) return '';
+    const day = etDay(p.game.start);
+    if (!p.streakDay && streakDays.has(day)) return '';
+    return html`<form method="post" action="/picks/${p.id}/streak">${csrfField(ctx)}<input type="hidden" name="on" value="${p.streakDay ? '0' : '1'}"><button class="link-btn">${p.streakDay ? 'Not my Streak pick' : 'Make it my Streak pick'}</button></form>`;
+  };
   const list = tab === 'settled' ? graded : open;
   return layout(ctx, {
     title: 'My bets',
@@ -258,7 +272,7 @@ export function myPicks(ctx, { open, graded, tab, record }) {
               mine: true,
               now: ctx.now,
               actions: deletable(p)
-                ? html`<form method="post" action="${path(p)}" data-confirm="Delete this bet?">${csrfField(ctx)}<button class="btn danger small">Delete</button></form>`
+                ? html`${streakButton(p)}<form method="post" action="${path(p)}" data-confirm="Delete this bet?">${csrfField(ctx)}<button class="btn danger small">Delete</button></form>`
                 : null,
             }),
           )}</ul>`

@@ -1,7 +1,9 @@
 import http from 'node:http';
 
 import { createApp } from './app.js';
+import { badgesAfterGrading, checkAllBadges } from './badges.js';
 import { loadConfig } from './config.js';
+import { closeDueWeeks } from './contest.js';
 import { openStore } from './db.js';
 import { createDemoEspn, DEMO_LOGIN, seedDemo } from './demo.js';
 import { createEspn } from './espn.js';
@@ -10,9 +12,13 @@ import { createMailer } from './mail.js';
 import { createNotifier } from './notify.js';
 import { createOfficialImporter } from './official.js';
 import { createPush } from './push.js';
+import { createReminders } from './reminders.js';
 
 const GRADE_EVERY = 10 * 60_000;
 const IMPORT_EVERY = 15 * 60_000;
+// The weekly contest and the daily reminders check whether it's time this often.
+const DAILY_EVERY = 5 * 60_000;
+const BADGES_EVERY = 60 * 60_000;
 
 const config = loadConfig();
 const store = openStore(config.databasePath);
@@ -21,7 +27,20 @@ const espn = config.demo ? createDemoEspn({ anchor }) : createEspn();
 // Phone notifications sign as the contact address; demo mode never sends any.
 const push = createPush({ store, subject: `mailto:${config.contactEmail}`, enabled: !config.demo });
 const notifier = createNotifier({ store, push });
-const games = createGames({ store, espn, onGraded: (ids, parlayIds) => notifier.settled(ids, new Date(), parlayIds) });
+// After grading: tell the bettors, then check them for new badges.
+const games = createGames({
+  store,
+  espn,
+  onGraded: (ids, parlayIds) => {
+    notifier.settled(ids, new Date(), parlayIds);
+    // A badge problem must never get in the way of grading.
+    try {
+      badgesAfterGrading(store, { pickIds: ids, parlayIds, now: new Date(), notifier });
+    } catch (err) {
+      console.error(`badges after grading: ${err.message}`);
+    }
+  },
+});
 if (config.demo && !store.get('SELECT 1 FROM users LIMIT 1')) await seedDemo({ store, games, espn });
 
 const mailer = createMailer(config.smtp);
@@ -63,9 +82,41 @@ async function importOfficial() {
 const importTimer = importer ? setInterval(importOfficial, IMPORT_EVERY) : null;
 if (importer) importOfficial();
 
+// Close last week's contest once it's all graded (Tuesday 6 AM ET at the
+// latest), and send the morning and afternoon reminders. Both only act when
+// it's time, and never twice.
+const reminders = createReminders({ store, games, notifier });
+async function daily() {
+  try {
+    for (const { week, podium } of closeDueWeeks(store, new Date(), notifier)) {
+      console.log(`closed the contest for the week of ${week}: ${podium.map((r) => r.screen_name).join(', ') || 'nobody placed'}`);
+    }
+    const sent = await reminders.run();
+    if (sent.lines || sent.streak) console.log(`sent ${sent.lines} lines-up and ${sent.streak} streak reminders`);
+  } catch (err) {
+    console.error('daily jobs:', err);
+  }
+}
+const dailyTimer = setInterval(daily, DAILY_EVERY);
+daily();
+
+// Badges are checked after every grading; this catches anything else, once an hour.
+function badges() {
+  try {
+    const awarded = checkAllBadges(store, new Date(), notifier);
+    if (awarded.length) console.log(`awarded ${awarded.length} badges`);
+  } catch (err) {
+    console.error('badges:', err);
+  }
+}
+const badgesTimer = setInterval(badges, BADGES_EVERY);
+badges();
+
 function shutdown() {
   clearInterval(timer);
   clearInterval(importTimer);
+  clearInterval(dailyTimer);
+  clearInterval(badgesTimer);
   server.close(() => {
     store.close();
     process.exit(0);

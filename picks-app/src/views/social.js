@@ -3,10 +3,10 @@ import { CHANGE_EVERY_DAYS, HOLD_DAYS } from '../names.js';
 import { formatUnits } from '../picks.js';
 import { SPORT, SPORTS } from '../sports.js';
 import { MIN_RANKED } from '../stats.js';
-import { joined, when } from '../time.js';
-import { trustMark } from './icons.js';
+import { dateLabel, joined, when } from '../time.js';
+import { icons, trustMark } from './icons.js';
 import { csrfField, layout } from './layout.js';
-import { betItem, boardTable, officialTag, periodTabs, pct, profileLink, rankCell, recordText, signedPct, sportTabs, units } from './parts.js';
+import { betItem, boardTable, officialTag, pickItem, periodTabs, pct, profileLink, rankCell, recordText, signedPct, sportTabs, units } from './parts.js';
 
 /** Find a player by the start of their screen name. */
 function searchBox(q = '') {
@@ -29,17 +29,18 @@ export function search(ctx, { q, rows }) {
   });
 }
 
-export function leaderboard(ctx, { rows, sport }) {
+export function leaderboard(ctx, { rows, sport, badges = null }) {
   return layout(ctx, {
     title: sport ? `${sport.name} leaderboard` : 'Leaderboard',
     active: 'board',
     body: html`
       <h1>${sport ? `${sport.name} leaderboard` : 'Leaderboard'}</h1>
       <p class="lede">Ranked by units won, not win rate, so betting only big favorites doesn't pay. Every graded pick counts, losses included. You need ${MIN_RANKED} graded picks in the window for a rank.</p>
+      <a class="promo" href="/contest">${icons.board}<span><b>This week's contest</b><small>Free, everyone's in. Most units Monday to Sunday wins.</small></span><span class="go">${icons.chevron}</span></a>
       ${searchBox()}
       ${sportTabs('/leaderboard', ctx.query)}
       ${periodTabs('/leaderboard', ctx.query)}
-      ${boardTable(rows, { me: ctx.user?.id })}
+      ${boardTable(rows, { me: ctx.user?.id, badges })}
     `,
   });
 }
@@ -358,7 +359,18 @@ function colorPicker(ctx) {
     </form>`;
 }
 
-export function profile(ctx, { player, record, bySport, split = null, series = [], last10 = null, rank = null, follows = { followers: 0, following: 0 }, following = false, picks, hidden, nextChange = null }) {
+/** A player's badges as chips; the title says when each was earned. */
+function badgeChips(badges) {
+  if (!badges.length) return '';
+  const about = (b) => {
+    const dates = b.earned.map((e) => `${dateLabel(e.at)}${e.detail ? ` (${e.detail})` : ''}`);
+    return `${b.label}: ${b.about}. Earned ${dates.join(', ')}.`;
+  };
+  return html`<h2 id="badges">Badges</h2>
+    <ul class="badge-chips">${badges.map((b) => html`<li class="badge-chip" title="${about(b)}"><span class="sr-only">${about(b)}</span><span aria-hidden="true">${icons.medal}${b.label}${b.count > 1 ? ` ×${b.count}` : ''}</span></li>`)}</ul>`;
+}
+
+export function profile(ctx, { player, record, bySport, split = null, series = [], last10 = null, rank = null, follows = { followers: 0, following: 0 }, following = false, picks, hidden, nextChange = null, badges = [], streak = null }) {
   return layout(ctx, {
     title: player.screen_name,
     active: ctx.user?.id === player.id ? 'me' : null,
@@ -374,9 +386,12 @@ export function profile(ctx, { player, record, bySport, split = null, series = [
         ${ctx.user?.screenName && ctx.user.id !== player.id ? followButton(ctx, player.screen_name, following) : ''}
         ${player.link_url ? html`<a class="btn small" href="${player.link_url}" target="_blank" rel="nofollow noopener noreferrer ugc">${player.link_label} ↗</a>` : ''}
         <button class="btn ghost small" type="button" data-share="${ctx.origin}/u/${encodeURIComponent(player.screen_name)}" data-share-text="${shareCard(player, record).title}" hidden>Share profile</button>
+        ${ctx.user?.id === player.id ? html`<a class="btn ghost small" href="/invite">Invite friends</a>` : ''}
       </div>
       <p class="lede">On the record since ${joined(player.created_at)}. ${record.graded} graded ${record.graded === 1 ? 'pick' : 'picks'}, every one locked before its game.</p>
       ${recordCard(ctx, { player, record, series, last10, rank })}
+      ${streak?.played ? html`<p class="streak-line"><a href="/streak">${icons.flame}<span>Streak: <b>${streak.current}</b> · Best: <b>${streak.best}</b></span></a></p>` : ''}
+      ${badgeChips(badges)}
       ${ctx.user?.id === player.id ? html`${screenNameForm(ctx, player, nextChange)}${nameForm(ctx, player)}${bioForm(ctx, player)}${linkForm(ctx, player)}${colorPicker(ctx)}` : ''}
       ${bySport.length
         ? html`<h2>By sport</h2>
@@ -396,6 +411,148 @@ export function profile(ctx, { player, record, bySport, split = null, series = [
         ? html`<ul class="tickets">${picks.map((p) => betItem(p))}</ul>`
         : html`<div class="card empty">No picks on the record yet.</div>`}
       ${ctx.user?.id === player.id ? deleteForm(ctx) : ''}
+    `,
+  });
+}
+
+/** A week's top 3: place, player, record and units. */
+function podium(list) {
+  return html`<ol class="podium">${list.map((r) => html`<li class="p${r.place}">
+    <span class="place">#${r.place}</span>
+    <span class="who-cell">${profileLink(r.screen_name)}</span>
+    <span class="rec">${r.record}</span>
+    <b>${units(r.units)}</b>
+  </li>`)}</ol>`;
+}
+
+/** The free weekly contest: this week's standings, the clock, last week's top 3. */
+export function contest(ctx, { week, rows, badges, me, left, min, last }) {
+  const playing = Boolean(ctx.user?.screenName);
+  return layout(ctx, {
+    title: "This week's contest",
+    active: 'board',
+    description: 'The free weekly contest on Bookie Bullies: most units won Monday to Sunday takes it.',
+    body: html`
+      <a class="back" href="/leaderboard">← Leaderboard</a>
+      <h1>This week's contest</h1>
+      <p class="lede">Free, and everyone's in. Most units won on bets whose games start Monday through Sunday takes the week. ${min} graded bets to place. Ties go to the better ROI, then to whoever got there first.</p>
+      <div class="contest-clock">
+        <span class="cc-week">${week}</span>
+        <b>Ends Sunday at midnight ET</b>
+        <span class="cc-left">${left}</span>
+      </div>
+      ${me
+        ? html`<div class="card my-standing">
+            <span class="ms-place">${me.rank ? `#${me.rank}` : '–'}</span>
+            <span class="ms-text"><b>You</b><small>${recordText(me)} · ${me.rank ? `${signedPct(me.roi)} ROI` : `${min - me.graded} more graded ${min - me.graded === 1 ? 'bet' : 'bets'} to place`}</small></span>
+            <b class="ms-units">${units(me.units)}</b>
+          </div>`
+        : playing
+          ? html`<p class="muted">You're not on the board this week yet. Your bets show here once their games go final.</p>`
+          : ''}
+      ${boardTable(rows, { me: ctx.user?.id, badges, empty: 'No graded bets this week yet. Standings fill in as games go final.' })}
+      <h2>Last week's top 3</h2>
+      <p class="muted small">${last.label}</p>
+      ${last.podium
+        ? last.podium.length
+          ? podium(last.podium)
+          : html`<div class="card empty">Nobody had ${min} graded bets last week.</div>`
+        : html`<div class="card empty">Last week closes once every bet in it is graded, by Tuesday 6 AM ET.</div>`}
+      <a class="btn ghost block winners-link" href="/winners">Winners wall</a>
+    `,
+  });
+}
+
+/** Every closed week's top 3, newest first, and who has won the most weeks. */
+export function winners(ctx, { weeks, champions }) {
+  return layout(ctx, {
+    title: 'Winners wall',
+    active: 'board',
+    description: 'Every week\'s top 3 in the free Bookie Bullies weekly contest.',
+    body: html`
+      <a class="back" href="/contest">← This week's contest</a>
+      <h1>Winners wall</h1>
+      <p class="lede">The top 3 from every week of the free weekly contest, newest first.</p>
+      ${champions.length
+        ? html`<h2>Most weekly wins</h2>
+          <p class="chips-row">${champions.map((c) => html`<a class="chip" href="/u/${encodeURIComponent(c.screen_name)}">${c.screen_name} · ${c.wins} ${c.wins === 1 ? 'win' : 'wins'}</a>`)}</p>`
+        : ''}
+      ${weeks.length
+        ? weeks.map((w) => html`<section class="card week-card">
+            <h3>${w.label}</h3>
+            ${w.podium.length ? podium(w.podium) : html`<p class="muted small">Nobody had enough graded bets to place.</p>`}
+          </section>`)
+        : html`<div class="card empty">No weeks closed yet. The first winners go up once this week ends. <a href="/contest">See this week's standings</a>.</div>`}
+    `,
+  });
+}
+
+/** One streak board: the longest current runs or the best ever. */
+function streakTable(rows, key, me, empty) {
+  if (!rows.length) return html`<div class="card empty">${empty}</div>`;
+  return html`<div class="table"><table>
+    <thead><tr><th>#</th><th>Player</th><th class="n">${key === 'current' ? 'Streak' : 'Best'}</th></tr></thead>
+    <tbody>${rows.map((r) => html`<tr class="${r.id === me ? 'me' : ''}">
+      <td class="rank"><span class="rk ${r.rank <= 3 ? `r${r.rank}` : ''}">${r.rank}</span></td>
+      <td>${profileLink(r.screen_name)}</td>
+      <td class="n"><b class="streak hot">${r[key]}</b></td>
+    </tr>`)}</tbody>
+  </table></div>`;
+}
+
+/** The streak game: your streak, today's Streak pick, and the streak boards. */
+export function streak(ctx, { mine, todays, boards }) {
+  return layout(ctx, {
+    title: 'Streak',
+    active: 'more',
+    body: html`
+      <a class="back" href="/more">← More</a>
+      <h1>Streak</h1>
+      <p class="lede">One Streak pick a day: any straight pick, checked on the pick slip. Win it and your streak grows. A loss sets it back to 0. Pushes, and days you skip, don't count either way.</p>
+      <div class="stats two">
+        <div class="stat"><b class="streak-now">${icons.flame}${mine.current}</b><span>Current streak</span></div>
+        <div class="stat"><b>${mine.best}</b><span>Best streak</span></div>
+      </div>
+      <h2>Today's Streak pick</h2>
+      ${todays
+        ? html`<ul class="tickets">${pickItem(todays, { mine: true, now: ctx.now })}</ul>`
+        : html`<div class="card empty stack">
+            <p>No Streak pick today yet. Tap any line on the board and check "Make this my Streak pick".</p>
+            <a class="btn" href="/games">Make today's Streak pick</a>
+          </div>`}
+      <h2>Longest streaks now</h2>
+      ${streakTable(boards.current, 'current', ctx.user.id, 'Nobody has a streak going yet.')}
+      <h2>Best streaks ever</h2>
+      ${streakTable(boards.best, 'best', ctx.user.id, 'No Streak picks have won yet.')}
+    `,
+  });
+}
+
+/** Your invite link, who joined from it, and how close the Recruiter badge is. */
+export function invite(ctx, { url, joined, waiting, goal }) {
+  const count = joined.length;
+  return layout(ctx, {
+    title: 'Invite friends',
+    active: 'more',
+    body: html`
+      <a class="back" href="/more">← More</a>
+      <h1>Invite friends</h1>
+      <p class="lede">Your own link. Friends who sign up with it follow you from the start, and you'll hear when they join.</p>
+      <div class="card stack invite-card">
+        <div class="copy invite-url">${url}</div>
+        <div class="row">
+          <button class="btn small" type="button" data-copy="${url}" hidden>Copy link</button>
+          <button class="btn ghost small" type="button" data-share="${url}" data-share-text="Make picks with me on Bookie Bullies" hidden>Share</button>
+        </div>
+      </div>
+      <h2>Friends who joined</h2>
+      <div class="card stack recruit">
+        <p><b class="recruit-count">${count}</b> ${count === 1 ? 'friend has' : 'friends have'} joined.</p>
+        <progress max="${goal}" value="${Math.min(count, goal)}" aria-label="Recruiter badge progress"></progress>
+        <p class="muted small">${count >= goal ? 'You have the Recruiter badge.' : `${count} of ${goal} for the Recruiter badge.`} A friend counts once they confirm their email and pick a screen name.</p>
+        ${waiting ? html`<p class="muted small">${waiting} more signed up and ${waiting === 1 ? "hasn't" : "haven't"} finished yet.</p>` : ''}
+      </div>
+      ${joined.length ? html`<p class="chips-row">${joined.map((name) => html`<a class="chip" href="/u/${encodeURIComponent(name)}">${name}</a>`)}</p>` : ''}
     `,
   });
 }

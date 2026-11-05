@@ -7,13 +7,16 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import * as auth from './auth.js';
+import { badgesOf, topBadges } from './badges.js';
 import { chatCounts, chatGames, deleteMessage, gameOfMessage, HIDE_AFTER_REPORTS, messages, postMessage, removeMessage, reportedMessages, reportMessage, restoreMessage } from './chat.js';
 import { createGroup, deleteGroup, findByCode, groupFor, groupsOf, joinGroup, leaveGroup, membersOf } from './groups.js';
 import { follow, followCounts, followingAmong, followingList, isFollowing, unfollow } from './follows.js';
-import { followFeed, groupFeed, ownPicks, picksOnGames, publicPicks } from './history.js';
+import { followFeed, groupFeed, ownPick, ownPicks, picksOnGames, publicPicks } from './history.js';
 import { THEMES } from './config.js';
+import { CONTEST_MIN, results, standings, timeLeft, weekBounds, winnersWall } from './contest.js';
 import { LOGO_HOST } from './espn.js';
 import { toGame } from './games.js';
+import { countInvite, findInviter, followInviter, inviteCodeOf, inviteStats } from './invites.js';
 import { cleanLink } from './links.js';
 import { createMailer } from './mail.js';
 import { changeScreenName, nameProblem, nextNameChange, renamedTo } from './names.js';
@@ -23,6 +26,8 @@ import { addLeg, deleteParlay, draftLegs, draftOnGames, draftSummary, lockParlay
 import { validSubscription } from './push.js';
 import { deletePick, formatLine, formatOdds, formatUnits, isLocked, makePick, MARKETS, price, toWin } from './picks.js';
 import { SPORT, SPORTS } from './sports.js';
+import { setStreak, streakBoards, streakOf, streakPickOn } from './streak.js';
+import { addDays, etDay, mondayOf, weekLabel } from './time.js';
 import { breakdown, hotStreaks, lastTen, leaderboard, PERIODS, rankOf, record, recordBySport, searchPlayers, splits, unitsSeries } from './stats.js';
 import * as account from './views/account.js';
 import * as legal from './views/legal.js';
@@ -154,9 +159,25 @@ export function createApp({ store, games, config, mailer = createMailer({ log: {
     ctx.res.end('ok');
   }
 
+  /** The player whose invite link brought this visitor, from the form, the address or the invite cookie. */
+  const inviterOf = (ctx, code) => findInviter(store, code || ctx.cookieValues.invite);
+
   function signupForm(ctx) {
     if (ctx.user) return redirect(ctx, '/');
-    send(ctx, 200, account.signup(ctx, { next: safeNext(ctx.query.get('next')) }));
+    send(ctx, 200, account.signup(ctx, { next: safeNext(ctx.query.get('next')), inviter: inviterOf(ctx, ctx.query.get('invite')) }));
+  }
+
+  /**
+   * A player's invite link. Visitors go to signup with the inviter
+   * remembered (in the form, and in a cookie in case they wander off first).
+   * Someone already signed in just sees the inviter's profile.
+   */
+  function inviteLink(ctx, { code }) {
+    const inviter = findInviter(store, code);
+    if (!inviter) return notFound(ctx);
+    if (ctx.user) return redirect(ctx, `/u/${encodeURIComponent(inviter.screen_name)}`);
+    setCookie(ctx, 'invite', inviter.code, 30 * 86_400);
+    redirect(ctx, `/signup?invite=${inviter.code}`);
   }
 
   async function signup(ctx) {
@@ -165,7 +186,8 @@ export function createApp({ store, games, config, mailer = createMailer({ log: {
     const next = safeNext(ctx.form.get('next'));
     const adult = ctx.form.get('adult') === 'on';
     const terms = ctx.form.get('terms') === 'on';
-    const again = (status, error) => send(ctx, status, account.signup(ctx, { email, error, next, adult, terms }));
+    const inviter = inviterOf(ctx, ctx.form.get('invite'));
+    const again = (status, error) => send(ctx, status, account.signup(ctx, { email, error, next, adult, terms, inviter }));
     if (!signupLimit.allow(clientIp(ctx), ctx.now)) return again(429, 'Too many new accounts from here. Try again in an hour.');
     if (!auth.validEmail(email)) return again(400, "That email doesn't look right.");
     if (!adult) return again(400, "You have to be 21 or older to play. Check the box if you are.");
@@ -179,14 +201,15 @@ export function createApp({ store, games, config, mailer = createMailer({ log: {
     try {
       const at = ctx.now.toISOString();
       id = Number(store.run(
-        'INSERT INTO users (email, password_hash, created_at, age_confirmed_at, terms_accepted_at) VALUES (?, ?, ?, ?, ?)',
-        email, hash, at, at, at,
+        'INSERT INTO users (email, password_hash, created_at, age_confirmed_at, terms_accepted_at, invited_by) VALUES (?, ?, ?, ?, ?, ?)',
+        email, hash, at, at, at, inviter?.id ?? null,
       ).lastInsertRowid);
     } catch (err) {
       if (/UNIQUE/.test(err.message)) return taken();
       throw err;
     }
     startSession(ctx, id);
+    if (ctx.cookieValues.invite) setCookie(ctx, 'invite', '', 0);
     await sendVerify(ctx, id, email);
     redirect(ctx, `/welcome${next ? `?next=${encodeURIComponent(next)}` : ''}`);
   }
@@ -194,6 +217,8 @@ export function createApp({ store, games, config, mailer = createMailer({ log: {
   function verify(ctx) {
     const userId = auth.useVerify(store, ctx.query.get('token'), ctx.now);
     if (!userId) return send(ctx, 400, account.verifyDead(ctx));
+    // A friend's invite counts once the email is confirmed (and there's a screen name).
+    countInvite(store, userId, ctx.now, notifier);
     flash(ctx, 'ok', "Email confirmed. Your record shows on the leaderboards now.");
     redirect(ctx, ctx.user ? '/games' : '/login');
   }
@@ -311,6 +336,9 @@ export function createApp({ store, games, config, mailer = createMailer({ log: {
       if (/UNIQUE/.test(err.message)) return again('Someone already has that name. Try another.');
       throw err;
     }
+    // Whoever invited them: followed now, and counted once the email is confirmed too.
+    followInviter(store, ctx.user.id, ctx.now);
+    countInvite(store, ctx.user.id, ctx.now, notifier);
     // First-time setup comes next, once.
     redirect(ctx, `/setup${next ? `?next=${encodeURIComponent(next)}` : ''}`);
   }
@@ -398,7 +426,14 @@ export function createApp({ store, games, config, mailer = createMailer({ log: {
       flash(ctx, 'error', 'That line is off the board right now.');
       return redirect(ctx, back);
     }
-    send(ctx, 200, play.slip(ctx, { game, market, side, current }));
+    send(ctx, 200, play.slip(ctx, { game, market, side, current, streak: streakChoice(ctx, game) }));
+  }
+
+  /** Whether the slip offers "Make this my Streak pick": only if that game's day has none yet. */
+  function streakChoice(ctx, game, checked = false) {
+    const day = etDay(game.start);
+    if (streakPickOn(store, ctx.user.id, day)) return null;
+    return { today: day === etDay(ctx.now), day, checked };
   }
 
   async function pickPost(ctx) {
@@ -407,26 +442,41 @@ export function createApp({ store, games, config, mailer = createMailer({ log: {
     const side = ctx.form.get('side');
     const units = Number(String(ctx.form.get('units') ?? '').replace(/[u,\s]/gi, ''));
     const seen = { line: ctx.form.get('line') ? Number(ctx.form.get('line')) : null, odds: Number(ctx.form.get('odds')) };
+    const wantsStreak = ctx.form.get('streak') === 'on';
     const { game, stale } = await games.current(ctx.form.get('game') ?? '');
     if (!game || !MARKETS[market]?.includes(side)) return notFound(ctx);
+    const streak = streakChoice(ctx, game, wantsStreak);
     // Back to the same game on the board, not the top of the page.
     const back = `/games?sport=${game.sport}#${play.cardId(game.id)}`;
     const current = price(game, market, side);
     if (!isLocked(game, ctx.now) && current && stale) {
-      return send(ctx, 503, play.slip(ctx, { game, market, side, current, units, error: "Can't reach live lines right now, so picks are paused. Try again in a minute." }));
+      return send(ctx, 503, play.slip(ctx, { game, market, side, current, units, streak, error: "Can't reach live lines right now, so picks are paused. Try again in a minute." }));
     }
-    const result = makePick(store, { userId: ctx.user.id, game, market, side, units, seen, now: ctx.now });
-    if (result.moved) return send(ctx, 409, play.slip(ctx, { game, market, side, current: result.moved, units, error: result.error }));
+    const result = makePick(store, { userId: ctx.user.id, game, market, side, units, seen, now: ctx.now, streak: wantsStreak });
+    if (result.moved) return send(ctx, 409, play.slip(ctx, { game, market, side, current: result.moved, units, streak, error: result.error }));
     if (result.error) {
       if (current && !isLocked(game, ctx.now) && !/already/.test(result.error)) {
-        return send(ctx, 400, play.slip(ctx, { game, market, side, current, units: Number.isFinite(units) ? units : undefined, error: result.error }));
+        return send(ctx, 400, play.slip(ctx, { game, market, side, current, units: Number.isFinite(units) ? units : undefined, streak, error: result.error }));
       }
       flash(ctx, 'error', result.error);
       return redirect(ctx, back);
     }
     notifier.pickMade({ player: ctx.user, game, now: ctx.now });
-    flash(ctx, 'locked', `${formatLine(market, side, current, game)}, ${formatUnits(result.units)} to win ${formatUnits(toWin(current.odds, result.units))}`, ctx.now.toISOString());
+    const note = result.streak ? '. Your Streak pick' : result.streakTaken ? ". You already had a Streak pick that day, so this one isn't" : '';
+    flash(ctx, 'locked', `${formatLine(market, side, current, game)}, ${formatUnits(result.units)} to win ${formatUnits(toWin(current.odds, result.units))}${note}`, ctx.now.toISOString());
     redirect(ctx, back);
+  }
+
+  /** Make an open pick the Streak pick for its day, or take that back. Never once the game starts. */
+  async function pickStreak(ctx, { id }) {
+    if (!signedIn(ctx)) return;
+    const row = store.get('SELECT game_id FROM picks WHERE id = ? AND user_id = ?', Number(id), ctx.user.id);
+    if (!row) return notFound(ctx);
+    const { game } = await games.current(row.game_id);
+    const on = ctx.form.get('on') === '1';
+    const result = setStreak(store, { userId: ctx.user.id, pickId: Number(id), game, on, now: ctx.now });
+    flash(ctx, result.error ? 'error' : 'ok', result.error ?? (on ? 'That\'s your Streak pick for the day.' : 'Not your Streak pick anymore.'));
+    redirect(ctx, safeNext(ctx.form.get('next')) ?? '/picks');
   }
 
   async function pickDelete(ctx, { id }) {
@@ -443,7 +493,9 @@ export function createApp({ store, games, config, mailer = createMailer({ log: {
     if (!signedIn(ctx)) return;
     const { open, graded } = ownPicks(store, ctx.user.id);
     const tab = ctx.query.get('tab') === 'settled' ? 'settled' : 'open';
-    send(ctx, 200, play.myPicks(ctx, { open, graded, tab, record: record(store, ctx.user.id) }));
+    // Days that already have a Streak pick, so the others can offer one.
+    const streakDays = new Set(store.all('SELECT streak_day FROM picks WHERE user_id = ? AND streak_day IS NOT NULL AND result IS NULL', ctx.user.id).map((r) => r.streak_day));
+    send(ctx, 200, play.myPicks(ctx, { open, graded, tab, record: record(store, ctx.user.id), streakDays }));
   }
 
   // ---- parlays --------------------------------------------------------------
@@ -597,7 +649,45 @@ export function createApp({ store, games, config, mailer = createMailer({ log: {
   function leaderboardPage(ctx) {
     const sport = SPORT[ctx.query.get('sport')] ?? null;
     const period = periodOf(ctx.query);
-    send(ctx, 200, social.leaderboard(ctx, { sport, rows: leaderboard(store, { sport: sport?.key, period }, ctx.now) }));
+    const rows = leaderboard(store, { sport: sport?.key, period }, ctx.now);
+    send(ctx, 200, social.leaderboard(ctx, { sport, rows, badges: topBadges(store, rows.map((r) => r.id)) }));
+  }
+
+  // ---- weekly contest, streaks, invites ---------------------------------------
+
+  /** This week's free contest: standings, the clock, and last week's top 3. */
+  function contestPage(ctx) {
+    const week = mondayOf(ctx.now);
+    const rows = standings(store, week);
+    const lastWeek = addDays(week, -7);
+    send(ctx, 200, social.contest(ctx, {
+      week: weekLabel(week),
+      rows,
+      badges: topBadges(store, rows.map((r) => r.id)),
+      me: ctx.user?.screenName ? rows.find((r) => r.id === ctx.user.id) ?? null : null,
+      left: timeLeft(ctx.now, weekBounds(week).end),
+      min: CONTEST_MIN,
+      last: { label: weekLabel(lastWeek), podium: results(store, lastWeek) },
+    }));
+  }
+
+  function winnersPage(ctx) {
+    send(ctx, 200, social.winners(ctx, winnersWall(store)));
+  }
+
+  /** The streak game: your streak, today's Streak pick, and the streak boards. */
+  function streakPage(ctx) {
+    if (!signedIn(ctx)) return;
+    const today = etDay(ctx.now);
+    const pick = streakPickOn(store, ctx.user.id, today);
+    const todays = pick ? ownPick(store, ctx.user.id, pick.id) : null;
+    send(ctx, 200, social.streak(ctx, { mine: streakOf(store, ctx.user.id), todays, boards: streakBoards(store) }));
+  }
+
+  function invitePage(ctx) {
+    if (!signedIn(ctx)) return;
+    const code = inviteCodeOf(store, ctx.user.id);
+    send(ctx, 200, social.invite(ctx, { url: `${ctx.origin}/i/${code}`, ...inviteStats(store, ctx.user.id) }));
   }
 
   /** Players by the start of their screen name. */
@@ -731,6 +821,8 @@ export function createApp({ store, games, config, mailer = createMailer({ log: {
       picks,
       hidden,
       nextChange: ctx.user?.id === player.id ? nextNameChange(player.name_changed_at, ctx.now) : null,
+      badges: player.official ? [] : badgesOf(store, player.id),
+      streak: player.official ? null : streakOf(store, player.id),
     }));
   }
 
@@ -782,7 +874,7 @@ export function createApp({ store, games, config, mailer = createMailer({ log: {
   function notificationsPage(ctx) {
     if (!signedIn(ctx)) return;
     const list = notifier.list(ctx.user.id);
-    const prefs = store.get('SELECT notify_settled, notify_follows FROM users WHERE id = ?', ctx.user.id);
+    const prefs = store.get('SELECT notify_settled, notify_follows, notify_lines, notify_streak FROM users WHERE id = ?', ctx.user.id);
     const phones = store.get('SELECT COUNT(*) AS n FROM push_subscriptions WHERE user_id = ?', ctx.user.id).n;
     notifier.markRead(ctx.user.id, ctx.now);
     ctx.unread = 0;
@@ -791,9 +883,10 @@ export function createApp({ store, games, config, mailer = createMailer({ log: {
 
   function notifyPrefs(ctx) {
     if (!signedIn(ctx)) return;
+    const on = (name) => (ctx.form.get(name) === 'on' ? 1 : 0);
     store.run(
-      'UPDATE users SET notify_settled = ?, notify_follows = ? WHERE id = ?',
-      ctx.form.get('settled') === 'on' ? 1 : 0, ctx.form.get('follows') === 'on' ? 1 : 0, ctx.user.id,
+      'UPDATE users SET notify_settled = ?, notify_follows = ?, notify_lines = ?, notify_streak = ? WHERE id = ?',
+      on('settled'), on('follows'), on('lines'), on('streak'), ctx.user.id,
     );
     flash(ctx, 'ok', 'Saved.');
     redirect(ctx, '/notifications');
@@ -939,6 +1032,7 @@ export function createApp({ store, games, config, mailer = createMailer({ log: {
     ['POST', '/picks', pickPost],
     ['GET', '/picks', myPicks],
     ['POST', '/picks/:id/delete', pickDelete],
+    ['POST', '/picks/:id/streak', pickStreak],
     ['GET', '/parlay', parlayPage],
     ['POST', '/parlay/legs', parlayLegAdd],
     ['POST', '/parlay/legs/:game/delete', parlayLegRemove],
@@ -946,6 +1040,11 @@ export function createApp({ store, games, config, mailer = createMailer({ log: {
     ['POST', '/parlays/:id/delete', parlayDelete],
     ['GET', '/leaderboard', leaderboardPage],
     ['GET', '/search', searchPage],
+    ['GET', '/contest', contestPage],
+    ['GET', '/winners', winnersPage],
+    ['GET', '/streak', streakPage],
+    ['GET', '/invite', invitePage],
+    ['GET', '/i/:code', inviteLink],
     ['GET', '/admin/reports', adminReports],
     ['POST', '/admin/reports/:id/restore', adminRestore],
     ['POST', '/admin/reports/:id/delete', adminDelete],
@@ -1003,13 +1102,14 @@ export function createApp({ store, games, config, mailer = createMailer({ log: {
 
   return async function handle(req, res) {
     const url = new URL(req.url, 'http://local');
-    const ctx = { req, res, app, url, query: url.searchParams, now: now(), origin: null, cookies: [], user: null, session: null, flash: null, form: null };
+    const ctx = { req, res, app, url, query: url.searchParams, now: now(), origin: null, cookies: [], cookieValues: {}, user: null, session: null, flash: null, form: null };
     try {
       ctx.origin = config.appUrl ?? origin(ctx);
       const route = match(req.method, url.pathname);
       if (!route) return notFound(ctx);
 
       const cookies = parseCookies(req.headers.cookie);
+      ctx.cookieValues = cookies;
       ctx.session = auth.readSession(store, cookies.sid, ctx.now);
       ctx.user = ctx.session?.user ?? null;
       // The count on the My bets tab (a parlay is one bet), and the parlay bar.

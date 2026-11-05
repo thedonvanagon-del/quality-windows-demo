@@ -571,10 +571,13 @@ describe('notifications', () => {
     await app.games.checkFinals();
     await new Promise((resolve) => setImmediate(resolve));
     const page = await ann.get('/games');
-    assert.match(page.text, /aria-label="Notifications, 1 new"/);
-    assert.match(visible((await ann.get('/notifications')).text), /Won \+1\.82u: Bills \+3\.5 \(BUF 24, KC 27\)/);
-    assert.doesNotMatch((await ann.get('/games')).text, /Notifications, 1 new/, 'opening the inbox reads it');
-    assert.equal(app.pushed.length, 1);
+    // The win, and the First win badge that came with it.
+    assert.match(page.text, /aria-label="Notifications, 2 new"/);
+    const inbox = visible((await ann.get('/notifications')).text);
+    assert.match(inbox, /Won \+1\.82u: Bills \+3\.5 \(BUF 24, KC 27\)/);
+    assert.match(inbox, /New badge: First win\./);
+    assert.doesNotMatch((await ann.get('/games')).text, /Notifications, \d+ new/, 'opening the inbox reads it');
+    assert.equal(app.pushed.length, 2);
     assert.match(app.pushed[0].url, /^https:\/\/fcm\.googleapis\.com\//);
     assert.match(app.pushed[0].init.headers.Authorization, /^vapid t=.+, k=B/);
   });

@@ -21,6 +21,9 @@ export const icons = {
   search: svg('<circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/>'),
   flag: svg('<path d="M5 21V4M5 4h11l-2 4 2 4H5"/>'),
   chevron: svg('<path d="M9 6l6 6-6 6"/>'),
+  flame: svg('<path d="M12 3c.5 3.5 5 5.5 5 10.5a5 5 0 0 1-10 0c0-2.4 1.2-3.9 2.5-5 .2 1.6 1 2.6 2 3 0-3 .3-5.6.5-8.5z"/>'),
+  invite: svg('<circle cx="10" cy="8" r="3.5"/><path d="M3.5 20a6.5 6.5 0 0 1 13 0"/><path d="M19 8v6M16 11h6"/>'),
+  medal: svg('<circle cx="12" cy="14.5" r="5.5"/><path d="M8.5 10L6 3h4l2 4.5M15.5 10L18 3h-4l-2 4.5"/>'),
   grade: svg('<circle cx="12" cy="12" r="9"/><path d="M8 12.5l3 3 5-6"/>'),
 };
 

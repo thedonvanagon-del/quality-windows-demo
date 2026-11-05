@@ -95,6 +95,17 @@ export function createNotifier({ store, push = null, log = console }) {
       }
     },
 
+    /**
+     * One note for one player: badges, contest results, invites, reminders.
+     * The official account never gets any. Returns whether it went out.
+     */
+    tell(userId, { kind, title, text, url }, now = new Date()) {
+      const user = store.get('SELECT official FROM users WHERE id = ?', userId);
+      if (!user || user.official) return false;
+      add(userId, { kind, title: title ?? text, text, url }, now);
+      return true;
+    },
+
     unread: (userId) => store.get('SELECT COUNT(*) AS n FROM notifications WHERE user_id = ? AND read_at IS NULL', userId).n,
     list: (userId, limit = 50) => store.all('SELECT * FROM notifications WHERE user_id = ? ORDER BY id DESC LIMIT ?', userId, limit),
     markRead(userId, now = new Date()) {
