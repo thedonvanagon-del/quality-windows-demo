@@ -1,6 +1,8 @@
-// Game chat: one thread per game, short plain-text messages signed by screen
-// name. People delete their own; three reports from different players hide a
-// message until someone looks at it.
+// Chat: short plain-text messages signed by screen name, in a thread that's
+// either a game (public to everyone signed in) or a group (members only; the
+// app checks membership). People delete their own, a group's owner can delete
+// any message in it, and three reports from different players hide a message
+// until someone looks at it.
 
 export const CHAT_MAX = 280;
 export const HIDE_AFTER_REPORTS = 3;
@@ -17,49 +19,87 @@ export function cleanMessage(text) {
   return { body };
 }
 
-export function postMessage(store, { gameId, userId, text, now }) {
+/** The thread's column and value: { gameId } or { groupId }. */
+function thread({ gameId = null, groupId = null }) {
+  if ((gameId == null) === (groupId == null)) throw new Error('a chat thread is a game or a group');
+  return gameId != null ? ['game_id', gameId] : ['group_id', groupId];
+}
+
+export function postMessage(store, { gameId = null, groupId = null, userId, text, now }) {
+  thread({ gameId, groupId });
   const clean = cleanMessage(text);
   if (clean.error) return clean;
   const { lastInsertRowid } = store.run(
-    'INSERT INTO chat_messages (game_id, user_id, body, created_at) VALUES (?, ?, ?, ?)',
-    gameId, userId, clean.body, now.toISOString(),
+    'INSERT INTO chat_messages (game_id, group_id, user_id, body, created_at) VALUES (?, ?, ?, ?, ?)',
+    gameId, groupId, userId, clean.body, now.toISOString(),
   );
   return { id: Number(lastInsertRowid) };
 }
 
-/** The newest `limit` messages on a game, oldest first. Reported ones come back with `hidden`. */
-export function messages(store, gameId, limit = 150) {
+/** The newest `limit` messages in a thread ({ gameId } or { groupId }), oldest first. Reported ones come back with `hidden`. */
+export function messages(store, where, limit = 150) {
+  const [column, value] = thread(where);
   return store
     .all(
       `SELECT m.id, m.user_id, m.body, m.created_at, u.screen_name,
               (SELECT COUNT(*) FROM chat_reports r WHERE r.message_id = m.id) AS reports
          FROM chat_messages m JOIN users u ON u.id = m.user_id
-        WHERE m.game_id = ? AND m.deleted_at IS NULL
+        WHERE m.${column} = ? AND m.deleted_at IS NULL
         ORDER BY m.id DESC LIMIT ?`,
-      gameId, limit,
+      value, limit,
     )
     .reverse()
     .map((m) => ({ ...m, hidden: m.reports >= HIDE_AFTER_REPORTS }));
 }
 
+/** Delete a message: your own, or any in a group you own. */
 export function deleteMessage(store, { id, userId, now }) {
   const { changes } = store.run(
-    'UPDATE chat_messages SET deleted_at = ? WHERE id = ? AND user_id = ? AND deleted_at IS NULL',
-    now.toISOString(), id, userId,
+    `UPDATE chat_messages SET deleted_at = ?
+      WHERE id = ? AND deleted_at IS NULL
+        AND (user_id = ? OR group_id IN (SELECT id FROM friend_groups WHERE owner_id = ?))`,
+    now.toISOString(), id, userId, userId,
   );
   return changes ? {} : { error: "That message is gone or isn't yours." };
 }
 
 export function reportMessage(store, { id, userId, now }) {
-  const msg = store.get('SELECT user_id, game_id FROM chat_messages WHERE id = ? AND deleted_at IS NULL', id);
+  const msg = store.get('SELECT user_id, game_id, group_id FROM chat_messages WHERE id = ? AND deleted_at IS NULL', id);
   if (!msg) return { error: 'That message is gone.' };
-  if (msg.user_id === userId) return { error: "You can delete your own message instead.", gameId: msg.game_id };
+  const where = { gameId: msg.game_id, groupId: msg.group_id };
+  if (msg.user_id === userId) return { error: "You can delete your own message instead.", ...where };
   store.run('INSERT OR IGNORE INTO chat_reports (message_id, user_id, created_at) VALUES (?, ?, ?)', id, userId, now.toISOString());
-  return { gameId: msg.game_id };
+  return where;
 }
 
-export function gameOfMessage(store, id) {
-  return store.get('SELECT game_id FROM chat_messages WHERE id = ?', id)?.game_id ?? null;
+/** Which thread a message is in: { gameId, groupId } (one of them null), or null if there's no such message. */
+export function threadOfMessage(store, id) {
+  const row = store.get('SELECT game_id, group_id FROM chat_messages WHERE id = ?', id);
+  return row ? { gameId: row.game_id, groupId: row.group_id } : null;
+}
+
+/** A member opened the group's chat: everything in it up to now is read. */
+export function markGroupRead(store, { groupId, userId, now }) {
+  store.run('UPDATE group_members SET chat_read_at = ? WHERE group_id = ? AND user_id = ?', now.toISOString(), groupId, userId);
+}
+
+/**
+ * group id -> messages the player hasn't seen, for the Groups list: other
+ * people's messages since they last opened the chat (or since they joined),
+ * leaving out deleted and hidden ones.
+ */
+export function unreadCounts(store, userId) {
+  const rows = store.all(
+    `SELECT gm.group_id, COUNT(m.id) AS n
+       FROM group_members gm
+       JOIN chat_messages m ON m.group_id = gm.group_id
+      WHERE gm.user_id = ? AND m.user_id != ? AND m.deleted_at IS NULL
+        AND m.created_at > COALESCE(gm.chat_read_at, gm.joined_at)
+        AND (SELECT COUNT(*) FROM chat_reports r WHERE r.message_id = m.id) < ?
+      GROUP BY gm.group_id`,
+    userId, userId, HIDE_AFTER_REPORTS,
+  );
+  return new Map(rows.map((r) => [r.group_id, r.n]));
 }
 
 /** Message counts per game, for the "Chat" links on the board. */
@@ -90,16 +130,17 @@ export function chatGames(store, now) {
   );
 }
 
-/** Every message someone has reported and nobody has deleted: hidden ones first, then the latest reported. For admins. */
+/** Every message someone has reported and nobody has deleted, in games and groups: hidden ones first, then the latest reported. For admins. */
 export function reportedMessages(store, limit = 200) {
   return store
     .all(
-      `SELECT m.id, m.body, m.created_at, m.game_id, u.screen_name, g.sport, g.home_short, g.away_short,
-              COUNT(r.user_id) AS reports, MAX(r.created_at) AS last_report
+      `SELECT m.id, m.body, m.created_at, m.game_id, m.group_id, u.screen_name, g.sport, g.home_short, g.away_short,
+              fg.name AS group_name, COUNT(r.user_id) AS reports, MAX(r.created_at) AS last_report
          FROM chat_messages m
          JOIN chat_reports r ON r.message_id = m.id
          JOIN users u ON u.id = m.user_id
-         JOIN games g ON g.id = m.game_id
+         LEFT JOIN games g ON g.id = m.game_id
+         LEFT JOIN friend_groups fg ON fg.id = m.group_id
         WHERE m.deleted_at IS NULL
         GROUP BY m.id
         ORDER BY COUNT(r.user_id) >= ? DESC, last_report DESC

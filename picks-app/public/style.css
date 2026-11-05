@@ -742,7 +742,8 @@ dialog.sheet .slip { border-radius: 14px 14px 0 0; border-bottom: 0; padding-bot
 .msg.own { border-color: color-mix(in srgb, var(--accent) 40%, var(--line)); }
 .msg-head { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 10px; font-size: 0.8rem; color: var(--faint); }
 .msg-head .who { font-family: var(--cond); font-weight: 800; font-size: 1.05rem; color: var(--ink); }
-.msg-head form { margin-left: auto; }
+.msg-act { margin-left: auto; display: inline-flex; gap: 12px; }
+.msg-act form { margin: 0; }
 .msg-pick { font-family: var(--cond); font-weight: 700; font-size: 0.85rem; color: var(--accent); background: var(--accent-soft); border-radius: 4px; padding: 0 6px; }
 .msg-body { margin: 4px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; }
 .hidden-msg { color: var(--faint); font-style: italic; }
@@ -997,3 +998,6 @@ label.check.streak-check { margin: 10px 0 2px; padding: 10px 12px; border-radius
 .recruit progress::-webkit-progress-value { background: var(--accent); border-radius: 999px; }
 .recruit progress::-moz-progress-bar { background: var(--accent); border-radius: 999px; }
 .player .badge-mark { margin-left: -4px; }
+
+/* ---- Group chat, CLV, injuries and form ---------------------------------- */
+.unread-count { display: inline-block; margin-left: 6px; padding: 1px 8px; border-radius: 999px; background: var(--accent); color: var(--accent-ink); font-family: var(--cond); font-size: 0.78rem; font-weight: 800; letter-spacing: 0.04em; text-transform: uppercase; white-space: nowrap; vertical-align: 1px; }

@@ -198,7 +198,9 @@ export function adminReports(ctx, { list, hideAfter }) {
       ${list.length
         ? html`<ul class="reports">${list.map((m) => html`<li class="card report ${m.hidden ? 'is-hidden' : ''}">
             <div class="report-head">
-              <span>${profileLink(m.screen_name)} · <a href="/games/${encodeURIComponent(m.game_id)}#chat">${m.away_short} @ ${m.home_short}</a> · ${SPORT[m.sport]?.short ?? m.sport}</span>
+              <span>${profileLink(m.screen_name)} · ${m.group_id != null
+                ? html`Group: ${m.group_name}`
+                : html`<a href="/games/${encodeURIComponent(m.game_id)}#chat">${m.away_short} @ ${m.home_short}</a> · ${SPORT[m.sport]?.short ?? m.sport}`}</span>
               <span class="report-count">${m.reports} ${m.reports === 1 ? 'report' : 'reports'}${m.hidden ? ' · Hidden' : ''}</span>
             </div>
             <p class="report-body">${m.body}</p>

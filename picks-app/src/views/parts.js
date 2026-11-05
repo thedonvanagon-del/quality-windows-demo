@@ -4,6 +4,7 @@ import { SPORT, SPORTS } from '../sports.js';
 import { MIN_RANKED, PERIODS } from '../stats.js';
 import { kickoff, when } from '../time.js';
 import { icons } from './icons.js';
+import { csrfField } from './layout.js';
 
 /** A time in Eastern from the server; app.js swaps in the viewer's zone. */
 export function at(iso, style = 'short') {
@@ -192,4 +193,44 @@ export function parlayItem(p, { who = false, actions = null, mine = false, now =
 /** A straight pick or a parlay, whichever this bet is. */
 export function betItem(bet, options) {
   return bet.kind === 'parlay' ? parlayItem(bet, options) : pickItem(bet, options);
+}
+
+/**
+ * A chat thread (a game's or a group's): the messages, and the box to post
+ * one for players with a confirmed email. app.js refreshes `.chat[data-poll]`
+ * every 15 seconds. `tags` adds chips beside a name (picks on a game);
+ * `canDelete` says who may delete a message (its author, or a group's owner).
+ */
+export function chatBox(ctx, { messages, action, placeholder, rules, tags = () => [], canDelete = (m) => m.user_id === ctx.user.id }) {
+  return html`<div class="chat" data-poll>
+    <ol class="chat-list">
+      ${messages.length
+        ? messages.map((m) => chatMessage(ctx, m, tags(m), canDelete(m)))
+        : html`<li class="chat-empty">No messages yet. Start it off.</li>`}
+    </ol>
+    ${ctx.user.verified
+      ? html`<form class="chat-form" method="post" action="${action}">
+          ${csrfField(ctx)}
+          <label class="sr-only" for="chat-body">Message</label>
+          <textarea id="chat-body" name="body" rows="2" maxlength="280" required placeholder="${placeholder}"></textarea>
+          <button class="btn">Send</button>
+        </form>
+        <p class="fine">${rules}</p>`
+      : html`<p class="muted">Confirm your email to join the chat. The link is in your inbox.</p>`}
+  </div>`;
+}
+
+function chatMessage(ctx, m, tags, canDelete) {
+  const own = m.user_id === ctx.user.id;
+  const remove = html`<form method="post" action="/chat/${m.id}/delete" data-confirm="Delete this message?">${csrfField(ctx)}<button class="link-btn">Delete</button></form>`;
+  const report = html`<form method="post" action="/chat/${m.id}/report" data-confirm="Report this message?">${csrfField(ctx)}<button class="link-btn">Report</button></form>`;
+  return html`<li class="msg ${own ? 'own' : ''}" data-id="${m.id}${m.hidden ? 'h' : ''}">
+    <div class="msg-head">
+      <a class="who" href="/u/${encodeURIComponent(m.screen_name)}">${m.screen_name}</a>
+      ${tags}
+      <time datetime="${m.created_at}" data-local="long">${when(m.created_at)}</time>
+      <span class="msg-act">${own ? remove : html`${canDelete ? remove : ''}${report}`}</span>
+    </div>
+    ${m.hidden ? html`<p class="msg-body hidden-msg">Hidden after reports.</p>` : html`<p class="msg-body">${m.body}</p>`}
+  </li>`;
 }

@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url';
 
 import * as auth from './auth.js';
 import { badgesOf, topBadges } from './badges.js';
-import { chatCounts, chatGames, deleteMessage, gameOfMessage, HIDE_AFTER_REPORTS, messages, postMessage, removeMessage, reportedMessages, reportMessage, restoreMessage } from './chat.js';
+import { chatCounts, chatGames, deleteMessage, HIDE_AFTER_REPORTS, markGroupRead, messages, postMessage, removeMessage, reportedMessages, reportMessage, restoreMessage, threadOfMessage, unreadCounts } from './chat.js';
 import { createGroup, deleteGroup, findByCode, groupFor, groupsOf, joinGroup, leaveGroup, membersOf } from './groups.js';
 import { follow, followCounts, followingAmong, followingList, isFollowing, unfollow } from './follows.js';
 import { followFeed, groupFeed, ownPick, ownPicks, picksOnGames, publicPicks } from './history.js';
@@ -567,7 +567,7 @@ export function createApp({ store, games, config, mailer = createMailer({ log: {
     const game = games.get(id);
     if (!game) return notFound(ctx);
     const started = isLocked(game, ctx.now);
-    const list = messages(store, game.id);
+    const list = messages(store, { gameId: game.id });
     // Picks show beside names only once the game starts, like everywhere else.
     const picksBy = new Map();
     if (started && list.length) {
@@ -580,34 +580,55 @@ export function createApp({ store, games, config, mailer = createMailer({ log: {
     send(ctx, 200, play.gamePage(ctx, { game, started, messages: list, picksBy, mine, leg, split: splits(store, [game.id]).get(game.id) ?? null }));
   }
 
-  function chatPost(ctx, { id }) {
-    if (!signedIn(ctx)) return;
-    const game = games.get(id);
-    if (!game) return notFound(ctx);
+  /**
+   * Post to a thread, after the same checks for a game or a group: a
+   * confirmed email and the rate limit (eight a minute, games and groups together).
+   */
+  function postChat(ctx, where) {
     if (!ctx.user.verified) {
       flash(ctx, 'error', 'Confirm your email to chat. The link is in your inbox.');
     } else if (!chatLimit.allow(`user ${ctx.user.id}`, ctx.now)) {
       flash(ctx, 'error', 'Slow down a little. Try again in a minute.');
     } else {
-      const result = postMessage(store, { gameId: game.id, userId: ctx.user.id, text: ctx.form.get('body'), now: ctx.now });
+      const result = postMessage(store, { ...where, userId: ctx.user.id, text: ctx.form.get('body'), now: ctx.now });
       if (result.error) flash(ctx, 'error', result.error);
     }
+  }
+
+  function chatPost(ctx, { id }) {
+    if (!signedIn(ctx)) return;
+    const game = games.get(id);
+    if (!game) return notFound(ctx);
+    postChat(ctx, { gameId: game.id });
     redirect(ctx, `${gamePath(game.id)}#chat`);
+  }
+
+  /** Where a thread lives: its game's page or its group's. */
+  const threadPath = (where) => (where?.groupId != null ? `/groups/${where.groupId}#chat` : where?.gameId ? `${gamePath(where.gameId)}#chat` : '/chat');
+
+  /** The thread a message is in, if this player may see it. Group threads are for members only. */
+  function visibleThread(ctx, messageId) {
+    const where = threadOfMessage(store, messageId);
+    if (!where) return { where: null };
+    if (where.groupId != null && !groupFor(store, where.groupId, ctx.user.id)) return null;
+    return { where };
   }
 
   function chatDelete(ctx, { id }) {
     if (!signedIn(ctx)) return;
-    const gameId = gameOfMessage(store, Number(id));
+    const seen = visibleThread(ctx, Number(id));
+    if (!seen) return notFound(ctx);
     const result = deleteMessage(store, { id: Number(id), userId: ctx.user.id, now: ctx.now });
     if (result.error) flash(ctx, 'error', result.error);
-    redirect(ctx, gameId ? `${gamePath(gameId)}#chat` : '/chat');
+    redirect(ctx, threadPath(seen.where));
   }
 
   function chatReport(ctx, { id }) {
     if (!signedIn(ctx)) return;
+    if (!visibleThread(ctx, Number(id))) return notFound(ctx);
     const result = reportMessage(store, { id: Number(id), userId: ctx.user.id, now: ctx.now });
     flash(ctx, result.error ? 'error' : 'ok', result.error ?? 'Thanks. Messages enough people report get hidden.');
-    redirect(ctx, result.gameId ? `${gamePath(result.gameId)}#chat` : '/chat');
+    redirect(ctx, threadPath(result));
   }
 
   /** Every game worth talking about right now, busiest chats first. */
@@ -720,7 +741,7 @@ export function createApp({ store, games, config, mailer = createMailer({ log: {
 
   function groupsPage(ctx) {
     if (!signedIn(ctx)) return;
-    send(ctx, 200, social.groups(ctx, { list: groupsOf(store, ctx.user.id) }));
+    send(ctx, 200, social.groups(ctx, { list: groupsOf(store, ctx.user.id), unread: unreadCounts(store, ctx.user.id) }));
   }
 
   function groupCreate(ctx) {
@@ -750,13 +771,26 @@ export function createApp({ store, games, config, mailer = createMailer({ log: {
     const group = groupFor(store, Number(id), ctx.user.id);
     if (!group) return notFound(ctx);
     const rows = leaderboard(store, { groupId: group.id, sport: group.sport, period: periodOf(ctx.query) }, ctx.now);
+    const chat = messages(store, { groupId: group.id });
+    // Opening the group (or its chat refreshing) reads everything in it.
+    markGroupRead(store, { groupId: group.id, userId: ctx.user.id, now: ctx.now });
     send(ctx, 200, social.group(ctx, {
       group,
       rows,
       members: membersOf(store, group.id),
       feed: groupFeed(store, group, ctx.now),
       inviteUrl: `${origin(ctx)}/join/${group.invite_code}`,
+      messages: chat,
     }));
+  }
+
+  /** Trash talk: members only. */
+  function groupChatPost(ctx, { id }) {
+    if (!signedIn(ctx)) return;
+    const group = groupFor(store, Number(id), ctx.user.id);
+    if (!group) return notFound(ctx);
+    postChat(ctx, { groupId: group.id });
+    redirect(ctx, `/groups/${group.id}#chat`);
   }
 
   function groupLeave(ctx, { id }) {
@@ -1052,6 +1086,7 @@ export function createApp({ store, games, config, mailer = createMailer({ log: {
     ['POST', '/groups', groupCreate],
     ['POST', '/groups/join', groupJoinByCode],
     ['GET', '/groups/:id', groupPage],
+    ['POST', '/groups/:id/chat', groupChatPost],
     ['POST', '/groups/:id/leave', groupLeave],
     ['POST', '/groups/:id/delete', groupDelete],
     ['GET', '/join/:code', joinPage],
