@@ -3,11 +3,12 @@ import http from 'node:http';
 import { createApp } from '../src/app.js';
 import { badgesAfterGrading } from '../src/badges.js';
 import { openStore } from '../src/db.js';
-import { parseScoreboard } from '../src/espn.js';
+import { parseScoreboard, parseSummary } from '../src/espn.js';
 import { createGames } from '../src/games.js';
 import { createNotifier } from '../src/notify.js';
 import { createPush } from '../src/push.js';
 import { SPORTS } from '../src/sports.js';
+import { createSummaries } from '../src/summaries.js';
 import { etDay } from '../src/time.js';
 
 export const quiet = { warn() {}, error() {}, log() {} };
@@ -32,6 +33,18 @@ export function fakeEspn() {
       if (this.down) throw new Error('ESPN is down');
       const events = this.events[sport.key].filter((e) => etDay(e.date) >= from && etDay(e.date) <= to);
       return parseScoreboard(sport, { events: structuredClone(events) });
+    },
+    // Game summaries (injuries, last five) by ESPN event id, in ESPN's own JSON.
+    // `summaryGate`, when set, is a promise every summary call waits on first.
+    summaries: {},
+    summaryCalls: 0,
+    summaryDown: false,
+    summaryGate: null,
+    async summary(sport, eventId) {
+      this.summaryCalls += 1;
+      if (this.summaryGate) await this.summaryGate;
+      if (this.summaryDown) throw new Error('ESPN summary is down');
+      return parseSummary(structuredClone(this.summaries[eventId] ?? {}));
     },
   };
 }
@@ -114,8 +127,10 @@ export async function startApp({ time, espn = fakeEspn(), config = {} }) {
   // Collects mail instead of sending it.
   const outbox = [];
   const mailer = { configured: true, send: async (message) => void outbox.push(message) };
+  const logged = [];
+  const summaries = createSummaries({ espn, now: time.now, log: { ...quiet, warn: (text) => logged.push(text) } });
   const handler = createApp({
-    store, games, mailer, notifier, push, now: time.now, log: quiet,
+    store, games, mailer, notifier, push, summaries, now: time.now, log: quiet,
     config: { appName: 'Bookie Bullies', trustProxy: false, appUrl: 'https://app.example.test', ...config },
   });
   const server = http.createServer(handler);
@@ -129,6 +144,8 @@ export async function startApp({ time, espn = fakeEspn(), config = {} }) {
     notifier,
     outbox,
     pushed,
+    summaries,
+    logged,
     browser: () => new Browser(base, outbox),
     async close() {
       server.closeAllConnections();

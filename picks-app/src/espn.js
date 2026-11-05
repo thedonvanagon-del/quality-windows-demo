@@ -11,16 +11,20 @@ const BASE = 'https://site.api.espn.com/apis/site/v2/sports';
 export const VOID_STATUSES = new Set(['STATUS_POSTPONED', 'STATUS_CANCELED', 'STATUS_FORFEIT', 'STATUS_ABANDONED']);
 
 export function createEspn({ fetch = globalThis.fetch, timeoutMs = 8000 } = {}) {
+  async function get(sport, what, query) {
+    const res = await fetch(`${BASE}/${sport.espnPath}/${what}?${query}`, {
+      headers: { accept: 'application/json', 'user-agent': 'bookiebullies-app/0.1' },
+      signal: AbortSignal.timeout(timeoutMs),
+    });
+    if (!res.ok) throw new Error(`ESPN ${sport.key} ${what} answered ${res.status}`);
+    return res.json();
+  }
+
   async function day(sport, date) {
     // One day per request, with the same limit cfb-bot uses: ESPN answers 400
     // to the date-range and limit=1000 form.
     const query = new URLSearchParams({ dates: date, limit: '400', ...sport.params });
-    const res = await fetch(`${BASE}/${sport.espnPath}/scoreboard?${query}`, {
-      headers: { accept: 'application/json', 'user-agent': 'bookiebullies-app/0.1' },
-      signal: AbortSignal.timeout(timeoutMs),
-    });
-    if (!res.ok) throw new Error(`ESPN ${sport.key} scoreboard answered ${res.status}`);
-    return parseScoreboard(sport, await res.json());
+    return parseScoreboard(sport, await get(sport, 'scoreboard', query));
   }
 
   return {
@@ -32,7 +36,111 @@ export function createEspn({ fetch = globalThis.fetch, timeoutMs = 8000 } = {}) 
       // A game can show on two days' boards (late starts, ESPN's own day cutoff).
       return [...new Map(days.flat().map((g) => [g.id, g])).values()];
     },
+
+    /** One game's injuries and each team's last five results ("401772712" is the part of the app's id after the colon). */
+    async summary(sport, eventId) {
+      return parseSummary(await get(sport, 'summary', new URLSearchParams({ event: String(eventId) })));
+    },
   };
+}
+
+// ---- Game summary: injuries and recent form ---------------------------------
+// ESPN's summary endpoint isn't documented and its shape varies by sport, so
+// anything that doesn't fit is dropped, and a game with nothing usable shows
+// nothing.
+
+export const INJURIES_PER_TEAM = 6;
+export const FORM_GAMES = 5;
+
+// Worst first. Anything not listed sorts after these; Active isn't an injury.
+const STATUS_RANK = ['injured reserve', 'out', 'suspension', 'doubtful', 'questionable', 'day-to-day', 'probable'];
+
+/**
+ * { injuries: [{ abbr, name, players: [{ name, pos, status, detail }] }],
+ *   form: [{ abbr, name, games: [{ result, score, atVs, opp, date }] }] }
+ * Teams with nothing usable are left out.
+ */
+export function parseSummary(data) {
+  const out = { injuries: [], form: [] };
+  if (!data || typeof data !== 'object') return out;
+  for (const entry of Array.isArray(data.injuries) ? data.injuries : []) {
+    const team = teamKey(entry?.team);
+    if (!team) continue;
+    const players = (Array.isArray(entry.injuries) ? entry.injuries : []).map(injury).filter(Boolean);
+    players.sort((a, b) => rank(a.status) - rank(b.status));
+    if (players.length) out.injuries.push({ ...team, players: players.slice(0, INJURIES_PER_TEAM) });
+  }
+  for (const entry of Array.isArray(data.lastFiveGames) ? data.lastFiveGames : []) {
+    const team = teamKey(entry?.team);
+    if (!team) continue;
+    let games = (Array.isArray(entry.events) ? entry.events : []).map(formGame).filter(Boolean);
+    // Newest first, when every game has a date to sort by.
+    if (games.every((g) => g.date)) games = games.sort((a, b) => b.date.localeCompare(a.date));
+    if (games.length) out.form.push({ ...team, games: games.slice(0, FORM_GAMES) });
+  }
+  return out;
+}
+
+function teamKey(team) {
+  const abbr = text(team?.abbreviation, 8);
+  const name = text(team?.displayName ?? team?.shortDisplayName ?? team?.name, 60);
+  return abbr || name ? { abbr: abbr?.toUpperCase() ?? null, name } : null;
+}
+
+function injury(item) {
+  const name = text(item?.athlete?.displayName ?? item?.athlete?.fullName, 40);
+  const raw = typeof item?.status === 'string' ? item.status : item?.type?.description ?? item?.details?.fantasyStatus?.description;
+  const status = statusName(raw);
+  if (!name || !status) return null;
+  const pos = text(item.athlete.position?.abbreviation, 5);
+  const detail = text(item.details?.type, 24);
+  return { name, pos: pos && /^[A-Za-z0-9-]+$/.test(pos) ? pos.toUpperCase() : null, status, detail };
+}
+
+/** "OUT", "day-to-day" -> "Out", "Day-To-Day". Active and blank are no injury. */
+function statusName(raw) {
+  const s = text(raw, 24);
+  if (!s || /^active$/i.test(s)) return null;
+  return s.toLowerCase().replace(/(^|[\s-])([a-z])/g, (_, sep, c) => sep + c.toUpperCase());
+}
+
+function rank(status) {
+  const i = STATUS_RANK.indexOf(status.toLowerCase());
+  return i < 0 ? STATUS_RANK.length : i;
+}
+
+function formGame(e) {
+  const result = String(e?.gameResult ?? '').toUpperCase();
+  if (!['W', 'L', 'T'].includes(result)) return null;
+  const score = /^\s*(\d{1,3})\s*-\s*(\d{1,3})\s*$/.exec(String(e.score ?? ''));
+  const opp = text(e.opponent?.abbreviation, 8)?.toUpperCase() ?? null;
+  if (!score || !opp) return null;
+  const atVs = e.atVs === '@' ? '@' : 'vs';
+  const when = new Date(e.gameDate ?? '');
+  return { result, score: `${score[1]}-${score[2]}`, atVs, opp, date: Number.isNaN(+when) ? null : when.toISOString() };
+}
+
+/** A trimmed string of at most `max` characters, or null. */
+function text(value, max) {
+  if (typeof value !== 'string') return null;
+  const t = value.replace(/\s+/g, ' ').trim();
+  return t && t.length <= max ? t : null;
+}
+
+/**
+ * The summary's teams lined up with the game's: { away: { injuries, form },
+ * home: { ... } }, matched by abbreviation, then by name. Null when nothing matched.
+ */
+export function summaryForGame(summary, game) {
+  if (!summary) return null;
+  const find = (list, side) => {
+    const t = game[side];
+    return list.find((e) => e.abbr && e.abbr === t.abbr?.toUpperCase()) ?? list.find((e) => e.name && e.name === t.name) ?? null;
+  };
+  const side = (s) => ({ injuries: find(summary.injuries, s)?.players ?? [], form: find(summary.form, s)?.games ?? [] });
+  const out = { away: side('away'), home: side('home') };
+  const any = (key) => out.away[key].length + out.home[key].length > 0;
+  return any('injuries') || any('form') ? out : null;
 }
 
 export function parseScoreboard(sport, data) {

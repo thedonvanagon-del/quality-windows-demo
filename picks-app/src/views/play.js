@@ -283,8 +283,48 @@ export function myPicks(ctx, { open, graded, tab, record, streakDays = new Set()
   });
 }
 
-/** One game: its board (or score once it starts) and its chat. */
-export function gamePage(ctx, { game, started, messages, picksBy, mine, leg = null, split = null }) {
+const STATUS_CLASS = { out: 'out', 'injured reserve': 'out', suspension: 'out', doubtful: 'doubt', questionable: 'doubt' };
+
+/** Each team's listed injuries, worst first. Hidden when neither team lists any. */
+function injuries(game, insight) {
+  if (!insight.away.injuries.length && !insight.home.injuries.length) return '';
+  return html`<section class="insight" aria-labelledby="injuries">
+    <h2 id="injuries">Injuries</h2>
+    <div class="insight-teams">${['away', 'home'].map((side) => html`<div class="insight-team">
+      <h3>${teamLogo(game[side])}<span>${game[side].short}</span></h3>
+      ${insight[side].injuries.length
+        ? html`<ul class="injuries">${insight[side].injuries.map((p) => html`<li>
+            <span class="inj-who"><b>${p.name}</b>${p.pos ? html` <span class="muted">${p.pos}</span>` : ''}</span>
+            <span class="inj-status ${STATUS_CLASS[p.status.toLowerCase()] ?? ''}">${p.status}${p.detail ? html`<span class="muted"> · ${p.detail}</span>` : ''}</span>
+          </li>`)}</ul>`
+        : html`<p class="muted small">None listed.</p>`}
+    </div>`)}</div>
+  </section>`;
+}
+
+/** Each team's last five results as W/L chips, newest first. Hidden when neither team has any. */
+function recentForm(game, insight) {
+  if (!insight.away.form.length && !insight.home.form.length) return '';
+  const word = { W: 'Won', L: 'Lost', T: 'Tied' };
+  return html`<section class="insight" aria-labelledby="form">
+    <h2 id="form">Recent form</h2>
+    <div class="insight-teams">${['away', 'home'].map((side) => html`<div class="insight-team">
+      <h3>${teamLogo(game[side])}<span>${game[side].short}</span>${insight[side].form.length ? html`<span class="form-sum">${formRecord(insight[side].form)}</span>` : ''}</h3>
+      ${insight[side].form.length
+        ? html`<ol class="form-list" aria-label="Last ${insight[side].form.length}, newest first">${insight[side].form.map((g) => html`<li class="form-chip ${g.result.toLowerCase()}"><b aria-hidden="true">${g.result}</b><span class="sr-only">${word[g.result]}</span> ${g.score} ${g.atVs} ${g.opp}</li>`)}</ol>`
+        : html`<p class="muted small">No recent games listed.</p>`}
+    </div>`)}</div>
+  </section>`;
+}
+
+/** "3-2" (or "3-1-1") over the games shown. */
+function formRecord(list) {
+  const n = (r) => list.filter((g) => g.result === r).length;
+  return `${n('W')}-${n('L')}${n('T') ? `-${n('T')}` : ''}`;
+}
+
+/** One game: its board (or score once it starts), injuries and form before the start, and its chat. */
+export function gamePage(ctx, { game, started, messages, picksBy, mine, leg = null, split = null, insight = null }) {
   const sport = SPORT[game.sport];
   const scoreline = (side) => html`<div class="scoreline"><span class="team">${teamLogo(game[side])}<span class="tname"><span class="tn">${game[side].short}</span>${game[side].record ? html`<span class="tsub"><span class="trec">${game[side].record}</span></span>` : ''}</span></span><span class="score">${game[side].score ?? 0}</span></div>`;
   return layout(ctx, {
@@ -300,6 +340,8 @@ export function gamePage(ctx, { game, started, messages, picksBy, mine, leg = nu
           </article>`
         : gameCard(game, mine, sport, null, null, leg)}
       ${splitBars(game, split)}
+      ${insight ? injuries(game, insight) : ''}
+      ${insight ? recentForm(game, insight) : ''}
       <h2 id="chat">Chat</h2>
       ${chatBox(ctx, {
         messages,

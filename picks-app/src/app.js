@@ -50,7 +50,7 @@ const SECURITY_HEADERS = {
   'Permissions-Policy': 'camera=(), microphone=(), geolocation=()',
 };
 
-export function createApp({ store, games, config, mailer = createMailer({ log: { log() {} } }), notifier = createNotifier({ store }), push = null, now = () => new Date(), log = console }) {
+export function createApp({ store, games, config, mailer = createMailer({ log: { log() {} } }), notifier = createNotifier({ store }), push = null, summaries = null, now = () => new Date(), log = console }) {
   const assets = loadAssets();
   const app = {
     name: config.appName,
@@ -562,7 +562,7 @@ export function createApp({ store, games, config, mailer = createMailer({ log: {
 
   const gamePath = (id) => `/games/${encodeURIComponent(id)}`;
 
-  /** One game: its lines (or score), and the chat about it. */
+  /** One game: its lines (or score), injuries and form before the start, and the chat about it. */
   function gamePage(ctx, { id }) {
     if (!signedIn(ctx)) return;
     const game = games.get(id);
@@ -578,7 +578,9 @@ export function createApp({ store, games, config, mailer = createMailer({ log: {
     }
     const mine = picksOnGames(store, ctx.user.id, [game.id]).get(game.id) ?? {};
     const leg = draftOnGames(store, ctx.user.id, [game.id]).get(game.id) ?? null;
-    send(ctx, 200, play.gamePage(ctx, { game, started, messages: list, picksBy, mine, leg, split: splits(store, [game.id]).get(game.id) ?? null }));
+    // Injuries and recent form, before the start: from the cache only, never waiting on ESPN.
+    const insight = started ? null : summaries?.peek(game) ?? null;
+    send(ctx, 200, play.gamePage(ctx, { game, started, messages: list, picksBy, mine, leg, split: splits(store, [game.id]).get(game.id) ?? null, insight }));
   }
 
   /**

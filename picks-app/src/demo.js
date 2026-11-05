@@ -6,7 +6,7 @@
 import { hashPassword } from './auth.js';
 import { checkAllBadges } from './badges.js';
 import { closeWeek } from './contest.js';
-import { parseScoreboard } from './espn.js';
+import { parseScoreboard, parseSummary } from './espn.js';
 import { createGroup, joinGroup } from './groups.js';
 import { inviteCodeOf } from './invites.js';
 import { createOfficialImporter, ensureOfficial } from './official.js';
@@ -76,7 +76,64 @@ export function createDemoEspn({ now = () => new Date(), anchor = now() } = {}) 
         .map((g) => espnEvent(g, at));
       return parseScoreboard(sport, { events });
     },
+    /** Made-up injuries, and each team's real last five from the demo's own finals, in ESPN's summary JSON. */
+    async summary(sport, eventId) {
+      const list = bySport.get(sport.key) ?? [];
+      const g = list.find((x) => x.id === String(eventId));
+      return parseSummary(g ? espnSummary(g, list, now()) : {});
+    },
   };
+}
+
+const INJURY_NAMES = ['Marcus Reed', 'Tyler Banks', 'Jalen Price', 'Devin Holt', 'Chris Moreno', 'Andre Wells', 'Luke Garrison', 'Isaiah Cole', 'Nate Fuller', 'Omar Haynes', 'Ryan Pierce', 'Darius Lowe'];
+const POSITIONS = {
+  nfl: ['QB', 'WR', 'RB', 'TE', 'LB', 'CB', 'S', 'OT'], ncaaf: ['QB', 'WR', 'RB', 'TE', 'LB', 'CB', 'S', 'DE'],
+  nba: ['PG', 'SG', 'SF', 'PF', 'C'], ncaab: ['G', 'F', 'C'],
+  mlb: ['SP', 'RP', '1B', 'SS', 'CF', 'C'], nhl: ['C', 'LW', 'RW', 'D', 'G'],
+};
+const INJURY_STATUSES = ['Out', 'Questionable', 'Day-To-Day', 'Doubtful', 'Out', 'Questionable'];
+const INJURY_TYPES = ['Ankle', 'Knee', 'Hamstring', 'Shoulder', 'Back', 'Illness', 'Concussion'];
+
+function espnSummary(g, list, at) {
+  const sides = ['home', 'away'];
+  const injuries = sides.map((side) => {
+    const t = g[side];
+    const n = seed(g.id + side) % 5;
+    return {
+      team: { abbreviation: t.abbr, displayName: t.name },
+      injuries: Array.from({ length: n }, (_, i) => {
+        const k = seed(`${g.id}${side}${i}`);
+        return {
+          athlete: { displayName: INJURY_NAMES[k % INJURY_NAMES.length], position: { abbreviation: POSITIONS[g.sport][k % POSITIONS[g.sport].length] } },
+          status: INJURY_STATUSES[(k >> 3) % INJURY_STATUSES.length],
+          details: { type: INJURY_TYPES[(k >> 5) % INJURY_TYPES.length] },
+        };
+      }),
+    };
+  });
+  const lastFiveGames = sides.map((side) => {
+    const abbr = g[side].abbr;
+    const done = list
+      .filter((x) => x.start < g.start && new Date(x.start).getTime() + 3.5 * HOUR <= at.getTime() && (x.home.abbr === abbr || x.away.abbr === abbr))
+      .sort((a, b) => b.start.localeCompare(a.start))
+      .slice(0, 5);
+    return {
+      team: { abbreviation: abbr },
+      events: done.map((x) => {
+        const mine = x.home.abbr === abbr ? 'home' : 'away';
+        const theirs = mine === 'home' ? 'away' : 'home';
+        const [us, them] = [x.final[mine], x.final[theirs]];
+        return {
+          gameResult: us > them ? 'W' : us < them ? 'L' : 'T',
+          score: `${Math.max(us, them)}-${Math.min(us, them)}`,
+          atVs: mine === 'home' ? 'vs' : '@',
+          opponent: { abbreviation: x[theirs].abbr, displayName: x[theirs].name },
+          gameDate: x.start,
+        };
+      }),
+    };
+  });
+  return { injuries, lastFiveGames };
 }
 
 function game(sport, id, start, homeTeam, awayTeam, rand) {
