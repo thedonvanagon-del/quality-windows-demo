@@ -159,12 +159,10 @@ main p a, .fine a, .empty a { color: var(--accent); font-weight: 600; }
   .user-chip .name { display: none; }
   .user-chip { padding: 4px; }
   body.signed-in { padding-bottom: 76px; }
+  body.signed-in.has-parlay { padding-bottom: 128px; }
   .tabbar {
     display: grid;
     grid-template-columns: repeat(6, 1fr);
-    position: fixed;
-    inset: auto 0 0;
-    z-index: 20;
     background: var(--bar);
     border-top: 1px solid var(--line);
     padding: 6px 4px calc(6px + env(safe-area-inset-bottom));
@@ -365,6 +363,8 @@ a.cell:hover { background: var(--tile-hover); border-color: color-mix(in srgb, v
 .cell.mine, .cell.mine.price { background: var(--accent); color: var(--accent-ink); }
 .cell.mine small { color: var(--accent-ink); opacity: 0.75; }
 .cell.taken { opacity: 0.32; }
+/* A leg in the parlay being built: a dashed outline, nothing louder. */
+.cell.in-parlay { border-style: dashed; border-color: var(--accent); }
 .cell.loading { border-color: var(--accent); animation: cell-pulse 0.9s ease-in-out infinite; }
 @keyframes cell-pulse { 50% { opacity: 0.55; } }
 .sheet-loading { max-width: 440px; margin: 0 auto; padding: 44px 16px calc(44px + env(safe-area-inset-bottom)); text-align: center; color: var(--muted); font-weight: 600; background: var(--card); border: 1px solid var(--line); border-bottom: 0; border-radius: 14px 14px 0 0; }
@@ -877,3 +877,59 @@ a.chip { display: inline-block; text-decoration: none; }
 .report-count { color: var(--loss); font-weight: 800; }
 .report-body { margin: 8px 0 10px; white-space: pre-line; overflow-wrap: anywhere; }
 .report-actions form { margin: 0; }
+
+/* ---- Parlays -------------------------------------------------------------- */
+
+/* The tab bar and, while a parlay is being built, a slim bar above it. */
+.dock { position: fixed; inset: auto 0 0; z-index: 20; pointer-events: none; }
+.dock > * { pointer-events: auto; }
+body.has-parlay { padding-bottom: 64px; }
+.parlay-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  max-width: 480px;
+  margin: 0 auto 12px;
+  padding: 9px 14px;
+  border-radius: 10px;
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-family: var(--cond);
+  font-weight: 700;
+  font-size: 1.05rem;
+  letter-spacing: 0.02em;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
+}
+.parlay-bar b { font-weight: 800; text-transform: uppercase; letter-spacing: 0.06em; }
+.parlay-bar .pb-odds { font-weight: 800; font-variant-numeric: tabular-nums; }
+.parlay-bar .pb-go { font-weight: 800; text-transform: uppercase; letter-spacing: 0.06em; white-space: nowrap; }
+.parlay-bar .pb-go::after { content: " ›"; }
+@media (max-width: 760px) {
+  .parlay-bar { margin: 0 10px 8px; }
+}
+
+.slip-actions { display: grid; grid-template-columns: 1.3fr 1fr; gap: 8px; }
+.slip-actions .btn { padding: 14px 10px; font-size: 1rem; }
+
+.parlay-legs { list-style: none; margin: 0; padding: 0; }
+.parlay-legs li { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 12px; align-items: center; padding: 12px 0; border-bottom: 1px solid var(--line); }
+.parlay-legs li:first-child { padding-top: 0; }
+.parlay-legs .pleg { min-width: 0; }
+.parlay-legs form { grid-column: 1 / -1; justify-self: start; margin-top: -4px; }
+.parlay-legs .link-btn { padding-left: 0; }
+.combined { display: flex; justify-content: space-between; align-items: center; margin: 14px 0 0; color: var(--muted); font-weight: 600; }
+.combined b { color: var(--accent); font-family: var(--cond); font-size: 1.5rem; font-weight: 800; font-variant-numeric: tabular-nums; }
+.flash .note { display: block; }
+.flash .note + .note { margin-top: 4px; }
+
+.parlay-tag { display: inline-block; vertical-align: 2px; margin-right: 6px; padding: 1px 6px; border-radius: 4px; background: var(--accent-soft); color: var(--accent); font-family: var(--cond); font-size: 0.78rem; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; }
+.ticket .legs { grid-column: 1 / -1; list-style: none; margin: 6px 0 4px; padding: 0; display: grid; gap: 6px; }
+.ticket .leg { display: grid; grid-template-columns: 34px minmax(0, 1fr); gap: 0 8px; align-items: baseline; }
+.ticket .leg .mark { grid-row: span 2; justify-self: center; font-weight: 800; font-size: 0.72rem; letter-spacing: 0.04em; text-transform: uppercase; color: var(--faint); }
+.ticket .leg-win .mark { color: var(--win); font-size: 1rem; }
+.ticket .leg-loss .mark { color: var(--loss); font-size: 1rem; }
+.ticket .leg-open .mark::before { content: "•"; font-size: 1rem; }
+.ticket .leg-sel { font-weight: 700; font-size: 0.92rem; }
+.ticket .leg-sel .odds { color: var(--accent); margin-left: 6px; white-space: nowrap; }
+.ticket .leg-meta { color: var(--muted); font-size: 0.8rem; }

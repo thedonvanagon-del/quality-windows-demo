@@ -1,5 +1,6 @@
 import { THEMES } from '../config.js';
 import { html } from '../html.js';
+import { formatOdds } from '../picks.js';
 import { when } from '../time.js';
 import { icons } from './icons.js';
 
@@ -23,6 +24,11 @@ export function layout(ctx, { title, active, body, description, share }) {
       ]
     : [['board', '/leaderboard', 'Leaderboard', icons.board]];
   const count = (key) => (key === 'picks' && ctx.openBets ? html`<b class="badge" aria-label="${ctx.openBets} open">${ctx.openBets > 99 ? '99+' : ctx.openBets}</b>` : '');
+  // A slim bar over the tab bar while a parlay is being built.
+  const draft = playing && ctx.parlay?.legs && ctx.url.pathname !== '/parlay' ? ctx.parlay : null;
+  const parlayBar = draft
+    ? html`<a class="parlay-bar" href="/parlay"><span><b>Parlay</b> · ${draft.legs} ${draft.legs === 1 ? 'leg' : 'legs'} · <span class="pb-odds">${formatOdds(draft.odds).replace(/^-/, '\u2212')}</span></span><span class="pb-go">Review</span></a>`
+    : '';
   const link = ([key, href, label, icon]) =>
     html`<a href="${href}" class="${key === active ? 'on' : ''}" ${key === active ? html`aria-current="page"` : ''}><span class="ic">${icon}${count(key)}</span><span>${label}</span></a>`;
 
@@ -51,7 +57,7 @@ export function layout(ctx, { title, active, body, description, share }) {
 <link rel="stylesheet" href="${app.assets.css}">
 <script src="${app.assets.js}" defer></script>
 </head>
-<body class="${playing ? 'signed-in' : ''}">
+<body class="${[playing ? 'signed-in' : '', draft ? 'has-parlay' : ''].filter(Boolean).join(' ')}">
 <header class="top">
   <div class="wrap">
     <a class="brand" href="/"><img class="brand-logo" src="${app.assets.logo}" alt="" width="34" height="34">${app.name}</a>
@@ -105,9 +111,9 @@ ${active === 'install' ? '' : html`<div class="ios-install" data-ios-install hid
   </div>
 </footer>
 ${playing
-  ? html`<nav class="tabbar" aria-label="Main">${[...nav.filter(([key]) => key !== 'more'), ['me', profile, 'Profile', icons.me], ['more', '/more', 'More', icons.more]]
+  ? html`<div class="dock">${parlayBar}<nav class="tabbar" aria-label="Main">${[...nav.filter(([key]) => key !== 'more'), ['me', profile, 'Profile', icons.me], ['more', '/more', 'More', icons.more]]
     // Six tabs share a phone's width, so the longest label gets a shorter name.
-    .map(([key, href, label, icon]) => link([key, href, key === 'board' ? 'Leaders' : label, icon]))}</nav>`
+    .map(([key, href, label, icon]) => link([key, href, key === 'board' ? 'Leaders' : label, icon]))}</nav></div>`
   : ''}
 </body>
 </html>`;

@@ -216,6 +216,54 @@ const MIGRATIONS = [
   );
   CREATE INDEX official_picks_pick ON official_picks(pick_id);
   `,
+  `
+  -- Parlays: 2 to 6 legs, each on a different game. The legs a player is
+  -- still putting together live in a draft, one per game, with the price the
+  -- board showed when they were added.
+  CREATE TABLE parlay_draft_legs (
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    game_id TEXT NOT NULL REFERENCES games(id),
+    market TEXT NOT NULL CHECK (market IN ('spread', 'total', 'ml')),
+    side TEXT NOT NULL CHECK (side IN ('home', 'away', 'over', 'under')),
+    line REAL,
+    odds INTEGER NOT NULL,
+    added_at TEXT NOT NULL,
+    PRIMARY KEY (user_id, game_id)
+  );
+
+  -- A locked parlay is one bet on the record. odds is the combined American
+  -- price at lock; first_start (the earliest leg's start) decides when it
+  -- locks for good and when other people can see it. sport is set when every
+  -- leg is in the same sport, so it counts on that sport's boards; null means
+  -- mixed sports, which count overall only.
+  CREATE TABLE parlays (
+    id INTEGER PRIMARY KEY,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    sport TEXT,
+    units REAL NOT NULL,
+    odds INTEGER NOT NULL,
+    made_at TEXT NOT NULL,
+    first_start TEXT NOT NULL,
+    result TEXT CHECK (result IN ('win', 'loss', 'push', 'void')),
+    profit REAL,
+    graded_at TEXT
+  );
+  CREATE INDEX parlays_user ON parlays(user_id, first_start);
+  CREATE INDEX parlays_board ON parlays(result, sport, first_start);
+
+  CREATE TABLE parlay_legs (
+    parlay_id INTEGER NOT NULL REFERENCES parlays(id) ON DELETE CASCADE,
+    game_id TEXT NOT NULL REFERENCES games(id),
+    sport TEXT NOT NULL,
+    market TEXT NOT NULL CHECK (market IN ('spread', 'total', 'ml')),
+    side TEXT NOT NULL CHECK (side IN ('home', 'away', 'over', 'under')),
+    line REAL,
+    odds INTEGER NOT NULL,
+    result TEXT CHECK (result IN ('win', 'loss', 'push', 'void')),
+    PRIMARY KEY (parlay_id, game_id)
+  );
+  CREATE INDEX parlay_legs_game ON parlay_legs(game_id);
+  `,
 ];
 
 export function openStore(file) {

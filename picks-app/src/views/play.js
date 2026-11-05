@@ -1,18 +1,22 @@
 import { html } from '../html.js';
-import { formatOdds, formatSpread, formatUnits, MARKET_NAME, MAX_UNITS, maxUnits, price, selection, toWin, UNIT_CHIPS, UNITS_MIN } from '../picks.js';
+import { formatOdds, formatSpread, formatUnits, MARKET_NAME, MAX_UNITS, maxUnits, PARLAY_MAX_LEGS, PARLAY_MIN_LEGS, parlayMaxUnits, parlayPrice, parlayToWin, price, selection, toWin, UNIT_CHIPS, UNITS_MIN } from '../picks.js';
+import { draftSignature } from '../parlays.js';
 import { SPORT } from '../sports.js';
 import { dayLabel, etDay, when } from '../time.js';
 import { icons } from './icons.js';
 import { csrfField, layout } from './layout.js';
-import { at, minus, pickItem, sportTabs, statStrip, tabs, teamLogo } from './parts.js';
+import { at, betItem, minus, sportTabs, statStrip, tabs, teamLogo } from './parts.js';
 
 /** The id a game's card carries, so a pick can come back to the same spot on the board. */
 export function cardId(gameId) {
   return `g-${String(gameId).replace(/[^a-zA-Z0-9_-]/g, '-')}`;
 }
 
-/** `mine` maps game id -> { spread: 'home', total: 'over', ... } for the player's picks. */
-export function games(ctx, { sport, list, mine, chats = new Map(), split = new Map(), problem }) {
+/**
+ * `mine` maps game id -> { spread: 'home', total: 'over', ... } for the
+ * player's picks; `draft` maps game id -> { market, side } for their parlay legs.
+ */
+export function games(ctx, { sport, list, mine, draft = new Map(), chats = new Map(), split = new Map(), problem }) {
   const days = [];
   for (const game of list) {
     const day = etDay(game.start);
@@ -30,20 +34,20 @@ export function games(ctx, { sport, list, mine, chats = new Map(), split = new M
       ${days.length
         ? days.map(
             (d) => html`<div class="day">${d.label}</div>
-              ${d.games.map((g) => gameCard(g, mine.get(g.id) ?? {}, sport, chats.get(g.id) ?? 0, split.get(g.id)))}`,
+              ${d.games.map((g) => gameCard(g, mine.get(g.id) ?? {}, sport, chats.get(g.id) ?? 0, split.get(g.id), draft.get(g.id)))}`,
           )
         : html`<div class="card empty">No ${sport.name} games on the board in the next ${sport.days} days.</div>`}
     `,
   });
 }
 
-function gameCard(game, mine, sport, chatCount = null, split = null) {
+function gameCard(game, mine, sport, chatCount = null, split = null, leg = null) {
   const fav = favorite(game);
   const row = (side, totalSide) => html`
     <span class="team">${stripe(game[side].color)}${teamLogo(game[side])}<span class="tname"><span class="tn">${game[side].short}</span>${fav === side || game[side].record ? html`<span class="tsub">${fav === side ? html`<span class="fav">Fav</span>` : ''}${game[side].record ? html`<span class="trec">${game[side].record}</span>` : ''}</span>` : ''}</span></span>
-    ${cell(game, 'spread', side, mine)}
-    ${cell(game, 'total', totalSide, mine)}
-    ${cell(game, 'ml', side, mine)}`;
+    ${cell(game, 'spread', side, mine, leg)}
+    ${cell(game, 'total', totalSide, mine, leg)}
+    ${cell(game, 'ml', side, mine, leg)}`;
   return html`<article class="event" id="${cardId(game.id)}" aria-label="${game.away.name} at ${game.home.name}">
     <div class="board">
       <span class="when">${at(game.start)}${game.tv ? html`<span class="tv">${game.tv}</span>` : ''}</span><span class="colhead">${sport.spread}</span><span class="colhead">Total</span><span class="colhead">Money</span>
@@ -97,14 +101,16 @@ function favorite(game) {
   return null;
 }
 
-function cell(game, market, side, mine) {
+/** One price on the board. `leg` is the player's parlay leg on this game, if any. */
+function cell(game, market, side, mine, leg = null) {
   const p = price(game, market, side);
   if (!p) return html`<span class="cell off" aria-label="No ${MARKET_NAME[market].toLowerCase()} yet">–</span>`;
   const ml = market === 'ml';
   const top = market === 'spread' ? formatSpread(p.line) : market === 'total' ? `${side === 'over' ? 'O' : 'U'} ${p.line}` : formatOdds(p.odds);
   const inner = html`${minus(top)}${ml ? '' : html`<small>${minus(formatOdds(p.odds))}</small>`}`;
-  const kind = ml ? 'cell price' : 'cell';
-  const label = `${selection(market, side, p.line, game)} at ${formatOdds(p.odds)}`;
+  const inParlay = leg?.market === market && leg.side === side;
+  const kind = `${ml ? 'cell price' : 'cell'}${inParlay ? ' in-parlay' : ''}`;
+  const label = `${selection(market, side, p.line, game)} at ${formatOdds(p.odds)}${inParlay ? ', in your parlay' : ''}`;
   if (mine[market] === side) return html`<a class="${kind} mine" href="/picks" aria-label="Your pick: ${label}">${inner}</a>`;
   if (mine[market]) return html`<span class="${kind} taken" aria-label="${label}, you took the other side">${inner}</span>`;
   const query = new URLSearchParams({ game: game.id, market, side });
@@ -153,7 +159,10 @@ export function slip(ctx, { game, market, side, current, error, units }) {
               <p class="muted small" id="units-note">1u is a normal play, ${MAX_UNITS}u is a max play. ${most < MAX_UNITS
                 ? `At ${formatOdds(current.odds)}, ${formatUnits(most)} is the most you can play, so no pick wins more than ${MAX_UNITS} units.`
                 : `Play ${formatUnits(UNITS_MIN)} to ${formatUnits(MAX_UNITS)}.`}</p>
-              <button class="btn block">Lock it in</button>
+              <div class="slip-actions">
+                <button class="btn" data-busy="Locking it in…">Lock it in</button>
+                <button class="btn ghost" formaction="/parlay/legs" formnovalidate data-busy="Adding…">Add to parlay</button>
+              </div>
             </form>
             <p class="fine">You can delete it until the game starts. After that it's on your record for good.${game.lines.book ? ` Line from ${game.lines.book} via ESPN.` : ''}</p>
           </div>
@@ -163,8 +172,77 @@ export function slip(ctx, { game, market, side, current, error, units }) {
   });
 }
 
+/**
+ * Unit buttons for a parlay. Long parlays often max out under 1u, so below
+ * that the buttons are quarters and halves, and the last one is the max.
+ */
+function parlayChips(most) {
+  const steps = (most >= 1 ? UNIT_CHIPS : [0.25, 0.5]).filter((n) => n < most);
+  return [...steps.map((n) => [n, `${n}u`]), [most, `Max ${formatUnits(most)}`]];
+}
+
+/**
+ * The parlay being built: each leg with Remove, the combined price, units,
+ * to win and Lock parlay. `notes` say what changed since last time (a leg
+ * dropped because its game started); `error` is why it didn't lock.
+ */
+export function parlayPage(ctx, { legs, notes = [], error = null, units }) {
+  const ready = legs.length >= PARLAY_MIN_LEGS;
+  const combined = legs.length ? parlayPrice(legs) : null;
+  const most = ready ? parlayMaxUnits(combined.decimal) : 0;
+  units ??= Math.min(1, most);
+  const sport = legs.at(-1)?.game.sport ?? ctx.user.favSports?.[0];
+  const board = sport ? `/games?sport=${sport}` : '/games';
+  return layout(ctx, {
+    title: 'Parlay',
+    active: 'games',
+    body: html`
+      <div class="narrow">
+        <a class="back" href="${board}">← Games</a>
+        ${notes.length || error ? html`<div class="flash err" role="alert">${notes.map((n) => html`<span class="note">${n}</span>`)}${error ? html`<span class="note">${error}</span>` : ''}</div>` : ''}
+        <div class="slip">
+          <div class="slip-head"><span>Parlay</span><span>${legs.length} ${legs.length === 1 ? 'leg' : 'legs'} of ${PARLAY_MAX_LEGS}</span></div>
+          <div class="slip-body">
+            ${legs.length
+              ? html`<ol class="parlay-legs">${legs.map((l) => html`<li>
+                  <div class="pleg">
+                    <div class="pickname">${selection(l.market, l.side, l.line, l.game)}</div>
+                    <div class="slip-meta">${l.market === 'spread' ? SPORT[l.game.sport]?.spread ?? 'Spread' : MARKET_NAME[l.market]} · ${l.game.away.short} @ ${l.game.home.short} · ${at(l.game.start)}</div>
+                  </div>
+                  <span class="odds-pill">${minus(formatOdds(l.odds))}</span>
+                  <form method="post" action="/parlay/legs/${encodeURIComponent(l.gameId)}/delete">${csrfField(ctx)}<button class="link-btn">Remove</button></form>
+                </li>`)}</ol>`
+              : html`<p class="muted">No legs yet. Tap a number on the board, then Add to parlay. Each leg goes on a different game.</p>`}
+            ${ready
+              ? html`<div class="combined"><span>Combined odds</span><b>${minus(formatOdds(combined.american))}</b></div>
+                <form method="post" action="/parlays" data-odds="${combined.american}" data-decimal="${combined.decimal}">
+                  ${csrfField(ctx)}
+                  <input type="hidden" name="seen" value="${draftSignature(legs)}">
+                  <label class="wager">Units
+                    <span class="money-input suffix"><input type="text" name="units" value="${units}" inputmode="decimal" autocomplete="off" required aria-describedby="units-note"><span>u</span></span>
+                  </label>
+                  <div class="chips" hidden>
+                    ${parlayChips(most).map(([n, label]) => html`<button type="button" class="chip" data-units="${n}">${label}</button>`)}
+                  </div>
+                  <div class="towin"><span>To win</span><b data-to-win>${formatUnits(parlayToWin(combined.decimal, units))}</b></div>
+                  <p class="muted small" id="units-note">Same cap as any pick: no parlay risks more than ${MAX_UNITS}u or wins more than ${MAX_UNITS}u. At ${formatOdds(combined.american)}, ${formatUnits(most)} is the most you can play.</p>
+                  <button class="btn block" data-busy="Locking it in…">Lock parlay</button>
+                </form>
+                <p class="fine">Every leg has to win. A leg that pushes drops out and the odds are worked again from the rest. You can delete it until its first game starts. After that it's on your record for good.</p>`
+              : html`${legs.length ? html`<p class="muted">Add at least one more leg, from a different game.</p>` : ''}
+                <a class="btn ghost block" href="${board}">Find a game</a>`}
+          </div>
+        </div>
+      </div>
+    `,
+  });
+}
+
 export function myPicks(ctx, { open, graded, tab, record }) {
-  const deletable = (p) => p.game.state === 'pre' && new Date(p.game.start) > ctx.now;
+  const unstarted = (g) => g.state === 'pre' && new Date(g.start) > ctx.now;
+  // A parlay can go until its first leg starts.
+  const deletable = (p) => (p.kind === 'parlay' ? p.legs.every((l) => unstarted(l.game)) : unstarted(p.game));
+  const path = (p) => (p.kind === 'parlay' ? `/parlays/${p.id}/delete` : `/picks/${p.id}/delete`);
   const list = tab === 'settled' ? graded : open;
   return layout(ctx, {
     title: 'My bets',
@@ -176,11 +254,11 @@ export function myPicks(ctx, { open, graded, tab, record }) {
       <div class="bets-tabs">${tabs('/picks', ctx.query, 'tab', [['', `Open (${open.length})`], ['settled', 'Settled']])}</div>
       ${list.length
         ? html`<ul class="tickets">${list.map((p) =>
-            pickItem(p, {
+            betItem(p, {
               mine: true,
               now: ctx.now,
               actions: deletable(p)
-                ? html`<form method="post" action="/picks/${p.id}/delete" data-confirm="Delete this bet?">${csrfField(ctx)}<button class="btn danger small">Delete</button></form>`
+                ? html`<form method="post" action="${path(p)}" data-confirm="Delete this bet?">${csrfField(ctx)}<button class="btn danger small">Delete</button></form>`
                 : null,
             }),
           )}</ul>`
@@ -192,7 +270,7 @@ export function myPicks(ctx, { open, graded, tab, record }) {
 }
 
 /** One game: its board (or score once it starts) and its chat. */
-export function gamePage(ctx, { game, started, messages, picksBy, mine, split = null }) {
+export function gamePage(ctx, { game, started, messages, picksBy, mine, leg = null, split = null }) {
   const sport = SPORT[game.sport];
   const scoreline = (side) => html`<div class="scoreline"><span class="team">${teamLogo(game[side])}<span class="tname"><span class="tn">${game[side].short}</span>${game[side].record ? html`<span class="tsub"><span class="trec">${game[side].record}</span></span>` : ''}</span></span><span class="score">${game[side].score ?? 0}</span></div>`;
   const canPost = ctx.user.verified;
@@ -207,7 +285,7 @@ export function gamePage(ctx, { game, started, messages, picksBy, mine, split = 
             <div class="live-head">${game.state === 'in' ? html`<span class="live-tag">Live</span>` : ''}<span>${sport.short} · ${game.detail || 'Started'}${game.tv ? ` · ${game.tv}` : ''}</span></div>
             ${scoreline('away')}${scoreline('home')}
           </article>`
-        : gameCard(game, mine, sport)}
+        : gameCard(game, mine, sport, null, null, leg)}
       ${splitBars(game, split)}
       <h2 id="chat">Chat</h2>
       <div class="chat" data-poll>

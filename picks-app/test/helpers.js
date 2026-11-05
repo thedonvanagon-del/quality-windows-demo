@@ -103,7 +103,7 @@ export async function startApp({ time, espn = fakeEspn(), config = {} }) {
   const pushed = [];
   const push = createPush({ store, subject: 'mailto:test@example.test', log: quiet, fetch: async (url, init) => (pushed.push({ url, init }), new Response(null, { status: 201 })) });
   const notifier = createNotifier({ store, push, log: quiet });
-  const games = createGames({ store, espn, now: time.now, log: quiet, onGraded: (ids) => notifier.settled(ids, time.now()) });
+  const games = createGames({ store, espn, now: time.now, log: quiet, onGraded: (ids, parlayIds) => notifier.settled(ids, time.now(), parlayIds) });
   // Collects mail instead of sending it.
   const outbox = [];
   const mailer = { configured: true, send: async (message) => void outbox.push(message) };

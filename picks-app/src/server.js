@@ -21,7 +21,7 @@ const espn = config.demo ? createDemoEspn({ anchor }) : createEspn();
 // Phone notifications sign as the contact address; demo mode never sends any.
 const push = createPush({ store, subject: `mailto:${config.contactEmail}`, enabled: !config.demo });
 const notifier = createNotifier({ store, push });
-const games = createGames({ store, espn, onGraded: (ids) => notifier.settled(ids) });
+const games = createGames({ store, espn, onGraded: (ids, parlayIds) => notifier.settled(ids, new Date(), parlayIds) });
 if (config.demo && !store.get('SELECT 1 FROM users LIMIT 1')) await seedDemo({ store, games, espn });
 
 const mailer = createMailer(config.smtp);

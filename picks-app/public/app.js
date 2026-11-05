@@ -114,15 +114,18 @@ for (const form of document.querySelectorAll('form[data-confirm]')) {
   });
 }
 
-// Keep "to win" on the pick slip in step with the units.
+// Keep "to win" on the pick slip in step with the units. A parlay's form
+// carries its exact decimal price too, so "to win" matches what it pays.
 function initSlip(slip) {
   const odds = Number(slip.dataset.odds);
+  const decimal = Number(slip.dataset.decimal);
   const input = slip.querySelector('input[name="units"]');
   const chips = slip.querySelector('.chips');
   const update = () => {
     const units = Number(input.value.replace(/[u,\s]/gi, ''));
     const ok = Number.isFinite(units) && units > 0;
-    const win = ok ? Math.round((odds > 0 ? (units * odds) / 100 : (units * 100) / -odds) * 100) / 100 : 0;
+    const raw = decimal ? units * (decimal - 1) : odds > 0 ? (units * odds) / 100 : (units * 100) / -odds;
+    const win = ok ? Math.round(raw * 100) / 100 : 0;
     slip.querySelector('[data-to-win]').textContent = ok ? `${win}u` : '–';
     for (const chip of chips.querySelectorAll('.chip')) chip.classList.toggle('on', Number(chip.dataset.units) === units);
   };
@@ -139,18 +142,20 @@ function initSlip(slip) {
 const pageSlip = document.querySelector('form[data-odds]');
 if (pageSlip) initSlip(pageSlip);
 
-// "Lock it in" says it's working the moment it's tapped and can't be sent twice.
+// "Lock it in" (or "Add to parlay", or "Lock parlay") says it's working the
+// moment it's tapped, and the form can't be sent twice.
 document.addEventListener('submit', (event) => {
   const form = event.target;
-  if (!form.matches('form[action="/picks"]')) return;
+  if (!form.matches('form[action="/picks"], form[action="/parlays"]')) return;
   if (form.dataset.sending) {
     event.preventDefault();
     return;
   }
   form.dataset.sending = '1';
-  const button = form.querySelector('button.btn');
+  const button = event.submitter?.dataset.busy ? event.submitter : form.querySelector('button[data-busy]');
   if (button) {
-    button.textContent = 'Locking it in…';
+    button.dataset.label = button.textContent;
+    button.textContent = button.dataset.busy;
     button.classList.add('busy');
   }
 });
@@ -159,9 +164,8 @@ window.addEventListener('pageshow', (event) => {
   if (!event.persisted) return;
   for (const form of document.querySelectorAll('form[data-sending]')) {
     delete form.dataset.sending;
-    const button = form.querySelector('button.btn');
-    if (button) {
-      button.textContent = 'Lock it in';
+    for (const button of form.querySelectorAll('button[data-label]')) {
+      button.textContent = button.dataset.label;
       button.classList.remove('busy');
     }
   }

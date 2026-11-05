@@ -93,6 +93,45 @@ not dollars, and nothing is paid out.
   They name hello@bookiebullies.com as the contact (setting: CONTACT_EMAIL).
 
 ### How picks work
+- **2026-11-05: Parlays** (owner approved). 2 to 6 legs, each on a **different
+  game** (no same-game parlays: those legs move together). A leg is any
+  spread, total or moneyline on the board, before that game starts.
+  - **Same cap as a straight pick:** never risks more than 5u, never wins more
+    than 5u. The legs' decimal odds multiply; the price shows in American
+    (3 legs at -110 is +596, so 0.83u is the most). The cap is worked from the
+    exact price, so rounding the American number can never let one win 5.01u.
+    0.1u minimum; a parlay so long that 0.1u would win over 5u can't be played.
+  - **Building one:** the pick slip (sheet and full page) has **Add to parlay**
+    next to Lock it in. Legs are kept on the server as a draft per player
+    (`parlay_draft_legs`), so it works without JavaScript and across devices.
+    A leg on a game already in the draft **replaces** that game's leg, with a
+    note. A slim bar over the tab bar ("Parlay · 3 legs · +596 · Review")
+    opens `/parlay`: each leg with Remove, combined odds, units with buttons
+    (quarters and halves when the max is under 1u, then Max), to win, and
+    **Lock parlay**. On the board, a leg in the draft gets a dashed outline.
+  - **Locking:** every leg is checked against the live line, the same way as
+    a straight pick (paused if ESPN can't be reached). If a line moved, the
+    page comes back with the new prices: "Lines moved. Still want it?" A leg
+    whose game started drops out with a note, and the player confirms the
+    shorter parlay too (its price changed), rather than it locking on its
+    own. Under 2 legs left, nothing locks. On success the draft clears and the
+    gold LOCKED ticket shows legs, odds, units and to win.
+  - **Grading** runs with the straight picks (`gradeFinished`), using the same
+    leg grading. A losing leg loses the parlay at once. A pushed (or voided)
+    leg drops out and the price is worked again from the rest; every leg
+    pushing is a push. Profit can't top 5u (asserted). Settled parlays get
+    the same "your bet settled" notification.
+  - **Deleting:** until the **first** leg starts. After that it's on the record.
+  - **Hidden** from everyone else until the first leg starts, like picks
+    (the official account's would be public at once, same as its picks).
+  - **Records:** a parlay is **one bet** in W-L-P, units, ROI, last 10, hot
+    streaks, every leaderboard, group boards and the 5-pick minimum for a rank.
+    It stays out of the profile breakdown (by bet type, fav/dog, home/road)
+    and the public split. On a sport's board (and in By sport, and in a
+    one-sport group) it counts only when every leg is in that sport; a mixed
+    parlay counts overall only. Its date for 7/30-day windows is its first
+    leg's start. Profiles, My bets, Following and group feeds list it with a
+    PARLAY tag and each leg's result (✓, ✗, push).
 - **2026-10-19:** Games, lines, scores and logos come from ESPN's free public
   scoreboard, the same feed Bookie Bullies and cfb-bot use. No paid odds API.
 - **2026-10-19:** A pick takes the line on the board right then. Nobody types a
@@ -276,6 +315,8 @@ Launch log:
   15 minutes, with Official and LOCK tags, never ranked
 - First-time setup (sports and players to follow), screen name changes,
   player search, and an admin page for reported chat
+- Parlays: 2 to 6 legs on different games, a draft and a parlay bar, the
+  same 5u caps, graded with picks, one bet on every record and board
 - Demo mode: `npm run demo`, log in as demo@example.com / letmein123
 - Server setup in `aws/stacks/bookie-bullies-app` and a deploy-on-merge
   workflow (`.github/workflows/picks-app-deploy.yml`)
@@ -335,7 +376,7 @@ In rough order of value:
 8. **Notifications** when bets settle or games start (and the App Store push).
 9. App Store and Google Play versions.
 10. Trash talk in groups. (~~Following players~~: built 2026-10-30.)
-11. ~~Changing a screen name~~ (built 2026-11-05), props and parlays, more admin
+11. ~~Changing a screen name~~ (built 2026-11-05), props, ~~parlays~~ (built 2026-11-05), more admin
     tools (~~reported chat~~ built 2026-11-05; fixing a bad grade is still by hand).
 
 ## How to work on it

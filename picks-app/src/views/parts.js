@@ -1,5 +1,5 @@
 import { html } from '../html.js';
-import { formatOdds, formatUnits, selection, toWin } from '../picks.js';
+import { formatOdds, formatUnits, parlayPrice, parlayToWin, selection, toWin } from '../picks.js';
 import { SPORT, SPORTS } from '../sports.js';
 import { MIN_RANKED, PERIODS } from '../stats.js';
 import { kickoff, when } from '../time.js';
@@ -121,13 +121,7 @@ const WAITING = { pre: ['open', 'Open'], in: ['live', 'Live'], post: ['grading',
  */
 export function pickItem(p, { who = false, actions = null, mine = false, now = null } = {}) {
   const g = p.game;
-  const score = g.home.score != null ? `${g.away.abbr} ${g.away.score}, ${g.home.abbr} ${g.home.score}` : null;
-  const soon = now && new Date(g.start) - now < 48 * 3_600_000;
-  const status = p.result
-    ? score ?? (p.result === 'void' ? g.detail || 'Called off' : '')
-    : g.state === 'pre'
-      ? soon ? `Starts in ${lead(now, g.start)}` : html`Starts ${at(g.start, 'long')}`
-      : `${g.detail}${score ? ` · ${score}` : ''}`;
+  const status = gameStatus(g, p.result, now);
   const [kind, label] = p.result ? [p.result, RESULT[p.result]] : WAITING[g.state] ?? WAITING.pre;
   const won = p.result === 'win' || p.result === 'loss' ? formatUnits(p.profit, { sign: true }) : null;
   const pl = won ? html` <span class="pl">${minus(won)}</span>` : '';
@@ -140,4 +134,51 @@ export function pickItem(p, { who = false, actions = null, mine = false, now = n
     <div class="meta">${SPORT[g.sport]?.short} · ${g.away.short} @ ${g.home.short} · ${status}</div>
     <div class="receipt">${icons.lock}<span>Locked ${at(p.madeAt, 'long')}, ${lead(p.madeAt, g.start)} before the game</span></div>
   </li>`;
+}
+
+/** Where a game stands for a bet on it: the final score, a countdown, or the live score. */
+function gameStatus(g, result, now) {
+  const score = g.home.score != null ? `${g.away.abbr} ${g.away.score}, ${g.home.abbr} ${g.home.score}` : null;
+  const soon = now && new Date(g.start) - now < 48 * 3_600_000;
+  return result
+    ? score ?? (result === 'void' ? g.detail || 'Called off' : '')
+    : g.state === 'pre'
+      ? soon ? `Starts in ${lead(now, g.start)}` : html`Starts ${at(g.start, 'long')}`
+      : `${g.detail}${score ? ` · ${score}` : ''}`;
+}
+
+const LEG_MARK = { win: ['✓', 'Won'], loss: ['✗', 'Lost'], push: ['Push', 'Push'], void: ['Void', 'Void'] };
+
+/**
+ * A parlay as a ticket: a PARLAY tag, its legs and the combined price, then
+ * each leg with how it went (✓, ✗ or push). Takes the same options as pickItem.
+ */
+export function parlayItem(p, { who = false, actions = null, mine = false, now = null } = {}) {
+  const started = p.legs.some((l) => l.game.state !== 'pre' || (now && new Date(l.game.start) <= now));
+  const waiting = p.legs.every((l) => l.result || l.game.state === 'post') ? WAITING.post : WAITING.in;
+  const [kind, label] = p.result ? [p.result, RESULT[p.result]] : started ? waiting : WAITING.pre;
+  const won = p.result === 'win' || p.result === 'loss' ? formatUnits(p.profit, { sign: true }) : null;
+  const pl = won ? html` <span class="pl">${minus(won)}</span>` : '';
+  const toWinNow = parlayToWin(parlayPrice(p.legs).decimal, p.units);
+  const stake = mine ? `${formatUnits(p.units)}${p.result ? '' : ` to win ${formatUnits(toWinNow)}`}` : formatUnits(p.units);
+  return html`<li class="ticket parlay">
+    <div class="sel">${who ? html`${profileLink(p.screenName, { official: p.official })} · ` : ''}<span class="parlay-tag">Parlay</span>${p.legs.length} legs<span class="odds">${minus(formatOdds(p.odds))}</span>${mine ? '' : html`<span class="units">${stake}</span>`}</div>
+    <div class="status ${kind}">${label}${pl}</div>
+    ${mine || actions ? html`<div class="stake">${mine ? stake : ''}</div>` : ''}
+    ${actions ? html`<div class="act">${actions}</div>` : ''}
+    <ol class="legs">${p.legs.map((l) => {
+      const [mark, says] = LEG_MARK[l.result] ?? ['', 'Open'];
+      return html`<li class="leg leg-${l.result ?? 'open'}">
+        <span class="mark" aria-label="${says}">${mark}</span>
+        <span class="leg-sel">${selection(l.market, l.side, l.line, l.game)}<span class="odds">${minus(formatOdds(l.odds))}</span></span>
+        <span class="leg-meta">${SPORT[l.game.sport]?.short} · ${l.game.away.short} @ ${l.game.home.short} · ${gameStatus(l.game, l.result, now)}</span>
+      </li>`;
+    })}</ol>
+    <div class="receipt">${icons.lock}<span>Locked ${at(p.madeAt, 'long')}, ${lead(p.madeAt, p.firstStart)} before the first game</span></div>
+  </li>`;
+}
+
+/** A straight pick or a parlay, whichever this bet is. */
+export function betItem(bet, options) {
+  return bet.kind === 'parlay' ? parlayItem(bet, options) : pickItem(bet, options);
 }

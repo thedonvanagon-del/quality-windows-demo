@@ -34,6 +34,10 @@ network needed. Log in as `demo@example.com` / `letmein123`.
 - **Hidden until the start.** Anyone's open picks stay hidden from everyone
   else until the game starts, so nobody can copy or fade them early. Profiles
   show how many are waiting.
+- **Parlays, same rules.** 2 to 6 legs, each on a different game, each
+  checked against the live line at lock. Same caps: no parlay risks more than
+  5u or wins more than 5u. Deletable until the first leg starts, hidden from
+  others until then, and one bet on the record. A pushed leg drops out.
 - **One record per person.** Groups and sport boards read from the same picks,
   so nobody keeps a separate record per group.
 - **Graded for you.** A timer checks ESPN every 10 minutes for finals on games
@@ -51,6 +55,7 @@ five.
 |---|---|
 | `/games` | Upcoming games by sport, with spread, total and moneyline. Tap a number to pick it. |
 | `/picks` | My bets: open bets with their units, to-win and a countdown (deletable until the start), and settled ones. A badge on the tab counts what is open. |
+| `/parlay` | The parlay being built: legs added from the pick slip, combined odds, units, Lock parlay. |
 | `/leaderboard` | Everyone, or one sport, over 7 days, 30 days or all time. Public. |
 | `/groups` | Start a group (all sports or one), join with a code, see its board and its picks feed. |
 | `/u/<name>` | A player's public record: overall, by sport, and every pick with when it was locked. Your own has your settings, including a new screen name (once every 30 days; the old one redirects for 90). |
@@ -161,7 +166,7 @@ There's also a Dockerfile, for any host that runs containers and keeps a disk.
 
 ## Not built yet
 
-- **Props, parlays, futures.** Sides, totals and moneylines only.
+- **Props, futures.** Sides, totals and moneylines (straight or in parlays) only.
 - **More admin tools.** There's a page for reported chat; fixing a bad grade
   still means editing the database by hand.
 
@@ -172,7 +177,8 @@ src/server.js     starts everything, checks for finals every 10 minutes, imports
 src/app.js        every page and form
 src/espn.js       reads ESPN's scoreboard: games, lines, scores
 src/games.js      keeps the games table fresh
-src/picks.js      lock rules, line checks, grading, payouts
+src/picks.js      lock rules, line checks, grading, payouts (parlays' too)
+src/parlays.js    the parlay draft, locking a parlay, deleting one
 src/stats.js      records and leaderboards
 src/groups.js     friend groups and invite codes
 src/official.js   the official BookieBullies account and its picks importer

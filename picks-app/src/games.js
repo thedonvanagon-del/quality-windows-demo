@@ -1,6 +1,6 @@
 // Keeps the games table current. The games page and the pick form refresh a
 // sport's board when it's more than a minute or two old; a timer checks for
-// finals on games with open picks.
+// finals on games with open picks and parlay legs.
 
 import { SPORT, SPORTS } from './sports.js';
 import { gradeFinished } from './picks.js';
@@ -153,12 +153,16 @@ export function createGames({ store, espn, now = () => new Date(), log = console
       return row ? toGame(row) : null;
     },
 
-    /** Look for finals on every started game that still has an open pick. */
+    /** Look for finals on every started game that still has an open pick or parlay leg. */
     async checkFinals() {
       const due = store.all(
-        `SELECT DISTINCT g.sport, g.start_time FROM picks p JOIN games g ON g.id = p.game_id
-          WHERE p.result IS NULL AND g.start_time <= ? ORDER BY g.start_time`,
-        now().toISOString(),
+        `SELECT g.sport, g.start_time FROM picks p JOIN games g ON g.id = p.game_id
+          WHERE p.result IS NULL AND g.start_time <= ?
+         UNION
+         SELECT g.sport, g.start_time FROM parlay_legs l JOIN parlays x ON x.id = l.parlay_id JOIN games g ON g.id = l.game_id
+          WHERE x.result IS NULL AND l.result IS NULL AND g.start_time <= ?
+         ORDER BY 2`,
+        now().toISOString(), now().toISOString(),
       );
       const days = new Map();
       for (const { sport, start_time: start } of due) days.set(`${sport} ${etDay(start)}`, [SPORT[sport], etDay(start)]);
