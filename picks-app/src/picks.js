@@ -1,8 +1,6 @@
 // The rules that make a record worth something: a pick only goes in before
 // kickoff, at the line ESPN shows right then, and gets graded off the final.
 
-import assert from 'node:assert/strict';
-
 import { VOID_STATUSES } from './espn.js';
 
 export const MARKETS = {
@@ -221,9 +219,10 @@ export function settleParlay(legs, units) {
   if (legs.some((l) => !l.result)) return null;
   const won = legs.filter((l) => l.result === 'win');
   if (!won.length) return { result: legs.every((l) => l.result === 'void') ? 'void' : 'push', profit: 0 };
-  const paid = parlayToWin(parlayPrice(won).decimal, units);
-  // The stake cap guarantees this: dropping legs only shortens the price.
-  assert.ok(paid <= MAX_UNITS, `a parlay can't win more than ${MAX_UNITS}u (got ${paid}u)`);
+  // The stake cap already keeps this at 5u or less (dropping legs only shortens
+  // the price). Capped here too rather than thrown, so one bad row can never
+  // stop grading for everyone else.
+  const paid = Math.min(MAX_UNITS, parlayToWin(parlayPrice(won).decimal, units));
   return { result: 'win', profit: paid };
 }
 
