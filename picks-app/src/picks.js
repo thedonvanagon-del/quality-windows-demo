@@ -1,6 +1,7 @@
 // The rules that make a record worth something: a pick only goes in before
 // kickoff, at the line ESPN shows right then, and gets graded off the final.
 
+import { fillClv, freezeLate } from './clv.js';
 import { VOID_STATUSES } from './espn.js';
 import { etDay } from './time.js';
 
@@ -118,8 +119,8 @@ export function deletePick(store, { userId, pickId, game, now }) {
 export function gradeFinished(store, now, { staleAfterMs = 3 * 86_400_000, onGraded = null } = {}) {
   const at = now.toISOString();
   const open = store.all(
-    `SELECT p.id, p.market, p.side, p.line, p.odds, p.units,
-            g.state, g.status, g.completed, g.home_score, g.away_score, g.start_time, g.updated_at
+    `SELECT p.id, p.game_id, p.market, p.side, p.line, p.odds, p.units,
+            g.state, g.status, g.completed, g.home_score, g.away_score, g.start_time, g.updated_at, g.closing_at
        FROM picks p JOIN games g ON g.id = p.game_id
       WHERE p.result IS NULL AND g.start_time <= ?`,
     at,
@@ -134,6 +135,10 @@ export function gradeFinished(store, now, { staleAfterMs = 3 * 86_400_000, onGra
   const done = [];
   const parlaysDone = [];
   store.tx(() => {
+    // Every started game with an open pick has its close by now: frozen when
+    // it started, or here from the last lines seen if the app missed that.
+    for (const p of open) if (!p.closing_at) freezeLate(store, p.game_id, at);
+    fillClv(store, open.map((p) => p.game_id));
     for (const p of open) {
       const result = outcome(p, staleAfterMs);
       if (!result) continue;

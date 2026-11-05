@@ -6,7 +6,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 
-const MIGRATIONS = [
+export const MIGRATIONS = [
   `
   CREATE TABLE users (
     id INTEGER PRIMARY KEY,
@@ -317,6 +317,51 @@ const MIGRATIONS = [
     sent_at TEXT NOT NULL,
     PRIMARY KEY (user_id, kind, day)
   );
+  `,
+  `
+  -- Group chat. A chat message belongs to a game or to a group, never both,
+  -- so chat_messages is rebuilt with game_id optional and a group_id that goes
+  -- when the group does. chat_reports is rebuilt with it: dropping the old
+  -- messages table with reports still pointing at it would cascade them away.
+  CREATE TABLE chat_messages_v2 (
+    id INTEGER PRIMARY KEY,
+    game_id TEXT REFERENCES games(id),
+    group_id INTEGER REFERENCES friend_groups(id) ON DELETE CASCADE,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    body TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    deleted_at TEXT,
+    CHECK ((game_id IS NULL) <> (group_id IS NULL))
+  );
+  INSERT INTO chat_messages_v2 (id, game_id, user_id, body, created_at, deleted_at)
+    SELECT id, game_id, user_id, body, created_at, deleted_at FROM chat_messages;
+  CREATE TABLE chat_reports_v2 (
+    message_id INTEGER NOT NULL REFERENCES chat_messages_v2(id) ON DELETE CASCADE,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    created_at TEXT NOT NULL,
+    PRIMARY KEY (message_id, user_id)
+  );
+  INSERT INTO chat_reports_v2 (message_id, user_id, created_at) SELECT message_id, user_id, created_at FROM chat_reports;
+  DROP TABLE chat_reports;
+  DROP TABLE chat_messages;
+  -- Renaming also points chat_reports' foreign key at the new name.
+  ALTER TABLE chat_messages_v2 RENAME TO chat_messages;
+  ALTER TABLE chat_reports_v2 RENAME TO chat_reports;
+  CREATE INDEX chat_messages_game ON chat_messages(game_id, id);
+  CREATE INDEX chat_messages_group ON chat_messages(group_id, id);
+  -- When each member last opened their group's chat, for the unread counts.
+  ALTER TABLE group_members ADD COLUMN chat_read_at TEXT;
+
+  -- Closing lines. Until the game starts, closing_lines holds the latest
+  -- pregame line seen for each market (a pulled market keeps its last
+  -- number). When the game starts, closing_at is set and it never changes.
+  ALTER TABLE games ADD COLUMN closing_lines TEXT;
+  ALTER TABLE games ADD COLUMN closing_at TEXT;
+  -- Closing line value on a straight pick, worked out once the close is
+  -- known: points gained on a spread or total (positive is good for the
+  -- bettor) and the no-vig win chance gained, in percentage points.
+  ALTER TABLE picks ADD COLUMN clv_points REAL;
+  ALTER TABLE picks ADD COLUMN clv_pct REAL;
   `,
 ];
 

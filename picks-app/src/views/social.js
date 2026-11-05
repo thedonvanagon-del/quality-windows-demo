@@ -6,7 +6,7 @@ import { MIN_RANKED } from '../stats.js';
 import { dateLabel, joined, when } from '../time.js';
 import { icons, trustMark } from './icons.js';
 import { csrfField, layout } from './layout.js';
-import { betItem, boardTable, officialTag, pickItem, periodTabs, pct, profileLink, rankCell, recordText, signedPct, sportTabs, units } from './parts.js';
+import { betItem, boardTable, chatBox, minus, officialTag, pickItem, periodTabs, pct, profileLink, rankCell, recordText, signedPct, sportTabs, units } from './parts.js';
 
 /** Find a player by the start of their screen name. */
 function searchBox(q = '') {
@@ -47,7 +47,7 @@ export function leaderboard(ctx, { rows, sport, badges = null }) {
 
 const sportName = (key) => (key ? SPORT[key]?.name ?? key : 'All sports');
 
-export function groups(ctx, { list, error, name = '', sport = '' }) {
+export function groups(ctx, { list, unread = new Map(), error, name = '', sport = '' }) {
   return layout(ctx, {
     title: 'Groups',
     active: 'groups',
@@ -58,7 +58,7 @@ export function groups(ctx, { list, error, name = '', sport = '' }) {
       ${list.length
         ? html`<div class="table"><table>
             <thead><tr><th>Group</th><th>Sport</th><th class="n">Members</th></tr></thead>
-            <tbody>${list.map((g) => html`<tr><td><a class="who" href="/groups/${g.id}">${g.name}</a></td><td>${sportName(g.sport)}</td><td class="n">${g.members}</td></tr>`)}</tbody>
+            <tbody>${list.map((g) => html`<tr><td><a class="who" href="/groups/${g.id}">${g.name}</a>${unread.get(g.id) ? html` <a class="unread-count" href="/groups/${g.id}#chat">${unread.get(g.id)} new</a>` : ''}</td><td>${sportName(g.sport)}</td><td class="n">${g.members}</td></tr>`)}</tbody>
           </table></div>`
         : html`<div class="card empty">You're not in any groups yet. Start one, or join with a code from a friend.</div>`}
       <div class="forms">
@@ -89,7 +89,7 @@ export function groups(ctx, { list, error, name = '', sport = '' }) {
   });
 }
 
-export function group(ctx, { group, rows, members, feed, inviteUrl }) {
+export function group(ctx, { group, rows, members, feed, inviteUrl, messages = [] }) {
   const isOwner = group.owner_id === ctx.user.id;
   return layout(ctx, {
     title: group.name,
@@ -100,6 +100,15 @@ export function group(ctx, { group, rows, members, feed, inviteUrl }) {
       <p class="lede">${sportName(group.sport)} · ${members.length} ${members.length === 1 ? 'member' : 'members'}</p>
       ${periodTabs(`/groups/${group.id}`, ctx.query)}
       ${boardTable(rows, { me: ctx.user.id })}
+
+      <h2 id="chat">Chat</h2>
+      ${chatBox(ctx, {
+        messages,
+        action: `/groups/${group.id}/chat`,
+        placeholder: `Talk some trash to ${group.name}`,
+        rules: `Only members of ${group.name} see this. Trash talk is fine; harassment, hate and selling picks aren't. Three reports hide a message${isOwner ? ', and you can delete any message here' : ''}.`,
+        canDelete: (m) => m.user_id === ctx.user.id || isOwner,
+      })}
 
       <h2>Latest picks</h2>
       ${feed.length
@@ -370,7 +379,17 @@ function badgeChips(badges) {
     <ul class="badge-chips">${badges.map((b) => html`<li class="badge-chip" title="${about(b)}"><span class="sr-only">${about(b)}</span><span aria-hidden="true">${icons.medal}${b.label}${b.count > 1 ? ` ×${b.count}` : ''}</span></li>`)}</ul>`;
 }
 
-export function profile(ctx, { player, record, bySport, split = null, series = [], last10 = null, rank = null, follows = { followers: 0, following: 0 }, following = false, picks, hidden, nextChange = null, badges = [], streak = null }) {
+/** Beat the close and average CLV across the player's straight picks, with a plain-words note on what it means. */
+function clvLine(clv) {
+  if (!clv) return '';
+  const avg = clv.avgPct == null ? null : Math.round(clv.avgPct * 10) / 10;
+  return html`<div class="clv-line">
+    <p>Beat the close: <b>${pct(clv.beat)}</b>${avg == null ? '' : html` · Avg CLV <b class="clv ${avg > 0 ? 'up' : avg < 0 ? 'down' : ''}">${minus(`${avg > 0 ? '+' : ''}${avg.toFixed(1)}%`)}</b>`} <span class="muted small">· ${clv.picks} ${clv.picks === 1 ? 'pick' : 'picks'}</span></p>
+    <details class="clv-help"><summary>What's CLV?</summary><p>CLV shows whether you got a better number than where the line closed. Beating the close over time is the best sign of a sharp bettor.</p></details>
+  </div>`;
+}
+
+export function profile(ctx, { player, record, bySport, split = null, series = [], last10 = null, rank = null, follows = { followers: 0, following: 0 }, following = false, picks, hidden, nextChange = null, badges = [], streak = null, clv = null }) {
   return layout(ctx, {
     title: player.screen_name,
     active: ctx.user?.id === player.id ? 'me' : null,
@@ -390,6 +409,7 @@ export function profile(ctx, { player, record, bySport, split = null, series = [
       </div>
       <p class="lede">On the record since ${joined(player.created_at)}. ${record.graded} graded ${record.graded === 1 ? 'pick' : 'picks'}, every one locked before its game.</p>
       ${recordCard(ctx, { player, record, series, last10, rank })}
+      ${clvLine(clv)}
       ${streak?.played ? html`<p class="streak-line"><a href="/streak">${icons.flame}<span>Streak: <b>${streak.current}</b> · Best: <b>${streak.best}</b></span></a></p>` : ''}
       ${badgeChips(badges)}
       ${ctx.user?.id === player.id ? html`${screenNameForm(ctx, player, nextChange)}${nameForm(ctx, player)}${bioForm(ctx, player)}${linkForm(ctx, player)}${colorPicker(ctx)}` : ''}

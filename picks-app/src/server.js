@@ -13,6 +13,7 @@ import { createNotifier } from './notify.js';
 import { createOfficialImporter } from './official.js';
 import { createPush } from './push.js';
 import { createReminders } from './reminders.js';
+import { createSummaries } from './summaries.js';
 
 const GRADE_EVERY = 10 * 60_000;
 const IMPORT_EVERY = 15 * 60_000;
@@ -48,7 +49,9 @@ if (mailer.configured && !config.appUrl) {
   console.error('Set APP_URL (like https://app.bookiebullies.com) before turning on email.');
   process.exit(1);
 }
-const server = http.createServer(createApp({ store, games, config, mailer, notifier, push }));
+// Injuries and recent form for game pages, cached and fetched in the background.
+const summaries = createSummaries({ espn });
+const server = http.createServer(createApp({ store, games, config, mailer, notifier, push, summaries }));
 server.listen(config.port, config.host, () => {
   console.log(`${config.appName} is up on http://localhost:${config.port}`);
   if (config.demo) console.log(`Demo mode. Log in as ${DEMO_LOGIN.email} / ${DEMO_LOGIN.password}`);

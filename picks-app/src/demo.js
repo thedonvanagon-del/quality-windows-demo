@@ -6,11 +6,11 @@
 import { hashPassword } from './auth.js';
 import { checkAllBadges } from './badges.js';
 import { closeWeek } from './contest.js';
-import { parseScoreboard } from './espn.js';
+import { parseScoreboard, parseSummary } from './espn.js';
 import { createGroup, joinGroup } from './groups.js';
 import { inviteCodeOf } from './invites.js';
 import { createOfficialImporter, ensureOfficial } from './official.js';
-import { grade, gradeFinished, MARKETS, parlayMaxUnits, parlayPrice, price } from './picks.js';
+import { grade, gradeFinished, MARKETS, maxUnits, parlayMaxUnits, parlayPrice, price } from './picks.js';
 import { SPORTS } from './sports.js';
 import { addDays, etDay, etToUtc, HOUR, mondayOf } from './time.js';
 
@@ -76,7 +76,64 @@ export function createDemoEspn({ now = () => new Date(), anchor = now() } = {}) 
         .map((g) => espnEvent(g, at));
       return parseScoreboard(sport, { events });
     },
+    /** Made-up injuries, and each team's real last five from the demo's own finals, in ESPN's summary JSON. */
+    async summary(sport, eventId) {
+      const list = bySport.get(sport.key) ?? [];
+      const g = list.find((x) => x.id === String(eventId));
+      return parseSummary(g ? espnSummary(g, list, now()) : {});
+    },
   };
+}
+
+const INJURY_NAMES = ['Marcus Reed', 'Tyler Banks', 'Jalen Price', 'Devin Holt', 'Chris Moreno', 'Andre Wells', 'Luke Garrison', 'Isaiah Cole', 'Nate Fuller', 'Omar Haynes', 'Ryan Pierce', 'Darius Lowe'];
+const POSITIONS = {
+  nfl: ['QB', 'WR', 'RB', 'TE', 'LB', 'CB', 'S', 'OT'], ncaaf: ['QB', 'WR', 'RB', 'TE', 'LB', 'CB', 'S', 'DE'],
+  nba: ['PG', 'SG', 'SF', 'PF', 'C'], ncaab: ['G', 'F', 'C'],
+  mlb: ['SP', 'RP', '1B', 'SS', 'CF', 'C'], nhl: ['C', 'LW', 'RW', 'D', 'G'],
+};
+const INJURY_STATUSES = ['Out', 'Questionable', 'Day-To-Day', 'Doubtful', 'Out', 'Questionable'];
+const INJURY_TYPES = ['Ankle', 'Knee', 'Hamstring', 'Shoulder', 'Back', 'Illness', 'Concussion'];
+
+function espnSummary(g, list, at) {
+  const sides = ['home', 'away'];
+  const injuries = sides.map((side) => {
+    const t = g[side];
+    const n = seed(g.id + side) % 5;
+    return {
+      team: { abbreviation: t.abbr, displayName: t.name },
+      injuries: Array.from({ length: n }, (_, i) => {
+        const k = seed(`${g.id}${side}${i}`);
+        return {
+          athlete: { displayName: INJURY_NAMES[k % INJURY_NAMES.length], position: { abbreviation: POSITIONS[g.sport][k % POSITIONS[g.sport].length] } },
+          status: INJURY_STATUSES[(k >> 3) % INJURY_STATUSES.length],
+          details: { type: INJURY_TYPES[seed(`${g.id}${side}${i}type`) % INJURY_TYPES.length] },
+        };
+      }),
+    };
+  });
+  const lastFiveGames = sides.map((side) => {
+    const abbr = g[side].abbr;
+    const done = list
+      .filter((x) => x.start < g.start && new Date(x.start).getTime() + 3.5 * HOUR <= at.getTime() && (x.home.abbr === abbr || x.away.abbr === abbr))
+      .sort((a, b) => b.start.localeCompare(a.start))
+      .slice(0, 5);
+    return {
+      team: { abbreviation: abbr },
+      events: done.map((x) => {
+        const mine = x.home.abbr === abbr ? 'home' : 'away';
+        const theirs = mine === 'home' ? 'away' : 'home';
+        const [us, them] = [x.final[mine], x.final[theirs]];
+        return {
+          gameResult: us > them ? 'W' : us < them ? 'L' : 'T',
+          score: `${Math.max(us, them)}-${Math.min(us, them)}`,
+          atVs: mine === 'home' ? 'vs' : '@',
+          opponent: { abbreviation: x[theirs].abbr, displayName: x[theirs].name },
+          gameDate: x.start,
+        };
+      }),
+    };
+  });
+  return { injuries, lastFiveGames };
 }
 
 function game(sport, id, start, homeTeam, awayTeam, rand) {
@@ -200,6 +257,7 @@ export async function seedDemo({ store, games, espn, now = () => new Date() }) {
   }
 
   const rand = prng(7);
+  const clvRand = prng(11);
   const ids = {};
   for (const [name] of PLAYERS) {
     const email = name === 'SharpShooter' ? DEMO_LOGIN.email : `${name.toLowerCase()}@example.com`;
@@ -232,11 +290,20 @@ export async function seedDemo({ store, games, espn, now = () => new Date() }) {
           const wins = grade({ market, side, line: p.line }, g.homeScore, g.awayScore) === 'win';
           if (wins !== rand() < skill) side = MARKETS[market].find((s) => s !== side);
         }
-        const chosen = price(g, market, side);
+        // A past pick went in hours before the close, so its number often
+        // differs from the closing one: more often in a sharp player's favor.
+        // Its own random numbers, and never a different result, so the
+        // records come out the same as without it.
+        const close = price(g, market, side);
+        let chosen = close;
+        if (!open) {
+          const early = earlyNumber(close, g.sport, market, side, skill, clvRand);
+          if (grade({ market, side, line: early.line }, g.homeScore, g.awayScore) === grade({ market, side, line: close.line }, g.homeScore, g.awayScore)) chosen = early;
+        }
         const start = new Date(g.start).getTime();
         const madeAt = open ? at.getTime() - rand() * 6 * HOUR : start - (1 + rand() * 30) * HOUR;
         if (open && madeAt >= start) continue;
-        const units = [1, 1, 1, 2, 0.5, 3][Math.floor(rand() * 6)];
+        const units = Math.min([1, 1, 1, 2, 0.5, 3][Math.floor(rand() * 6)], maxUnits(chosen.odds));
         store.run(
           `INSERT OR IGNORE INTO picks (user_id, game_id, sport, market, side, line, odds, units, game_start, made_at)
            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -369,6 +436,26 @@ function seedStreaks(store, ids, today, rand) {
       if (mine && ++step === plan.length) break;
     }
   }
+}
+
+/**
+ * The number a pick got before the line settled at its close: up to a point
+ * either way on a spread or total, up to 15 cents on a moneyline (or a run
+ * line or puck line, which stay at 1.5). A sharper player's moves lean their way.
+ */
+function earlyNumber(close, sport, market, side, skill, rand) {
+  const size = [0, 0, 0.5, 0.5, 1][Math.floor(rand() * 5)];
+  const good = rand() < 0.5 + (skill - 0.5) * 3 ? 1 : -1;
+  if (market === 'ml' || (market === 'spread' && SHAPE[sport].spread === 0)) {
+    const cents = size * 15 * good;
+    let odds = close.odds + cents;
+    if (close.odds < 0 && odds > -100) odds += 200;
+    if (close.odds > 0 && odds < 100) odds -= 200;
+    return { line: close.line, odds: Math.round(odds) };
+  }
+  // A higher spread is better for its side; a total is better lower for an over, higher for an under.
+  const better = market === 'total' && side === 'over' ? -1 : 1;
+  return { line: close.line + size * good * better, odds: close.odds };
 }
 
 // The site's sport names for the sports it posts picks in.

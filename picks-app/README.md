@@ -57,8 +57,9 @@ five.
 | `/picks` | My bets: open bets with their units, to-win and a countdown (deletable until the start), and settled ones. A badge on the tab counts what is open. |
 | `/parlay` | The parlay being built: legs added from the pick slip, combined odds, units, Lock parlay. |
 | `/leaderboard` | Everyone, or one sport, over 7 days, 30 days or all time. Public. |
-| `/groups` | Start a group (all sports or one), join with a code, see its board and its picks feed. |
-| `/u/<name>` | A player's public record: overall, by sport, and every pick with when it was locked. Your own has your settings, including a new screen name (once every 30 days; the old one redirects for 90). |
+| `/groups` | Start a group (all sports or one), join with a code, see its board, its picks feed and its members-only chat. The list shows how many chat messages are new in each group. |
+| `/games/<id>` | One game: its lines (or score), the public split, injuries and each team's last five before the start, and the game chat. |
+| `/u/<name>` | A player's public record: overall, by sport, how often they beat the closing line, and every pick with when it was locked (and its CLV once the game starts). Your own has your settings, including a new screen name (once every 30 days; the old one redirects for 90). |
 | `/search` | Find players by the start of their screen name. |
 | `/contest` | The free weekly contest: most units on bets whose games start Monday to Sunday (ET), 5 graded bets to place. Public. |
 | `/winners` | The winners wall: every past week's top 3, and the most weekly wins. Public. |
@@ -66,7 +67,7 @@ five.
 | `/invite` | Your invite link (`/i/<code>`), who joined from it, and progress to the Recruiter badge. |
 | `/notifications` | The inbox, and what to hear about: settled bets, players you follow, Lines are up (about 11 AM ET), the Streak reminder (about 5 PM ET). |
 | `/setup` | Once, after a new player picks a screen name: favorite sports and players to follow. |
-| `/admin/reports` | Reported chat messages, for admins only: restore or delete. |
+| `/admin/reports` | Reported chat messages, from games and groups, for admins only: restore or delete. |
 
 Every week has a free contest (no entry, nothing paid out); results close
 once the week's bets are graded, by Tuesday 6 AM ET at the latest, and the top
@@ -187,8 +188,11 @@ There's also a Dockerfile, for any host that runs containers and keeps a disk.
 src/server.js     starts everything, checks for finals every 10 minutes, imports official picks every 15,
                   closes the weekly contest and sends reminders (checked every 5), badges hourly
 src/app.js        every page and form
-src/espn.js       reads ESPN's scoreboard: games, lines, scores
-src/games.js      keeps the games table fresh
+src/espn.js       reads ESPN's scoreboard (games, lines, scores) and game summaries (injuries, last five)
+src/games.js      keeps the games table fresh, and freezes each game's closing line when it starts
+src/clv.js        closing line value: the close, CLV per pick, Beat the close
+src/summaries.js  injuries and form for game pages: cached 30 minutes, fetched in the background
+src/chat.js       game and group chat: posting, deleting, reports, unread counts
 src/picks.js      lock rules, line checks, grading, payouts (parlays' too)
 src/parlays.js    the parlay draft, locking a parlay, deleting one
 src/stats.js      records and leaderboards
@@ -197,7 +201,7 @@ src/streak.js     the streak game: Streak picks, current and best streaks, the s
 src/badges.js     badges: what earns each one, awarding once, the most notable for a board
 src/invites.js    invite links: codes, counting a friend once they're confirmed and named
 src/reminders.js  the Lines are up and Streak reminders, once a day each
-src/groups.js     friend groups and invite codes
+src/groups.js     friend groups and invite codes (their chat is in chat.js)
 src/official.js   the official BookieBullies account and its picks importer
 src/names.js      screen name rules, changes and old-name redirects
 src/history.js    pick lists, with open picks hidden from other people

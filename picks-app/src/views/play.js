@@ -2,10 +2,10 @@ import { html } from '../html.js';
 import { formatOdds, formatSpread, formatUnits, MARKET_NAME, MAX_UNITS, maxUnits, PARLAY_MAX_LEGS, PARLAY_MIN_LEGS, parlayMaxUnits, parlayPrice, parlayToWin, price, selection, toWin, UNIT_CHIPS, UNITS_MIN } from '../picks.js';
 import { draftSignature } from '../parlays.js';
 import { SPORT } from '../sports.js';
-import { dayLabel, dayShort, etDay, when } from '../time.js';
+import { dayLabel, dayShort, etDay } from '../time.js';
 import { icons } from './icons.js';
 import { csrfField, layout } from './layout.js';
-import { at, betItem, minus, sportTabs, statStrip, tabs, teamLogo } from './parts.js';
+import { at, betItem, chatBox, minus, sportTabs, statStrip, tabs, teamLogo } from './parts.js';
 
 /** The id a game's card carries, so a pick can come back to the same spot on the board. */
 export function cardId(gameId) {
@@ -283,11 +283,50 @@ export function myPicks(ctx, { open, graded, tab, record, streakDays = new Set()
   });
 }
 
-/** One game: its board (or score once it starts) and its chat. */
-export function gamePage(ctx, { game, started, messages, picksBy, mine, leg = null, split = null }) {
+const STATUS_CLASS = { out: 'out', 'injured reserve': 'out', suspension: 'out', doubtful: 'doubt', questionable: 'doubt' };
+
+/** Each team's listed injuries, worst first. Hidden when neither team lists any. */
+function injuries(game, insight) {
+  if (!insight.away.injuries.length && !insight.home.injuries.length) return '';
+  return html`<section class="insight" aria-labelledby="injuries">
+    <h2 id="injuries">Injuries</h2>
+    <div class="insight-teams">${['away', 'home'].map((side) => html`<div class="insight-team">
+      <h3>${teamLogo(game[side])}<span>${game[side].short}</span></h3>
+      ${insight[side].injuries.length
+        ? html`<ul class="injuries">${insight[side].injuries.map((p) => html`<li>
+            <span class="inj-who"><b>${p.name}</b>${p.pos ? html` <span class="muted">${p.pos}</span>` : ''}</span>
+            <span class="inj-status ${STATUS_CLASS[p.status.toLowerCase()] ?? ''}">${p.status}${p.detail ? html`<span class="muted"> · ${p.detail}</span>` : ''}</span>
+          </li>`)}</ul>`
+        : html`<p class="muted small">None listed.</p>`}
+    </div>`)}</div>
+  </section>`;
+}
+
+/** Each team's last five results as W/L chips, newest first. Hidden when neither team has any. */
+function recentForm(game, insight) {
+  if (!insight.away.form.length && !insight.home.form.length) return '';
+  const word = { W: 'Won', L: 'Lost', T: 'Tied' };
+  return html`<section class="insight" aria-labelledby="form">
+    <h2 id="form">Recent form</h2>
+    <div class="insight-teams">${['away', 'home'].map((side) => html`<div class="insight-team">
+      <h3>${teamLogo(game[side])}<span>${game[side].short}</span>${insight[side].form.length ? html`<span class="form-sum">${formRecord(insight[side].form)}</span>` : ''}</h3>
+      ${insight[side].form.length
+        ? html`<ol class="form-list" aria-label="Last ${insight[side].form.length}, newest first">${insight[side].form.map((g) => html`<li class="form-chip ${g.result.toLowerCase()}"><b aria-hidden="true">${g.result}</b><span class="sr-only">${word[g.result]}</span> ${g.score} ${g.atVs} ${g.opp}</li>`)}</ol>`
+        : html`<p class="muted small">No recent games listed.</p>`}
+    </div>`)}</div>
+  </section>`;
+}
+
+/** "3-2" (or "3-1-1") over the games shown. */
+function formRecord(list) {
+  const n = (r) => list.filter((g) => g.result === r).length;
+  return `${n('W')}-${n('L')}${n('T') ? `-${n('T')}` : ''}`;
+}
+
+/** One game: its board (or score once it starts), injuries and form before the start, and its chat. */
+export function gamePage(ctx, { game, started, messages, picksBy, mine, leg = null, split = null, insight = null }) {
   const sport = SPORT[game.sport];
   const scoreline = (side) => html`<div class="scoreline"><span class="team">${teamLogo(game[side])}<span class="tname"><span class="tn">${game[side].short}</span>${game[side].record ? html`<span class="tsub"><span class="trec">${game[side].record}</span></span>` : ''}</span></span><span class="score">${game[side].score ?? 0}</span></div>`;
-  const canPost = ctx.user.verified;
   return layout(ctx, {
     title: `${game.away.short} @ ${game.home.short}`,
     active: 'games',
@@ -301,39 +340,16 @@ export function gamePage(ctx, { game, started, messages, picksBy, mine, leg = nu
           </article>`
         : gameCard(game, mine, sport, null, null, leg)}
       ${splitBars(game, split)}
+      ${insight ? injuries(game, insight) : ''}
+      ${insight ? recentForm(game, insight) : ''}
       <h2 id="chat">Chat</h2>
-      <div class="chat" data-poll>
-        <ol class="chat-list">
-          ${messages.length
-            ? messages.map((m) => chatMessage(ctx, game, m, started ? picksBy.get(m.user_id) ?? [] : []))
-            : html`<li class="chat-empty">No messages yet. Start it off.</li>`}
-        </ol>
-        ${canPost
-          ? html`<form class="chat-form" method="post" action="/games/${encodeURIComponent(game.id)}/chat">
-              ${csrfField(ctx)}
-              <label class="sr-only" for="chat-body">Message</label>
-              <textarea id="chat-body" name="body" rows="2" maxlength="280" required placeholder="Say something about the game"></textarea>
-              <button class="btn">Send</button>
-            </form>
-            <p class="fine">Keep it about the games. No harassment, hate or selling picks in chat; put your link on your profile instead. Three reports hide a message.</p>`
-          : html`<p class="muted">Confirm your email to join the chat. The link is in your inbox.</p>`}
-      </div>
+      ${chatBox(ctx, {
+        messages,
+        action: `/games/${encodeURIComponent(game.id)}/chat`,
+        placeholder: 'Say something about the game',
+        rules: 'Keep it about the games. No harassment, hate or selling picks in chat; put your link on your profile instead. Three reports hide a message.',
+        tags: (m) => (started ? picksBy.get(m.user_id) ?? [] : []).map((p) => html`<span class="msg-pick">${selection(p.market, p.side, p.line, game)} ${formatUnits(p.units)}</span>`),
+      })}
     `,
   });
-}
-
-function chatMessage(ctx, game, m, picks) {
-  const own = m.user_id === ctx.user.id;
-  const action = own
-    ? html`<form method="post" action="/chat/${m.id}/delete" data-confirm="Delete this message?">${csrfField(ctx)}<button class="link-btn">Delete</button></form>`
-    : html`<form method="post" action="/chat/${m.id}/report" data-confirm="Report this message?">${csrfField(ctx)}<button class="link-btn">Report</button></form>`;
-  return html`<li class="msg ${own ? 'own' : ''}" data-id="${m.id}${m.hidden ? 'h' : ''}">
-    <div class="msg-head">
-      <a class="who" href="/u/${encodeURIComponent(m.screen_name)}">${m.screen_name}</a>
-      ${picks.map((p) => html`<span class="msg-pick">${selection(p.market, p.side, p.line, game)} ${formatUnits(p.units)}</span>`)}
-      <time datetime="${m.created_at}" data-local="long">${when(m.created_at)}</time>
-      ${action}
-    </div>
-    ${m.hidden ? html`<p class="msg-body hidden-msg">Hidden after reports.</p>` : html`<p class="msg-body">${m.body}</p>`}
-  </li>`;
 }
