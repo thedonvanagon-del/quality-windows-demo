@@ -1,6 +1,8 @@
 // The rules that make a record worth something: a pick only goes in before
 // kickoff, at the line ESPN shows right then, and gets graded off the final.
 
+import assert from 'node:assert/strict';
+
 import { VOID_STATUSES } from './espn.js';
 
 export const MARKETS = {
@@ -105,36 +107,124 @@ export function deletePick(store, { userId, pickId, game, now }) {
  * Grade every open pick whose game is final, and void the ones whose game was
  * called off. A game ESPN still shows unfinished three days after its start
  * gets voided too, but only on ESPN's word: if the app just couldn't reach
- * ESPN for a while, the pick waits. Returns how many it graded.
+ * ESPN for a while, the pick waits. Parlay legs grade the same way, and a
+ * parlay settles as soon as its legs say how it went. Returns how many bets
+ * it settled; `onGraded` gets the pick ids and the parlay ids.
  */
 export function gradeFinished(store, now, { staleAfterMs = 3 * 86_400_000, onGraded = null } = {}) {
+  const at = now.toISOString();
   const open = store.all(
     `SELECT p.id, p.market, p.side, p.line, p.odds, p.units,
             g.state, g.status, g.completed, g.home_score, g.away_score, g.start_time, g.updated_at
        FROM picks p JOIN games g ON g.id = p.game_id
       WHERE p.result IS NULL AND g.start_time <= ?`,
-    now.toISOString(),
+    at,
+  );
+  const openLegs = store.all(
+    `SELECT l.parlay_id, l.game_id, l.market, l.side, l.line,
+            g.state, g.status, g.completed, g.home_score, g.away_score, g.start_time, g.updated_at
+       FROM parlay_legs l JOIN parlays x ON x.id = l.parlay_id JOIN games g ON g.id = l.game_id
+      WHERE x.result IS NULL AND l.result IS NULL AND g.start_time <= ?`,
+    at,
   );
   const done = [];
+  const parlaysDone = [];
   store.tx(() => {
     for (const p of open) {
-      let result = null;
-      const checkedLate = new Date(p.updated_at) - new Date(p.start_time) >= staleAfterMs;
-      if (p.state === 'post' && p.completed && p.home_score != null && p.away_score != null) {
-        result = grade(p, p.home_score, p.away_score);
-      } else if (VOID_STATUSES.has(p.status) || (checkedLate && p.state !== 'in')) {
-        result = 'void';
-      }
+      const result = outcome(p, staleAfterMs);
       if (!result) continue;
       const { changes } = store.run(
         'UPDATE picks SET result = ?, profit = ?, graded_at = ? WHERE id = ? AND result IS NULL',
-        result, profit(result, p.odds, p.units), now.toISOString(), p.id,
+        result, profit(result, p.odds, p.units), at, p.id,
       );
       if (changes) done.push(p.id);
     }
+    for (const leg of openLegs) {
+      const result = outcome(leg, staleAfterMs);
+      if (result) store.run('UPDATE parlay_legs SET result = ? WHERE parlay_id = ? AND game_id = ? AND result IS NULL', result, leg.parlay_id, leg.game_id);
+    }
+    // Every open parlay with a graded leg: settle it if the legs say how it went.
+    const due = store.all(
+      `SELECT DISTINCT x.id, x.units FROM parlays x JOIN parlay_legs l ON l.parlay_id = x.id
+        WHERE x.result IS NULL AND l.result IS NOT NULL`,
+    );
+    for (const x of due) {
+      const legs = store.all('SELECT odds, result FROM parlay_legs WHERE parlay_id = ?', x.id);
+      const settled = settleParlay(legs, x.units);
+      if (!settled) continue;
+      const { changes } = store.run(
+        'UPDATE parlays SET result = ?, profit = ?, graded_at = ? WHERE id = ? AND result IS NULL',
+        settled.result, settled.profit, at, x.id,
+      );
+      if (changes) parlaysDone.push(x.id);
+    }
   });
-  if (done.length && onGraded) onGraded(done);
-  return done.length;
+  if ((done.length || parlaysDone.length) && onGraded) onGraded(done, parlaysDone);
+  return done.length + parlaysDone.length;
+}
+
+/** win, loss, push or void for one bet on a game that's over, or null while it's still to be decided. */
+function outcome(row, staleAfterMs) {
+  const checkedLate = new Date(row.updated_at) - new Date(row.start_time) >= staleAfterMs;
+  if (row.state === 'post' && row.completed && row.home_score != null && row.away_score != null) {
+    return grade(row, row.home_score, row.away_score);
+  }
+  if (VOID_STATUSES.has(row.status) || (checkedLate && row.state !== 'in')) return 'void';
+  return null;
+}
+
+// ---- Parlays ---------------------------------------------------------------
+// The price of a parlay is every leg's decimal odds multiplied together.
+
+export const PARLAY_MIN_LEGS = 2;
+export const PARLAY_MAX_LEGS = 6;
+
+/** -110 -> 1.909..., +150 -> 2.5 */
+export function decimalOdds(american) {
+  return american > 0 ? 1 + american / 100 : 1 + 100 / -american;
+}
+
+/** 6.958 -> +596, 1.44 -> -227 */
+export function americanOdds(decimal) {
+  return decimal >= 2 ? Math.round((decimal - 1) * 100) : -Math.round(100 / (decimal - 1));
+}
+
+/** The combined price of these legs (each with American `odds`): exact decimal, and American for show. */
+export function parlayPrice(legs) {
+  const decimal = legs.reduce((d, leg) => d * decimalOdds(leg.odds), 1);
+  return { decimal, american: americanOdds(decimal) };
+}
+
+/**
+ * The most a parlay can be at this decimal price, the same cap as a straight
+ * pick: never risk more than 5u, never win more than 5u. Worked from the exact
+ * price rather than the rounded American one, so rounding can't let a parlay
+ * win 5.01u. At +596 it's 0.83u.
+ */
+export function parlayMaxUnits(decimal) {
+  return Math.min(MAX_UNITS, Math.floor((MAX_UNITS * 100) / (decimal - 1) + 1e-9) / 100);
+}
+
+/** Units a parlay wins at this decimal price. */
+export function parlayToWin(decimal, units) {
+  return round2(units * (decimal - 1));
+}
+
+/**
+ * How a parlay stands from its legs' results, or null while it's undecided.
+ * A losing leg loses it at once. Pushed and voided legs drop out and the
+ * price is worked again from the legs left. If every leg wins (or drops out)
+ * it's settled; with nothing left it's a push (void if every leg was voided).
+ */
+export function settleParlay(legs, units) {
+  if (legs.some((l) => l.result === 'loss')) return { result: 'loss', profit: -units };
+  if (legs.some((l) => !l.result)) return null;
+  const won = legs.filter((l) => l.result === 'win');
+  if (!won.length) return { result: legs.every((l) => l.result === 'void') ? 'void' : 'push', profit: 0 };
+  const paid = parlayToWin(parlayPrice(won).decimal, units);
+  // The stake cap guarantees this: dropping legs only shortens the price.
+  assert.ok(paid <= MAX_UNITS, `a parlay can't win more than ${MAX_UNITS}u (got ${paid}u)`);
+  return { result: 'win', profit: paid };
 }
 
 export const MARKET_NAME = { spread: 'Spread', total: 'Total', ml: 'Moneyline' };

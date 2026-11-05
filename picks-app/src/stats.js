@@ -1,6 +1,19 @@
 // Records and leaderboards. Only graded picks count; voids count for nothing.
 // Ranked by units won, so a big record at short odds and a small one at long
 // odds compare honestly.
+//
+// A parlay is one bet: it counts in W-L-P, units, ROI, last 10, streaks and
+// every board, the same as a straight pick, through BETS below. It stays out
+// of anything split by market (the profile breakdown, the public split),
+// since its legs aren't bets of their own. On a sport's board it counts only
+// when every leg is in that sport.
+
+/** Straight picks and parlays as one list of bets. A parlay's date is its first leg's start. */
+const BETS = `(
+  SELECT id, user_id, sport, units, profit, result, game_start FROM picks
+  UNION ALL
+  SELECT id, user_id, sport, units, profit, result, first_start AS game_start FROM parlays
+)`;
 
 export const PERIODS = [
   { key: '7', label: '7 days', days: 7 },
@@ -47,7 +60,7 @@ export function leaderboard(store, scope, now, limit = 100) {
   return store
     .all(
       `SELECT u.id, u.screen_name, u.official, ${TOTALS}
-         FROM picks p JOIN users u ON u.id = p.user_id
+         FROM ${BETS} p JOIN users u ON u.id = p.user_id
         WHERE ${where} AND u.screen_name IS NOT NULL AND u.email_verified_at IS NOT NULL
         GROUP BY u.id
         ORDER BY COUNT(*) >= ? DESC, units DESC, wins DESC, u.screen_name
@@ -82,7 +95,7 @@ export function searchPlayers(store, q, limit = 20) {
   return store
     .all(
       `SELECT u.id, u.screen_name, u.official, ${TOTALS}
-         FROM users u LEFT JOIN picks p ON p.user_id = u.id AND p.result IN ('win', 'loss', 'push')
+         FROM users u LEFT JOIN ${BETS} p ON p.user_id = u.id AND p.result IN ('win', 'loss', 'push')
         WHERE u.screen_name LIKE ? ESCAPE '\\' AND u.email_verified_at IS NOT NULL
         GROUP BY u.id
         ORDER BY lower(u.screen_name) = lower(?) DESC, lower(u.screen_name)
@@ -95,13 +108,14 @@ export function searchPlayers(store, q, limit = 20) {
 
 export function record(store, userId, scope = {}, now = new Date()) {
   const { where, params } = filters({ ...scope, userId }, now);
-  return withRates(store.get(`SELECT ${TOTALS} FROM picks p WHERE ${where}`, ...params));
+  return withRates(store.get(`SELECT ${TOTALS} FROM ${BETS} p WHERE ${where}`, ...params));
 }
 
+/** A record per sport. A parlay across sports has no sport, so it counts only in the overall record. */
 export function recordBySport(store, userId) {
   const { where, params } = filters({ userId }, new Date());
   return store
-    .all(`SELECT p.sport, ${TOTALS} FROM picks p WHERE ${where} GROUP BY p.sport ORDER BY units DESC`, ...params)
+    .all(`SELECT p.sport, ${TOTALS} FROM ${BETS} p WHERE ${where} AND p.sport IS NOT NULL GROUP BY p.sport ORDER BY units DESC`, ...params)
     .map(withRates);
 }
 
@@ -116,7 +130,7 @@ const GROUPINGS = {
   venue: `CASE WHEN p.side IN ('home', 'away') THEN p.side END`,
 };
 
-/** A player's record split three ways: by bet type, favorite vs underdog, home vs away. */
+/** A player's record split three ways: by bet type, favorite vs underdog, home vs away. Straight picks only. */
 export function breakdown(store, userId) {
   const { where, params } = filters({ userId }, new Date());
   const out = {};
@@ -132,11 +146,11 @@ export function breakdown(store, userId) {
 export function unitsSeries(store, userId, now, days = 30) {
   const start = new Date(now.getTime() - days * 86_400_000);
   const before = store.get(
-    "SELECT COALESCE(SUM(profit), 0) AS u FROM picks WHERE user_id = ? AND result IN ('win', 'loss', 'push') AND game_start < ?",
+    `SELECT COALESCE(SUM(profit), 0) AS u FROM ${BETS} WHERE user_id = ? AND result IN ('win', 'loss', 'push') AND game_start < ?`,
     userId, start.toISOString(),
   ).u;
   const rows = store.all(
-    `SELECT game_start, profit FROM picks
+    `SELECT game_start, profit FROM ${BETS}
       WHERE user_id = ? AND result IN ('win', 'loss', 'push') AND game_start >= ?
       ORDER BY game_start`,
     userId, start.toISOString(),
@@ -152,10 +166,10 @@ export function unitsSeries(store, userId, now, days = 30) {
   return out;
 }
 
-/** The last ten graded picks as a record: { wins, losses, pushes }. */
+/** The last ten graded bets (a parlay is one) as a record: { wins, losses, pushes }. */
 export function lastTen(store, userId) {
   const rows = store.all(
-    `SELECT result FROM picks WHERE user_id = ? AND result IN ('win', 'loss', 'push')
+    `SELECT result FROM ${BETS} WHERE user_id = ? AND result IN ('win', 'loss', 'push')
       ORDER BY game_start DESC, id DESC LIMIT 10`,
     userId,
   );
@@ -171,7 +185,7 @@ export function lastTen(store, userId) {
 export function hotStreaks(store, now, limit = 25) {
   const since = new Date(now.getTime() - 30 * 86_400_000).toISOString();
   const rows = store.all(
-    `SELECT p.user_id, u.screen_name, u.official, p.result, p.profit FROM picks p JOIN users u ON u.id = p.user_id
+    `SELECT p.user_id, u.screen_name, u.official, p.result, p.profit FROM ${BETS} p JOIN users u ON u.id = p.user_id
       WHERE p.result IN ('win', 'loss', 'push') AND p.game_start >= ?
         AND u.screen_name IS NOT NULL AND u.email_verified_at IS NOT NULL
       ORDER BY p.user_id, p.game_start DESC, p.id DESC`,
@@ -210,7 +224,7 @@ export function hotStreaks(store, now, limit = 25) {
 // at one or two players' open picks.
 export const SPLIT_MIN = 5;
 
-/** game id -> { market: { side: count, total } } for markets with enough picks to show. */
+/** game id -> { market: { side: count, total } } for markets with enough picks to show. Straight picks only. */
 export function splits(store, gameIds) {
   const out = new Map();
   if (!gameIds.length) return out;

@@ -63,7 +63,7 @@ function liveCard(g, picks) {
     ${line('away')}
     ${line('home')}
     ${picks.length
-      ? html`<div class="yours">${picks.map((p) => html`<div><span><span class="tag">Your bet</span> ${selection(p.market, p.side, p.line, g)} ${minus(formatOdds(p.odds))}</span><span>${formatUnits(p.units)}</span></div>`)}</div>`
+      ? html`<div class="yours">${picks.map((p) => html`<div><span><span class="tag">${p.parlay ? 'Parlay leg' : 'Your bet'}</span> ${selection(p.market, p.side, p.line, g)} ${minus(formatOdds(p.odds))}</span><span>${p.parlay ? '' : formatUnits(p.units)}</span></div>`)}</div>`
       : ''}
   </article>`;
 }

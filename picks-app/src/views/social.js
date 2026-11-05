@@ -6,7 +6,7 @@ import { MIN_RANKED } from '../stats.js';
 import { joined, when } from '../time.js';
 import { trustMark } from './icons.js';
 import { csrfField, layout } from './layout.js';
-import { boardTable, officialTag, periodTabs, pct, pickItem, profileLink, rankCell, recordText, signedPct, sportTabs, units } from './parts.js';
+import { betItem, boardTable, officialTag, periodTabs, pct, profileLink, rankCell, recordText, signedPct, sportTabs, units } from './parts.js';
 
 /** Find a player by the start of their screen name. */
 function searchBox(q = '') {
@@ -102,7 +102,7 @@ export function group(ctx, { group, rows, members, feed, inviteUrl }) {
 
       <h2>Latest picks</h2>
       ${feed.length
-        ? html`<ul class="tickets">${feed.map((p) => pickItem(p, { who: true }))}</ul>`
+        ? html`<ul class="tickets">${feed.map((p) => betItem(p, { who: true }))}</ul>`
         : html`<div class="card empty">Picks show up here once their game starts.</div>`}
 
       <h2>Invite friends</h2>
@@ -288,7 +288,7 @@ export function following(ctx, { feed, people }) {
       ${people.length
         ? html`<p class="chips-row">${people.map((p) => html`<a class="chip" href="/u/${encodeURIComponent(p.screen_name)}">${p.screen_name}</a>`)}</p>`
         : html`<div class="card empty">You're not following anyone yet. Find players on the <a href="/hot">Hot streaks</a> page or the <a href="/leaderboard">leaderboard</a>, then press Follow on their profile.</div>`}
-      ${feed.length ? html`<ul class="tickets">${feed.map((p) => pickItem(p, { who: true }))}</ul>` : people.length ? html`<div class="card empty">No started picks from them yet.</div>` : ''}
+      ${feed.length ? html`<ul class="tickets">${feed.map((p) => betItem(p, { who: true }))}</ul>` : people.length ? html`<div class="card empty">No started picks from them yet.</div>` : ''}
     `,
   });
 }
@@ -393,7 +393,7 @@ export function profile(ctx, { player, record, bySport, split = null, series = [
       <h2>Picks</h2>
       ${hidden ? html`<p class="muted">${hidden} open ${hidden === 1 ? 'pick' : 'picks'}, shown once the game starts.</p>` : ''}
       ${picks.length
-        ? html`<ul class="tickets">${picks.map((p) => pickItem(p))}</ul>`
+        ? html`<ul class="tickets">${picks.map((p) => betItem(p))}</ul>`
         : html`<div class="card empty">No picks on the record yet.</div>`}
       ${ctx.user?.id === player.id ? deleteForm(ctx) : ''}
     `,

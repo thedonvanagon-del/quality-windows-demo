@@ -19,8 +19,9 @@ import { createMailer } from './mail.js';
 import { changeScreenName, nameProblem, nextNameChange, renamedTo } from './names.js';
 import { createNotifier } from './notify.js';
 import { ensureOfficial } from './official.js';
+import { addLeg, deleteParlay, draftLegs, draftOnGames, draftSummary, lockParlay, parlayGameIds, pruneDraft, removeLeg } from './parlays.js';
 import { validSubscription } from './push.js';
-import { deletePick, formatLine, formatUnits, isLocked, makePick, MARKETS, price, toWin } from './picks.js';
+import { deletePick, formatLine, formatOdds, formatUnits, isLocked, makePick, MARKETS, price, toWin } from './picks.js';
 import { SPORT, SPORTS } from './sports.js';
 import { breakdown, hotStreaks, lastTen, leaderboard, PERIODS, rankOf, record, recordBySport, searchPlayers, splits, unitsSeries } from './stats.js';
 import * as account from './views/account.js';
@@ -375,7 +376,8 @@ export function createApp({ store, games, config, mailer = createMailer({ log: {
     const mine = picksOnGames(store, ctx.user.id, list.map((g) => g.id));
     const chats = chatCounts(store, list.map((g) => g.id));
     const split = splits(store, list.map((g) => g.id));
-    send(ctx, 200, play.games(ctx, { sport, list, mine, chats, split, problem: games.problem(sport.key) }));
+    const draft = draftOnGames(store, ctx.user.id, list.map((g) => g.id));
+    send(ctx, 200, play.games(ctx, { sport, list, mine, draft, chats, split, problem: games.problem(sport.key) }));
   }
 
   async function pickForm(ctx) {
@@ -444,6 +446,65 @@ export function createApp({ store, games, config, mailer = createMailer({ log: {
     send(ctx, 200, play.myPicks(ctx, { open, graded, tab, record: record(store, ctx.user.id) }));
   }
 
+  // ---- parlays --------------------------------------------------------------
+
+  /** "Add to parlay" on the pick slip: the leg goes in the draft at the board's line. */
+  async function parlayLegAdd(ctx) {
+    if (!signedIn(ctx)) return;
+    const market = ctx.form.get('market');
+    const side = ctx.form.get('side');
+    const { game } = await games.current(ctx.form.get('game') ?? '', { wait: false });
+    if (!game || !MARKETS[market]?.includes(side)) return notFound(ctx);
+    const result = addLeg(store, { userId: ctx.user.id, game, market, side, now: ctx.now });
+    if (result.error) flash(ctx, 'error', result.error);
+    else if (result.replaced) flash(ctx, 'ok', `Swapped ${result.replaced} for ${result.added} in your parlay. One leg per game.`);
+    else flash(ctx, 'ok', `Added ${result.added} to your parlay. ${result.legs < 2 ? 'Add a leg from another game.' : `${result.legs} legs.`}`);
+    redirect(ctx, `/games?sport=${game.sport}#${play.cardId(game.id)}`);
+  }
+
+  function parlayLegRemove(ctx, { game }) {
+    if (!signedIn(ctx)) return;
+    removeLeg(store, { userId: ctx.user.id, gameId: game });
+    redirect(ctx, '/parlay');
+  }
+
+  /** The parlay being built. Legs whose game has started drop out, with a note. */
+  function parlayPage(ctx) {
+    if (!signedIn(ctx)) return;
+    const notes = pruneDraft(store, ctx.user.id, ctx.now);
+    send(ctx, 200, play.parlayPage(ctx, { legs: draftLegs(store, ctx.user.id), notes }));
+  }
+
+  /** Lock parlay: every leg checked against the live line, like a straight pick. */
+  async function parlayPost(ctx) {
+    if (!signedIn(ctx)) return;
+    const units = Number(String(ctx.form.get('units') ?? '').replace(/[u,\s]/gi, ''));
+    const fetched = await Promise.all(draftLegs(store, ctx.user.id).map((leg) => games.current(leg.gameId)));
+    const live = new Map(fetched.filter((f) => f.game).map((f) => [f.game.id, f.game]));
+    const again = (status, extra) => send(ctx, status, play.parlayPage(ctx, {
+      legs: draftLegs(store, ctx.user.id), units: Number.isFinite(units) && units > 0 ? units : undefined, ...extra,
+    }));
+    if (fetched.some((f) => f.game && f.stale && !isLocked(f.game, ctx.now))) {
+      return again(503, { error: "Can't reach live lines right now, so picks are paused. Try again in a minute." });
+    }
+    const result = lockParlay(store, { userId: ctx.user.id, live, units, seen: ctx.form.get('seen') ?? '', now: ctx.now });
+    if (result.error) return again(result.changed ? 409 : 400, { notes: result.notes, error: result.error });
+    const first = [...live.values()].sort((a, b) => a.start.localeCompare(b.start))[0];
+    notifier.pickMade({ player: ctx.user, game: first, legs: result.legs, now: ctx.now });
+    flash(ctx, 'locked', `${result.legs}-leg parlay (${formatOdds(result.odds)}), ${formatUnits(result.units)} to win ${formatUnits(result.toWin)}`, ctx.now.toISOString());
+    redirect(ctx, '/picks');
+  }
+
+  async function parlayDelete(ctx, { id }) {
+    if (!signedIn(ctx)) return;
+    const ids = parlayGameIds(store, { userId: ctx.user.id, parlayId: Number(id) });
+    if (!ids.length) return notFound(ctx);
+    const list = (await Promise.all(ids.map((gameId) => games.current(gameId)))).map((r) => r.game);
+    const result = deleteParlay(store, { userId: ctx.user.id, parlayId: Number(id), games: list, now: ctx.now });
+    flash(ctx, result.error ? 'error' : 'ok', result.error ?? 'Parlay deleted.');
+    redirect(ctx, '/picks');
+  }
+
   // ---- game chat ------------------------------------------------------------
 
   const gamePath = (id) => `/games/${encodeURIComponent(id)}`;
@@ -463,7 +524,8 @@ export function createApp({ store, games, config, mailer = createMailer({ log: {
       }
     }
     const mine = picksOnGames(store, ctx.user.id, [game.id]).get(game.id) ?? {};
-    send(ctx, 200, play.gamePage(ctx, { game, started, messages: list, picksBy, mine, split: splits(store, [game.id]).get(game.id) ?? null }));
+    const leg = draftOnGames(store, ctx.user.id, [game.id]).get(game.id) ?? null;
+    send(ctx, 200, play.gamePage(ctx, { game, started, messages: list, picksBy, mine, leg, split: splits(store, [game.id]).get(game.id) ?? null }));
   }
 
   function chatPost(ctx, { id }) {
@@ -521,6 +583,13 @@ export function createApp({ store, games, config, mailer = createMailer({ log: {
         ctx.user.id, ...list.map((g) => g.id),
       );
       for (const r of rows) mine.set(r.game_id, [...(mine.get(r.game_id) ?? []), r]);
+      // Legs of open parlays on these games show too.
+      const legs = store.all(
+        `SELECT l.game_id, l.market, l.side, l.line, l.odds, 1 AS parlay FROM parlay_legs l JOIN parlays x ON x.id = l.parlay_id
+          WHERE x.user_id = ? AND x.result IS NULL AND l.game_id IN (${list.map(() => '?').join(',')})`,
+        ctx.user.id, ...list.map((g) => g.id),
+      );
+      for (const r of legs) mine.set(r.game_id, [...(mine.get(r.game_id) ?? []), r]);
     }
     send(ctx, 200, moreViews.live(ctx, { list, mine }));
   }
@@ -870,6 +939,11 @@ export function createApp({ store, games, config, mailer = createMailer({ log: {
     ['POST', '/picks', pickPost],
     ['GET', '/picks', myPicks],
     ['POST', '/picks/:id/delete', pickDelete],
+    ['GET', '/parlay', parlayPage],
+    ['POST', '/parlay/legs', parlayLegAdd],
+    ['POST', '/parlay/legs/:game/delete', parlayLegRemove],
+    ['POST', '/parlays', parlayPost],
+    ['POST', '/parlays/:id/delete', parlayDelete],
     ['GET', '/leaderboard', leaderboardPage],
     ['GET', '/search', searchPage],
     ['GET', '/admin/reports', adminReports],
@@ -938,9 +1012,13 @@ export function createApp({ store, games, config, mailer = createMailer({ log: {
       const cookies = parseCookies(req.headers.cookie);
       ctx.session = auth.readSession(store, cookies.sid, ctx.now);
       ctx.user = ctx.session?.user ?? null;
-      // The count on the My bets tab.
+      // The count on the My bets tab (a parlay is one bet), and the parlay bar.
       if (ctx.user?.screenName) {
-        ctx.openBets = store.get('SELECT COUNT(*) AS n FROM picks WHERE user_id = ? AND result IS NULL', ctx.user.id).n;
+        ctx.openBets = store.get(
+          'SELECT (SELECT COUNT(*) FROM picks WHERE user_id = ? AND result IS NULL) + (SELECT COUNT(*) FROM parlays WHERE user_id = ? AND result IS NULL) AS n',
+          ctx.user.id, ctx.user.id,
+        ).n;
+        ctx.parlay = draftSummary(store, ctx.user.id, ctx.now);
         ctx.unread = notifier.unread(ctx.user.id);
       }
       if (cookies.flash) {

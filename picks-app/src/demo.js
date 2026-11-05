@@ -7,7 +7,7 @@ import { hashPassword } from './auth.js';
 import { parseScoreboard } from './espn.js';
 import { createGroup, joinGroup } from './groups.js';
 import { createOfficialImporter, ensureOfficial } from './official.js';
-import { grade, gradeFinished, MARKETS, price } from './picks.js';
+import { grade, gradeFinished, MARKETS, parlayMaxUnits, parlayPrice, price } from './picks.js';
 import { SPORTS } from './sports.js';
 import { addDays, etDay, etToUtc, HOUR } from './time.js';
 
@@ -266,6 +266,41 @@ export async function seedDemo({ store, games, espn, now = () => new Date() }) {
         'INSERT INTO official_picks (source_id, pick_id, is_lock, conf, imported_at) VALUES (?, ?, ?, ?, ?)',
         `demo:${g.id}:${market}`, pickId, rand() < 0.25 ? 1 : 0, 3 + Math.floor(rand() * 3), madeAt,
       );
+    }
+  });
+  // A few parlays per player on past games, so records, profiles and feeds show them.
+  store.tx(() => {
+    const past = all.filter((g) => g.state !== 'pre');
+    for (const [name] of PLAYERS) {
+      for (let n = 0; n < 3; n++) {
+        const size = 2 + Math.floor(rand() * 3);
+        const from = Math.floor(rand() * Math.max(1, past.length - 40));
+        const legs = [];
+        for (const g of shuffle(past.slice(from, from + 40), rand)) {
+          if (legs.length === size) break;
+          const market = ['spread', 'total', 'ml'][Math.floor(rand() * 3)];
+          const side = MARKETS[market][Math.floor(rand() * 2)];
+          const p = price(g, market, side);
+          if (p) legs.push({ g, market, side, ...p });
+        }
+        if (legs.length < 2) continue;
+        legs.sort((a, b) => a.g.start.localeCompare(b.g.start));
+        const { decimal, american } = parlayPrice(legs);
+        const units = Math.min(1, parlayMaxUnits(decimal));
+        if (units < 0.1) continue;
+        const sports = new Set(legs.map((l) => l.g.sport));
+        const madeAt = new Date(new Date(legs[0].g.start).getTime() - (1 + rand() * 20) * HOUR).toISOString();
+        const id = Number(store.run(
+          'INSERT INTO parlays (user_id, sport, units, odds, made_at, first_start) VALUES (?, ?, ?, ?, ?, ?)',
+          ids[name], sports.size === 1 ? [...sports][0] : null, units, american, madeAt, legs[0].g.start,
+        ).lastInsertRowid);
+        for (const l of legs) {
+          store.run(
+            'INSERT INTO parlay_legs (parlay_id, game_id, sport, market, side, line, odds) VALUES (?, ?, ?, ?, ?, ?, ?)',
+            id, l.g.id, l.g.sport, l.market, l.side, l.line, l.odds,
+          );
+        }
+      }
     }
   });
   gradeFinished(store, at);
