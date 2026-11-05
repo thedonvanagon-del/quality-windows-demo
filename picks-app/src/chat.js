@@ -89,3 +89,33 @@ export function chatGames(store, now) {
     new Date(t - 3_600_000).toISOString(), new Date(t + 86_400_000).toISOString(), new Date(t - 10 * 3_600_000).toISOString(),
   );
 }
+
+/** Every message someone has reported and nobody has deleted: hidden ones first, then the latest reported. For admins. */
+export function reportedMessages(store, limit = 200) {
+  return store
+    .all(
+      `SELECT m.id, m.body, m.created_at, m.game_id, u.screen_name, g.sport, g.home_short, g.away_short,
+              COUNT(r.user_id) AS reports, MAX(r.created_at) AS last_report
+         FROM chat_messages m
+         JOIN chat_reports r ON r.message_id = m.id
+         JOIN users u ON u.id = m.user_id
+         JOIN games g ON g.id = m.game_id
+        WHERE m.deleted_at IS NULL
+        GROUP BY m.id
+        ORDER BY COUNT(r.user_id) >= ? DESC, last_report DESC
+        LIMIT ?`,
+      HIDE_AFTER_REPORTS, limit,
+    )
+    .map((m) => ({ ...m, hidden: m.reports >= HIDE_AFTER_REPORTS }));
+}
+
+/** An admin putting a message back: its reports are cleared, so it shows again. */
+export function restoreMessage(store, id) {
+  return store.run('DELETE FROM chat_reports WHERE message_id = ?', id).changes;
+}
+
+/** An admin taking a message down for everyone. */
+export function removeMessage(store, { id, now }) {
+  const { changes } = store.run('UPDATE chat_messages SET deleted_at = ? WHERE id = ? AND deleted_at IS NULL', now.toISOString(), id);
+  return changes ? {} : { error: 'That message is already gone.' };
+}

@@ -4,10 +4,10 @@ import { SPORT } from '../sports.js';
 import { when } from '../time.js';
 import { icons } from './icons.js';
 import { csrfField, layout } from './layout.js';
-import { at, minus, teamLogo } from './parts.js';
+import { at, minus, profileLink, teamLogo } from './parts.js';
 
 /** The menu behind the three dots. New sections get a row here. */
-export function more(ctx, { liveCount }) {
+export function more(ctx, { liveCount, admin = false, reported = 0 }) {
   const row = (href, icon, title, sub, extra = '', cls = '') => html`<li class="${cls}"><a href="${href}">
     <span class="icon">${icon}</span>
     <span class="text">${title}<small>${sub}</small></span>
@@ -27,8 +27,10 @@ export function more(ctx, { liveCount }) {
         ${row('/notifications', icons.bell, 'Notifications', 'Settled bets, players you follow, phone alerts', ctx.unread ? html`<span class="count">${ctx.unread} new</span>` : '')}
         ${row('/chat', icons.chat, 'Game chat', 'Talk about today\'s games while they\'re on')}
         ${row('/leaderboard', icons.board, 'Leaderboard', 'Everyone, or one sport at a time')}
+        ${row('/search', icons.search, 'Find players', 'Look someone up by screen name')}
         ${row('/groups', icons.groups, 'Groups', 'Your friends and their boards')}
-        ${row(`/u/${encodeURIComponent(ctx.user.screenName)}`, icons.me, 'Profile and settings', 'Bio, link, app color')}
+        ${row(`/u/${encodeURIComponent(ctx.user.screenName)}`, icons.me, 'Profile and settings', 'Screen name, bio, link, app color')}
+        ${admin ? row('/admin/reports', icons.flag, 'Admin', 'Reported chat messages', reported ? html`<span class="count">${reported}</span>` : '') : ''}
       </ul>
       <h2>Account</h2>
       <ul class="menu">
@@ -172,6 +174,33 @@ export function install(ctx) {
           </ol>
         </section>
       </div>
+    `,
+  });
+}
+
+/** Reported chat, for admins: put a message back or delete it for good. */
+export function adminReports(ctx, { list, hideAfter }) {
+  return layout(ctx, {
+    title: 'Reported chat',
+    active: 'more',
+    body: html`
+      <a class="back" href="/more">← More</a>
+      <h1>Reported chat</h1>
+      <p class="lede">Messages anyone has reported. ${hideAfter} reports hide a message. Restore puts it back and clears its reports. Delete takes it down for everyone.</p>
+      ${list.length
+        ? html`<ul class="reports">${list.map((m) => html`<li class="card report ${m.hidden ? 'is-hidden' : ''}">
+            <div class="report-head">
+              <span>${profileLink(m.screen_name)} · <a href="/games/${encodeURIComponent(m.game_id)}#chat">${m.away_short} @ ${m.home_short}</a> · ${SPORT[m.sport]?.short ?? m.sport}</span>
+              <span class="report-count">${m.reports} ${m.reports === 1 ? 'report' : 'reports'}${m.hidden ? ' · Hidden' : ''}</span>
+            </div>
+            <p class="report-body">${m.body}</p>
+            <div class="row report-actions">
+              <span class="muted small">Sent ${at(m.created_at, 'long')}</span>
+              <form method="post" action="/admin/reports/${m.id}/restore">${csrfField(ctx)}<button class="btn small ghost">Restore</button></form>
+              <form method="post" action="/admin/reports/${m.id}/delete" data-confirm="Delete this message for everyone?">${csrfField(ctx)}<button class="btn small danger">Delete</button></form>
+            </div>
+          </li>`)}</ul>`
+        : html`<div class="card empty">Nothing reported right now.</div>`}
     `,
   });
 }

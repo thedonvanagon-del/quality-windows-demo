@@ -58,7 +58,9 @@ export function createNotifier({ store, push = null, log = console }) {
         add(id, {
           kind: 'follow',
           title: `${player.screenName} locked a pick`,
-          text: `${player.screenName} locked a pick on ${game.away.short} @ ${game.home.short}. It shows when the game starts.`,
+          text: player.official
+            ? `${player.screenName} posted a pick on ${game.away.short} @ ${game.home.short}. Tap to see it.`
+            : `${player.screenName} locked a pick on ${game.away.short} @ ${game.home.short}. It shows when the game starts.`,
           url,
         }, now);
       }

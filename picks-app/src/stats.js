@@ -46,7 +46,7 @@ export function leaderboard(store, scope, now, limit = 100) {
   const { where, params } = filters(scope, now);
   return store
     .all(
-      `SELECT u.id, u.screen_name, ${TOTALS}
+      `SELECT u.id, u.screen_name, u.official, ${TOTALS}
          FROM picks p JOIN users u ON u.id = p.user_id
         WHERE ${where} AND u.screen_name IS NOT NULL AND u.email_verified_at IS NOT NULL
         GROUP BY u.id
@@ -55,7 +55,42 @@ export function leaderboard(store, scope, now, limit = 100) {
       ...params, MIN_RANKED, limit,
     )
     .map(withRates)
-    .map((row) => ({ ...row, ranked: row.graded >= MIN_RANKED }));
+    .map(numbered((row) => row.graded >= MIN_RANKED));
+}
+
+/**
+ * Hand out rank numbers in order. The official account is listed but never
+ * takes a number, so it can't be #1 and nobody gets pushed down by it.
+ */
+function numbered(eligible) {
+  let n = 0;
+  return (row) => {
+    const official = Boolean(row.official);
+    const ranked = !official && eligible(row);
+    return { ...row, official, ranked, rank: ranked ? ++n : null };
+  };
+}
+
+/**
+ * Players whose screen name starts with `q`, any case: up to 20, with their
+ * records. % and _ are matched as themselves, not as wildcards.
+ */
+export function searchPlayers(store, q, limit = 20) {
+  const text = String(q ?? '').trim();
+  if (!text || text.length > 20) return [];
+  const pattern = `${text.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
+  return store
+    .all(
+      `SELECT u.id, u.screen_name, u.official, ${TOTALS}
+         FROM users u LEFT JOIN picks p ON p.user_id = u.id AND p.result IN ('win', 'loss', 'push')
+        WHERE u.screen_name LIKE ? ESCAPE '\\' AND u.email_verified_at IS NOT NULL
+        GROUP BY u.id
+        ORDER BY lower(u.screen_name) = lower(?) DESC, lower(u.screen_name)
+        LIMIT ?`,
+      pattern, text, limit,
+    )
+    .map(withRates)
+    .map((row) => ({ ...row, official: Boolean(row.official) }));
 }
 
 export function record(store, userId, scope = {}, now = new Date()) {
@@ -136,7 +171,7 @@ export function lastTen(store, userId) {
 export function hotStreaks(store, now, limit = 25) {
   const since = new Date(now.getTime() - 30 * 86_400_000).toISOString();
   const rows = store.all(
-    `SELECT p.user_id, u.screen_name, p.result, p.profit FROM picks p JOIN users u ON u.id = p.user_id
+    `SELECT p.user_id, u.screen_name, u.official, p.result, p.profit FROM picks p JOIN users u ON u.id = p.user_id
       WHERE p.result IN ('win', 'loss', 'push') AND p.game_start >= ?
         AND u.screen_name IS NOT NULL AND u.email_verified_at IS NOT NULL
       ORDER BY p.user_id, p.game_start DESC, p.id DESC`,
@@ -144,7 +179,7 @@ export function hotStreaks(store, now, limit = 25) {
   );
   const players = new Map();
   for (const r of rows) {
-    const p = players.get(r.user_id) ?? players.set(r.user_id, { id: r.user_id, screen_name: r.screen_name, picks: [] }).get(r.user_id);
+    const p = players.get(r.user_id) ?? players.set(r.user_id, { id: r.user_id, screen_name: r.screen_name, official: r.official, picks: [] }).get(r.user_id);
     if (p.picks.length < 10) p.picks.push(r);
   }
   return [...players.values()]
@@ -157,6 +192,7 @@ export function hotStreaks(store, now, limit = 25) {
       return {
         id: p.id,
         screen_name: p.screen_name,
+        official: p.official,
         wins: count('win'),
         losses: count('loss'),
         pushes: count('push'),
@@ -166,7 +202,8 @@ export function hotStreaks(store, now, limit = 25) {
     })
     .filter((p) => p.units > 0)
     .sort((a, b) => b.units - a.units || b.wins - a.wins || a.screen_name.localeCompare(b.screen_name))
-    .slice(0, limit);
+    .slice(0, limit)
+    .map(numbered(() => true));
 }
 
 // A split only shows once a market has this many picks, so it never points
@@ -198,8 +235,7 @@ export function splits(store, gameIds) {
 /** Where the player sits on the all-time board, or null without a rank yet. */
 export function rankOf(store, userId, now) {
   const rows = leaderboard(store, {}, now, 100_000);
-  const i = rows.findIndex((r) => r.id === userId);
-  return i >= 0 && rows[i].ranked ? i + 1 : null;
+  return rows.find((r) => r.id === userId)?.rank ?? null;
 }
 
 function withRates(row) {

@@ -16,7 +16,19 @@ const KEYLEN = 32;
 export const SESSION_DAYS = 30;
 export const MIN_PASSWORD = 8;
 export const SCREEN_NAME = /^[A-Za-z0-9_]{3,20}$/;
-const RESERVED = new Set(['admin', 'administrator', 'support', 'staff', 'mod', 'moderator', 'system', 'bookiebullies', 'bookie_bullies', 'null', 'undefined', 'me']);
+const RESERVED = new Set(['admin', 'administrator', 'support', 'staff', 'mod', 'moderator', 'system', 'official', 'bookiebullies', 'bookie_bullies', 'null', 'undefined', 'me']);
+
+/**
+ * A name folded so look-alikes match: no case or underscores, digits read as
+ * the letters they stand in for, and doubled letters squeezed.
+ * "B00kie_Bu11ies" and "BookieBullies" fold the same.
+ */
+function fold(name) {
+  const subs = { 0: 'o', 1: 'l', i: 'l', 3: 'e', 4: 'a', 5: 's', 7: 't', 8: 'b' };
+  return name.toLowerCase().replace(/_/g, '').replace(/[0134578i]/g, (c) => subs[c]).replace(/(.)\1+/g, '$1');
+}
+// Nobody else can pass for the official account.
+const LOOKALIKES = ['bookiebull', 'bookybull'].map(fold);
 
 export async function hashPassword(password) {
   const salt = crypto.randomBytes(16);
@@ -53,7 +65,7 @@ export function validEmail(email) {
 
 export function screenNameProblem(name) {
   if (!SCREEN_NAME.test(name)) return 'Use 3 to 20 letters, numbers or underscores.';
-  if (RESERVED.has(name.toLowerCase())) return 'That one is reserved. Try another.';
+  if (RESERVED.has(name.toLowerCase()) || LOOKALIKES.some((l) => fold(name).includes(l))) return 'That one is reserved. Try another.';
   return null;
 }
 
@@ -72,7 +84,8 @@ export function createSession(store, userId, now) {
 export function readSession(store, token, now) {
   if (!token) return null;
   const row = store.get(
-    `SELECT s.token_hash, s.csrf, s.expires_at, u.id, u.email, u.screen_name, u.created_at, u.theme, u.email_verified_at
+    `SELECT s.token_hash, s.csrf, s.expires_at, u.id, u.email, u.screen_name, u.created_at, u.theme, u.email_verified_at,
+            u.fav_sports, u.official, u.setup_done
        FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.token_hash = ?`,
     sha256(token),
   );
@@ -84,7 +97,10 @@ export function readSession(store, token, now) {
   return {
     tokenHash: row.token_hash,
     csrf: row.csrf,
-    user: { id: row.id, email: row.email, screenName: row.screen_name, createdAt: row.created_at, theme: row.theme, verified: Boolean(row.email_verified_at) },
+    user: {
+      id: row.id, email: row.email, screenName: row.screen_name, createdAt: row.created_at, theme: row.theme, verified: Boolean(row.email_verified_at),
+      favSports: (row.fav_sports ?? '').split(',').filter(Boolean), official: Boolean(row.official), setupDone: Boolean(row.setup_done),
+    },
   };
 }
 

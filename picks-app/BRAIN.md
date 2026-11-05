@@ -69,6 +69,16 @@ not dollars, and nothing is paid out.
   New features get a row there. First one: **Live games**.
 
 ### Signing up
+- **2026-11-05: First-time setup** (`/setup`), once, right after the screen
+  name: pick your sports and follow a few players (the official BookieBullies
+  account comes checked, plus the top five on the all-time board). Skip still
+  follows the official account. The games page opens on your first sport.
+  Players who were already here never see it.
+- **2026-11-05: Screen names can change**, once every 30 days, from your
+  profile. The old name sends people to the new one for 90 days (a 302, since
+  browsers keep a 301 forever), and nobody else can take it in that time.
+  Look-alikes of BookieBullies (B00kie_Bu11ies and the like) are reserved.
+  Replaces "stays fixed so shared links keep working".
 - **2026-10-27:** Signup asks for email, password, **"I'm 21 or older"** and
   **agree to the Terms and Privacy Policy** (both required checkboxes, with the
   time stored). Then a screen name, plus an **optional first and last name**
@@ -121,6 +131,9 @@ not dollars, and nothing is paid out.
 - **2026-10-25:** Profiles have a short bio, up to 160 characters.
 
 ### Following, streaks, splits, notifications
+- **2026-11-05: Player search** (`/search`, a box on the leaderboard, "Find
+  players" in More). Matches the start of a screen name, any case, up to 20,
+  with record and units. Unconfirmed emails stay out, same as the boards.
 - **2026-10-30: Follow players.** Follow anyone from their profile; **Following**
   (in More) shows their picks once each game starts. Profiles show follower counts.
 - **2026-10-30: Hot streaks** (`/hot`): the best last ten over 30 days by units
@@ -156,13 +169,33 @@ not dollars, and nothing is paid out.
   phones; a Get the app button there is offered, not built.
 
 ### Chat
+- **2026-11-05: Admin page for reported chat** (`/admin/reports`, an Admin row
+  in More). Lists every reported message with its author, game, report count
+  and time. Restore puts it back and clears its reports; Delete takes it down.
+  Admins are the emails in `ADMIN_EMAILS`, and only once that email is
+  confirmed in the app. Everyone else gets a 404.
 - **2026-10-30: Game chat**, one public thread per game (`/games/:id`, hub at
   `/chat`, linked from every game card and More). Plain text, 280 characters,
   confirmed emails only, eight messages a minute. Picks show next to names once
   the game starts. People delete their own; three reports hide a message.
-  No admin screen yet: hidden messages are looked at in the database.
+  (Admin screen added 2026-11-05, above.)
 
-### College basketball (the site)
+### The official account
+- **2026-11-05: The site's model picks post in the app** as **BookieBullies**,
+  with an **Official** tag wherever it shows and a gold **LOCK** tag on the
+  site's locks. Every 15 minutes the app reads
+  www.bookiebullies.com/picks_log.jsonl (setting: `OFFICIAL_PICKS_URL`) and
+  makes each new pick the normal way: today's and tomorrow's moneylines and
+  spreads/run lines (MLB, NBA, college hoops) at 3+ confidence and 0.1u+, at
+  the app's line right then, sized at the site's units up to the 5u caps, and
+  only before the game starts. Totals and first-five bets don't come over
+  (the log doesn't say over or under). Each log row is imported once. The
+  account is listed on the boards but **never takes a rank**, so it can't be #1.
+  It has no password and can't log in.
+- **2026-11-05: Official picks are public before the game.** Everyone else's
+  open picks stay hidden until the start; the official account's show on its
+  profile and in follow/group feeds right away, since they're the site's
+  published picks. Its follow alert reads "posted a pick ... Tap to see it."
 - **2026-11-02: College hoops picks on www.bookiebullies.com first**, app
   later (owner's call). A separate engine (`cbb_picks.py` in the
   bookie-bullies repo) so the MLB/NBA code isn't touched. It blends ESPN's
@@ -239,6 +272,10 @@ Launch log:
 - Notifications: bell and inbox, phone notifications (Web Push)
 - Installable on phones (manifest, icons, iPhone full-screen)
 - Automatic grading every 10 minutes, with voids for postponed games
+- The official BookieBullies account: the site's model picks, imported every
+  15 minutes, with Official and LOCK tags, never ranked
+- First-time setup (sports and players to follow), screen name changes,
+  player search, and an admin page for reported chat
 - Demo mode: `npm run demo`, log in as demo@example.com / letmein123
 - Server setup in `aws/stacks/bookie-bullies-app` and a deploy-on-merge
   workflow (`.github/workflows/picks-app-deploy.yml`)
@@ -267,6 +304,10 @@ Beta launch checklist (2026-10-27). The app code is merged; these get it online.
    ([bookie-bullies#3](https://github.com/thedonvanagon-del/bookie-bullies/pull/3)),
    after the app is live.
 7. **A phone menu for www.bookiebullies.com?** Its tabs disappear under 900px.
+8. **Set `ADMIN_EMAILS`** in `/etc/bookie-bullies-app.env` (2026-11-05), like
+   `ADMIN_EMAILS=originalbookiebullies@gmail.com`, then restart. That email
+   needs an app account, confirmed, to see Admin in More. The official picks
+   import needs nothing set: it reads www.bookiebullies.com/picks_log.jsonl.
 
 ## Ideas, not built yet
 
@@ -286,15 +327,16 @@ In rough order of value:
    pays out the rest. Needs payouts, refunds and tax forms; Apple takes up to
    30% of digital subscriptions sold in an iPhone app; no "guaranteed win"
    claims allowed. Build once cappers are clearly selling through their links.
-4. **The Bookie Bullies model as a player.** The site's own daily picks posted
-   into the app under an official account, with a public record.
+4. ~~The Bookie Bullies model as a player~~: built 2026-11-05 (the official
+   BookieBullies account).
 5. **cfb-bot as a player**, same idea, for college football and the NFL.
 6. **Streaks and badges:** "8-2 last 10", "Hot in NBA", "Top 3 this week".
 7. **Weekly winners in groups.**
 8. **Notifications** when bets settle or games start (and the App Store push).
 9. App Store and Google Play versions.
-10. Trash talk in groups, following players.
-11. Changing a screen name, props and parlays, admin tools.
+10. Trash talk in groups. (~~Following players~~: built 2026-10-30.)
+11. ~~Changing a screen name~~ (built 2026-11-05), props and parlays, more admin
+    tools (~~reported chat~~ built 2026-11-05; fixing a bad grade is still by hand).
 
 ## How to work on it
 

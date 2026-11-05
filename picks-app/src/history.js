@@ -4,13 +4,17 @@
 import { toGame } from './games.js';
 
 const COLUMNS = `p.id AS pick_id, p.user_id, p.market, p.side, p.line, p.odds, p.units, p.made_at,
-                 p.result, p.profit, u.screen_name, g.*`;
+                 p.result, p.profit, u.screen_name, u.official,
+                 (SELECT o.is_lock FROM official_picks o WHERE o.pick_id = p.id) AS is_lock, g.*`;
 
 function toPick(row) {
   return {
     id: row.pick_id,
     userId: row.user_id,
     screenName: row.screen_name,
+    official: Boolean(row.official),
+    // An official pick the site marked as a lock.
+    lock: Boolean(row.is_lock),
     market: row.market,
     side: row.side,
     line: row.line,
@@ -40,17 +44,20 @@ export function ownPicks(store, userId, limit = 200) {
 
 /**
  * A player's picks as someone else sees them: only games that have started.
- * The owner sees their open ones too. `hidden` counts what was held back.
+ * The owner sees their open ones too, and the official account's picks are
+ * public from the moment they're made (they're the site's published picks).
+ * `hidden` counts what was held back.
  */
 export function publicPicks(store, userId, { viewerId, now, limit = 100 }) {
-  const cutoff = viewerId === userId ? '9999' : now.toISOString();
+  const official = store.get('SELECT official FROM users WHERE id = ?', userId)?.official === 1;
+  const cutoff = viewerId === userId || official ? '9999' : now.toISOString();
   const picks = store.all(
     `SELECT ${COLUMNS} FROM picks p JOIN games g ON g.id = p.game_id JOIN users u ON u.id = p.user_id
       WHERE p.user_id = ? AND (g.start_time <= ? OR g.state != 'pre') ORDER BY p.game_start DESC, p.id DESC LIMIT ?`,
     userId, cutoff, limit,
   );
   const hidden =
-    viewerId === userId
+    viewerId === userId || official
       ? 0
       : store.get(
           `SELECT COUNT(*) AS n FROM picks p JOIN games g ON g.id = p.game_id
@@ -66,7 +73,7 @@ export function groupFeed(store, group, now, limit = 30) {
     .all(
       `SELECT ${COLUMNS} FROM picks p JOIN games g ON g.id = p.game_id JOIN users u ON u.id = p.user_id
         WHERE p.user_id IN (SELECT user_id FROM group_members WHERE group_id = ?)
-          AND (g.start_time <= ? OR g.state != 'pre') AND (? IS NULL OR p.sport = ?)
+          AND (g.start_time <= ? OR g.state != 'pre' OR u.official = 1) AND (? IS NULL OR p.sport = ?)
         ORDER BY g.start_time DESC, p.id DESC LIMIT ?`,
       group.id, now.toISOString(), group.sport, group.sport, limit,
     )
@@ -79,7 +86,7 @@ export function followFeed(store, followerId, now, limit = 60) {
     .all(
       `SELECT ${COLUMNS} FROM picks p JOIN games g ON g.id = p.game_id JOIN users u ON u.id = p.user_id
         WHERE p.user_id IN (SELECT followee_id FROM follows WHERE follower_id = ?)
-          AND (g.start_time <= ? OR g.state != 'pre')
+          AND (g.start_time <= ? OR g.state != 'pre' OR u.official = 1)
         ORDER BY g.start_time DESC, p.id DESC LIMIT ?`,
       followerId, now.toISOString(), limit,
     )

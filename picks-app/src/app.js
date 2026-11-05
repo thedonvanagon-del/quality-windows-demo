@@ -7,7 +7,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import * as auth from './auth.js';
-import { chatCounts, chatGames, deleteMessage, gameOfMessage, messages, postMessage, reportMessage } from './chat.js';
+import { chatCounts, chatGames, deleteMessage, gameOfMessage, HIDE_AFTER_REPORTS, messages, postMessage, removeMessage, reportedMessages, reportMessage, restoreMessage } from './chat.js';
 import { createGroup, deleteGroup, findByCode, groupFor, groupsOf, joinGroup, leaveGroup, membersOf } from './groups.js';
 import { follow, followCounts, followingAmong, followingList, isFollowing, unfollow } from './follows.js';
 import { followFeed, groupFeed, ownPicks, picksOnGames, publicPicks } from './history.js';
@@ -16,11 +16,13 @@ import { LOGO_HOST } from './espn.js';
 import { toGame } from './games.js';
 import { cleanLink } from './links.js';
 import { createMailer } from './mail.js';
+import { changeScreenName, nameProblem, nextNameChange, renamedTo } from './names.js';
 import { createNotifier } from './notify.js';
+import { ensureOfficial } from './official.js';
 import { validSubscription } from './push.js';
 import { deletePick, formatLine, formatUnits, isLocked, makePick, MARKETS, price, toWin } from './picks.js';
-import { SPORT } from './sports.js';
-import { breakdown, hotStreaks, lastTen, leaderboard, PERIODS, rankOf, record, recordBySport, splits, unitsSeries } from './stats.js';
+import { SPORT, SPORTS } from './sports.js';
+import { breakdown, hotStreaks, lastTen, leaderboard, PERIODS, rankOf, record, recordBySport, searchPlayers, splits, unitsSeries } from './stats.js';
 import * as account from './views/account.js';
 import * as legal from './views/legal.js';
 import * as moreViews from './views/more.js';
@@ -61,6 +63,9 @@ export function createApp({ store, games, config, mailer = createMailer({ log: {
   const resendLimit = auth.rateLimiter({ limit: 5, windowMs: 60 * 60_000 });
   const chatLimit = auth.rateLimiter({ limit: 8, windowMs: 60_000 });
   const contact = config.contactEmail ?? 'hello@bookiebullies.com';
+  const admins = new Set((config.adminEmails ?? []).map((e) => String(e).trim().toLowerCase()));
+  // Only a confirmed email counts, so signing up with an admin's address isn't enough.
+  const isAdmin = (ctx) => Boolean(ctx.user?.screenName && ctx.user.verified && admins.has(ctx.user.email.toLowerCase()));
 
   /** Email a link that confirms this address. Mail trouble is logged, never shown. */
   async function sendVerify(ctx, userId, email) {
@@ -115,8 +120,8 @@ export function createApp({ store, games, config, mailer = createMailer({ log: {
     ctx.res.end(body);
   }
 
-  function redirect(ctx, location) {
-    ctx.res.writeHead(303, headers(ctx, { Location: location, 'Cache-Control': 'no-store' }));
+  function redirect(ctx, location, status = 303) {
+    ctx.res.writeHead(status, headers(ctx, { Location: location, 'Cache-Control': 'no-store' }));
     ctx.res.end();
   }
 
@@ -296,23 +301,75 @@ export function createApp({ store, games, config, mailer = createMailer({ log: {
     const again = (error) => send(ctx, 400, account.welcome(ctx, {
       name, error, next, firstName: ctx.form.get('first_name') ?? '', lastName: ctx.form.get('last_name') ?? '',
     }));
-    const problem = auth.screenNameProblem(name);
+    const problem = nameProblem(store, name, { now: ctx.now });
     if (problem) return again(problem);
     if (first.error || last.error) return again(first.error ?? last.error);
-    if (store.get('SELECT 1 FROM users WHERE screen_name = ?', name)) return again('Someone already has that name. Try another.');
     try {
       store.run('UPDATE users SET screen_name = ?, first_name = ?, last_name = ? WHERE id = ? AND screen_name IS NULL', name, first.name, last.name, ctx.user.id);
     } catch (err) {
       if (/UNIQUE/.test(err.message)) return again('Someone already has that name. Try another.');
       throw err;
     }
-    flash(ctx, 'ok', `You're on the board, ${name}. Go make a pick.`);
+    // First-time setup comes next, once.
+    redirect(ctx, `/setup${next ? `?next=${encodeURIComponent(next)}` : ''}`);
+  }
+
+  // ---- first-time setup -------------------------------------------------------
+
+  function setupForm(ctx) {
+    if (!signedIn(ctx)) return;
+    const next = safeNext(ctx.query.get('next'));
+    if (ctx.user.setupDone) return redirect(ctx, next ?? '/games');
+    const officialId = ensureOfficial(store, ctx.now);
+    const official = officialId
+      ? { id: officialId, screen_name: store.get('SELECT screen_name FROM users WHERE id = ?', officialId).screen_name, official: true, ...record(store, officialId) }
+      : null;
+    // The top of the all-time board: ranked players first.
+    const players = leaderboard(store, {}, ctx.now, 20).filter((r) => !r.official && r.id !== ctx.user.id).slice(0, 5);
+    send(ctx, 200, account.setup(ctx, { official, players, next }));
+  }
+
+  /** Finish setup: follow the official account (and whoever else was checked), and remember the sports. */
+  function finishSetup(ctx, { sports = [], follows = [] }) {
+    const officialId = ensureOfficial(store, ctx.now);
+    store.tx(() => {
+      for (const id of new Set(follows)) {
+        if (store.get('SELECT 1 AS x FROM users WHERE id = ? AND screen_name IS NOT NULL', id)) {
+          follow(store, { followerId: ctx.user.id, followeeId: id, now: ctx.now });
+        }
+      }
+      store.run('UPDATE users SET fav_sports = ?, setup_done = 1 WHERE id = ?', sports.join(',') || null, ctx.user.id);
+    });
+    return officialId;
+  }
+
+  function setupPost(ctx) {
+    if (!signedIn(ctx)) return;
+    const next = safeNext(ctx.form.get('next'));
+    if (ctx.user.setupDone) return redirect(ctx, next ?? '/games');
+    const sports = SPORTS.map((s) => s.key).filter((key) => ctx.form.getAll('sport').includes(key));
+    const follows = ctx.form.getAll('follow').map(Number).filter((id) => Number.isInteger(id) && id > 0);
+    finishSetup(ctx, { sports, follows });
+    flash(ctx, 'ok', `You're on the board, ${ctx.user.screenName}. Go make a pick.`);
+    redirect(ctx, next ?? (sports.length ? `/games?sport=${sports[0]}` : '/games'));
+  }
+
+  /** Skip still follows the official account, so Following isn't empty. */
+  function setupSkip(ctx) {
+    if (!signedIn(ctx)) return;
+    const next = safeNext(ctx.form.get('next'));
+    if (!ctx.user.setupDone) {
+      const officialId = ensureOfficial(store, ctx.now);
+      finishSetup(ctx, { follows: officialId ? [officialId] : [] });
+      flash(ctx, 'ok', `You're on the board, ${ctx.user.screenName}. Go make a pick.`);
+    }
     redirect(ctx, next ?? '/games');
   }
 
   async function gamesPage(ctx) {
     if (!signedIn(ctx)) return;
-    const sport = SPORT[ctx.query.get('sport')] ?? SPORT[DEFAULT_SPORT];
+    // No sport asked for: the player's first favorite, then the default.
+    const sport = SPORT[ctx.query.get('sport')] ?? SPORT[ctx.user.favSports[0]] ?? SPORT[DEFAULT_SPORT];
     ctx.query.set('sport', sport.key);
     const list = await games.upcoming(sport.key);
     const mine = picksOnGames(store, ctx.user.id, list.map((g) => g.id));
@@ -448,7 +505,9 @@ export function createApp({ store, games, config, mailer = createMailer({ log: {
   async function morePage(ctx) {
     if (!signedIn(ctx)) return;
     const liveCount = store.get("SELECT COUNT(*) AS n FROM games WHERE state = 'in'").n;
-    send(ctx, 200, moreViews.more(ctx, { liveCount }));
+    const admin = isAdmin(ctx);
+    const reported = admin ? reportedMessages(store).length : 0;
+    send(ctx, 200, moreViews.more(ctx, { liveCount, admin, reported }));
   }
 
   async function livePage(ctx) {
@@ -470,6 +529,34 @@ export function createApp({ store, games, config, mailer = createMailer({ log: {
     const sport = SPORT[ctx.query.get('sport')] ?? null;
     const period = periodOf(ctx.query);
     send(ctx, 200, social.leaderboard(ctx, { sport, rows: leaderboard(store, { sport: sport?.key, period }, ctx.now) }));
+  }
+
+  /** Players by the start of their screen name. */
+  function searchPage(ctx) {
+    const q = String(ctx.query.get('q') ?? '').trim().slice(0, 40);
+    send(ctx, 200, social.search(ctx, { q, rows: searchPlayers(store, q) }));
+  }
+
+  // ---- admin ----------------------------------------------------------------
+
+  /** Reported chat messages. Anyone who isn't an admin gets a plain 404. */
+  function adminReports(ctx) {
+    if (!isAdmin(ctx)) return notFound(ctx);
+    send(ctx, 200, moreViews.adminReports(ctx, { list: reportedMessages(store), hideAfter: HIDE_AFTER_REPORTS }));
+  }
+
+  function adminRestore(ctx, { id }) {
+    if (!isAdmin(ctx)) return notFound(ctx);
+    restoreMessage(store, Number(id));
+    flash(ctx, 'ok', 'Restored. Its reports are cleared.');
+    redirect(ctx, '/admin/reports');
+  }
+
+  function adminDelete(ctx, { id }) {
+    if (!isAdmin(ctx)) return notFound(ctx);
+    const result = removeMessage(store, { id: Number(id), now: ctx.now });
+    flash(ctx, result.error ? 'error' : 'ok', result.error ?? 'Deleted.');
+    redirect(ctx, '/admin/reports');
   }
 
   function groupsPage(ctx) {
@@ -550,8 +637,16 @@ export function createApp({ store, games, config, mailer = createMailer({ log: {
   }
 
   function profilePage(ctx, { name }) {
-    const player = store.get('SELECT id, screen_name, created_at, bio, link_url, link_label, first_name, last_name FROM users WHERE screen_name = ?', name);
-    if (!player) return notFound(ctx);
+    const player = store.get(
+      'SELECT id, screen_name, created_at, bio, link_url, link_label, first_name, last_name, official, name_changed_at FROM users WHERE screen_name = ?',
+      name,
+    );
+    if (!player) {
+      // An old name points to the new one for 90 days. Not a 301: browsers
+      // keep those forever, and the name is free again after that.
+      const renamed = renamedTo(store, name, ctx.now);
+      return renamed ? redirect(ctx, `/u/${encodeURIComponent(renamed)}`, 302) : notFound(ctx);
+    }
     if (player.screen_name !== name) return redirect(ctx, `/u/${encodeURIComponent(player.screen_name)}`);
     const { picks, hidden } = publicPicks(store, player.id, { viewerId: ctx.user?.id, now: ctx.now });
     send(ctx, 200, social.profile(ctx, {
@@ -566,7 +661,20 @@ export function createApp({ store, games, config, mailer = createMailer({ log: {
       following: isFollowing(store, ctx.user?.id, player.id),
       picks,
       hidden,
+      nextChange: ctx.user?.id === player.id ? nextNameChange(player.name_changed_at, ctx.now) : null,
     }));
+  }
+
+  function screenNamePost(ctx) {
+    if (!signedIn(ctx)) return;
+    const name = String(ctx.form.get('screen_name') ?? '').trim();
+    const result = changeScreenName(store, { userId: ctx.user.id, name, now: ctx.now });
+    if (result.error) {
+      flash(ctx, 'error', result.error);
+      return redirect(ctx, `/u/${encodeURIComponent(ctx.user.screenName)}`);
+    }
+    flash(ctx, 'ok', `You're ${result.name} now. Links to ${result.old} keep working for 90 days.`);
+    redirect(ctx, `/u/${encodeURIComponent(result.name)}`);
   }
 
   function followPost(ctx, { name }) {
@@ -749,6 +857,9 @@ export function createApp({ store, games, config, mailer = createMailer({ log: {
     ['POST', '/reset', reset],
     ['GET', '/welcome', welcomeForm],
     ['POST', '/welcome', welcome],
+    ['GET', '/setup', setupForm],
+    ['POST', '/setup', setupPost],
+    ['POST', '/setup/skip', setupSkip],
     ['GET', '/games', gamesPage],
     ['GET', '/games/:id', gamePage],
     ['POST', '/games/:id/chat', chatPost],
@@ -760,6 +871,10 @@ export function createApp({ store, games, config, mailer = createMailer({ log: {
     ['GET', '/picks', myPicks],
     ['POST', '/picks/:id/delete', pickDelete],
     ['GET', '/leaderboard', leaderboardPage],
+    ['GET', '/search', searchPage],
+    ['GET', '/admin/reports', adminReports],
+    ['POST', '/admin/reports/:id/restore', adminRestore],
+    ['POST', '/admin/reports/:id/delete', adminDelete],
     ['GET', '/groups', groupsPage],
     ['POST', '/groups', groupCreate],
     ['POST', '/groups/join', groupJoinByCode],
@@ -785,6 +900,7 @@ export function createApp({ store, games, config, mailer = createMailer({ log: {
     ['POST', '/bio', bioPost],
     ['POST', '/link', linkPost],
     ['POST', '/name', namePost],
+    ['POST', '/screen-name', screenNamePost],
     ['POST', '/account/delete', deleteAccount],
     ['GET', '/verify', verify],
     ['POST', '/verify/resend', verifyResend],

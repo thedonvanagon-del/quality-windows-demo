@@ -97,7 +97,7 @@ export function setStatus(e, state, name) {
   e.competitions[0].status.type = { state, completed: false, name, shortDetail: name };
 }
 
-export async function startApp({ time, espn = fakeEspn() }) {
+export async function startApp({ time, espn = fakeEspn(), config = {} }) {
   const store = openStore(':memory:');
   // Pushes go to a fake push service that only records them.
   const pushed = [];
@@ -109,7 +109,7 @@ export async function startApp({ time, espn = fakeEspn() }) {
   const mailer = { configured: true, send: async (message) => void outbox.push(message) };
   const handler = createApp({
     store, games, mailer, notifier, push, now: time.now, log: quiet,
-    config: { appName: 'Bookie Bullies', trustProxy: false, appUrl: 'https://app.example.test' },
+    config: { appName: 'Bookie Bullies', trustProxy: false, appUrl: 'https://app.example.test', ...config },
   });
   const server = http.createServer(handler);
   await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
