@@ -1,4 +1,5 @@
 import { html } from '../html.js';
+import { clvLabel, clvValue } from '../clv.js';
 import { formatOdds, formatUnits, parlayPrice, parlayToWin, selection, toWin } from '../picks.js';
 import { SPORT, SPORTS } from '../sports.js';
 import { MIN_RANKED, PERIODS } from '../stats.js';
@@ -143,9 +144,19 @@ export function pickItem(p, { who = false, actions = null, mine = false, now = n
     <div class="status ${kind}">${label}${pl}</div>
     ${mine || actions ? html`<div class="stake">${mine ? stake : ''}</div>` : ''}
     ${actions ? html`<div class="act">${actions}</div>` : ''}
-    <div class="meta">${SPORT[g.sport]?.short} · ${g.away.short} @ ${g.home.short} · ${status}</div>
+    <div class="meta">${SPORT[g.sport]?.short} · ${g.away.short} @ ${g.home.short} · ${status}${clvTag(p)}</div>
     <div class="receipt">${icons.lock}<span>Locked ${at(p.madeAt, 'long')}, ${lead(p.madeAt, g.start)} before the game</span></div>
   </li>`;
+}
+
+/** "CLV +1.0" or "CLV +2.3%": green when the pick beat the close, red when it didn't. Only once the close is known. */
+export function clvTag(p) {
+  if (p.result === 'void') return '';
+  const label = clvLabel(p);
+  if (!label) return '';
+  const v = clvValue(p);
+  const parts = [p.clvPoints != null && p.market !== 'ml' ? `${p.clvPoints > 0 ? '+' : ''}${p.clvPoints} points` : null, p.clvPct != null ? `${p.clvPct > 0 ? '+' : ''}${p.clvPct}% on the price` : null].filter(Boolean);
+  return html` <span class="clv ${v > 0 ? 'up' : v < 0 ? 'down' : ''}" title="Closing line value: ${parts.join(', ')}">${label}</span>`;
 }
 
 /** Where a game stands for a bet on it: the final score, a countdown, or the live score. */

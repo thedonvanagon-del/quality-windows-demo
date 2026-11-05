@@ -3,6 +3,7 @@
 // finals on games with open picks and parlay legs.
 
 import { SPORT, SPORTS } from './sports.js';
+import { fillClv, nextClosing } from './clv.js';
 import { gradeFinished } from './picks.js';
 import { addDays, etDay } from './time.js';
 
@@ -42,8 +43,13 @@ export function createGames({ store, espn, now = () => new Date(), log = console
   /** Store a batch of games from ESPN and grade whatever went final. Returns how many picks it graded. */
   function save(games) {
     const at = now().toISOString();
+    const closed = [];
     store.tx(() => {
       for (const g of games) {
+        // The closing line: tracked until the start, then frozen for good.
+        const prior = store.get('SELECT lines, closing_lines, closing_at FROM games WHERE id = ?', g.id);
+        const closing = nextClosing(prior, g, now());
+        if (closing.at && !prior?.closing_at) closed.push(g.id);
         const lines = JSON.stringify(g.lines);
         // Before kickoff, an empty board means the book pulled the line, and
         // a pulled line must not stay pickable.
@@ -52,8 +58,8 @@ export function createGames({ store, espn, now = () => new Date(), log = console
           `INSERT INTO games (id, sport, start_time, state, status, detail, completed,
                               home_name, home_short, home_abbr, home_score, home_logo,
                               away_name, away_short, away_abbr, away_score, away_logo, lines, updated_at,
-                              tv, home_record, away_record, home_color, away_color)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                              tv, home_record, away_record, home_color, away_color, closing_lines, closing_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
            ON CONFLICT (id) DO UPDATE SET
              start_time = excluded.start_time, state = excluded.state, status = excluded.status,
              detail = excluded.detail, completed = excluded.completed,
@@ -68,13 +74,19 @@ export function createGames({ store, espn, now = () => new Date(), log = console
              -- ESPN drops the odds once a game starts; keep the last ones seen
              -- for display.
              lines = CASE WHEN ? THEN excluded.lines ELSE games.lines END,
+             -- Once a close is frozen nothing here changes it.
+             closing_lines = CASE WHEN games.closing_at IS NULL THEN excluded.closing_lines ELSE games.closing_lines END,
+             closing_at = COALESCE(games.closing_at, excluded.closing_at),
              updated_at = excluded.updated_at`,
           g.id, g.sport, g.start, g.state, g.status, g.detail, g.completed ? 1 : 0,
           g.home.name, g.home.short, g.home.abbr, g.home.score, g.home.logo ?? null,
           g.away.name, g.away.short, g.away.abbr, g.away.score, g.away.logo ?? null, lines, at,
-          g.tv ?? null, g.home.record ?? null, g.away.record ?? null, g.home.color ?? null, g.away.color ?? null, replaceLines ? 1 : 0,
+          g.tv ?? null, g.home.record ?? null, g.away.record ?? null, g.home.color ?? null, g.away.color ?? null,
+          closing.lines, closing.at, replaceLines ? 1 : 0,
         );
       }
+      // Closing line value for the picks on games that just started.
+      fillClv(store, closed);
     });
     return gradeFinished(store, now(), { onGraded });
   }

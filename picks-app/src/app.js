@@ -8,6 +8,7 @@ import { fileURLToPath } from 'node:url';
 
 import * as auth from './auth.js';
 import { badgesOf, topBadges } from './badges.js';
+import { clvSummary } from './clv.js';
 import { chatCounts, chatGames, deleteMessage, HIDE_AFTER_REPORTS, markGroupRead, messages, postMessage, removeMessage, reportedMessages, reportMessage, restoreMessage, threadOfMessage, unreadCounts } from './chat.js';
 import { createGroup, deleteGroup, findByCode, groupFor, groupsOf, joinGroup, leaveGroup, membersOf } from './groups.js';
 import { follow, followCounts, followingAmong, followingList, isFollowing, unfollow } from './follows.js';
@@ -857,6 +858,7 @@ export function createApp({ store, games, config, mailer = createMailer({ log: {
       nextChange: ctx.user?.id === player.id ? nextNameChange(player.name_changed_at, ctx.now) : null,
       badges: player.official ? [] : badgesOf(store, player.id),
       streak: player.official ? null : streakOf(store, player.id),
+      clv: clvSummary(store, player.id),
     }));
   }
 

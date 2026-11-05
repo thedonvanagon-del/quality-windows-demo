@@ -6,7 +6,7 @@
 import { toGame } from './games.js';
 
 const COLUMNS = `p.id AS pick_id, p.user_id, p.market, p.side, p.line, p.odds, p.units, p.made_at,
-                 p.result, p.profit, p.streak_day, u.screen_name, u.official,
+                 p.result, p.profit, p.streak_day, p.clv_points, p.clv_pct, u.screen_name, u.official,
                  (SELECT o.is_lock FROM official_picks o WHERE o.pick_id = p.id) AS is_lock, g.*`;
 
 function toPick(row) {
@@ -27,6 +27,9 @@ function toPick(row) {
     madeAt: row.made_at,
     result: row.result,
     profit: row.profit,
+    // Closing line value, once the game has started (straight picks only).
+    clvPoints: row.clv_points ?? null,
+    clvPct: row.clv_pct ?? null,
     game: toGame(row),
   };
 }

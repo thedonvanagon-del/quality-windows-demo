@@ -10,7 +10,7 @@ import { parseScoreboard } from './espn.js';
 import { createGroup, joinGroup } from './groups.js';
 import { inviteCodeOf } from './invites.js';
 import { createOfficialImporter, ensureOfficial } from './official.js';
-import { grade, gradeFinished, MARKETS, parlayMaxUnits, parlayPrice, price } from './picks.js';
+import { grade, gradeFinished, MARKETS, maxUnits, parlayMaxUnits, parlayPrice, price } from './picks.js';
 import { SPORTS } from './sports.js';
 import { addDays, etDay, etToUtc, HOUR, mondayOf } from './time.js';
 
@@ -232,11 +232,13 @@ export async function seedDemo({ store, games, espn, now = () => new Date() }) {
           const wins = grade({ market, side, line: p.line }, g.homeScore, g.awayScore) === 'win';
           if (wins !== rand() < skill) side = MARKETS[market].find((s) => s !== side);
         }
-        const chosen = price(g, market, side);
+        // A past pick went in hours before the close, so its number often
+        // differs from the closing one: more often in a sharp player's favor.
+        const chosen = open ? price(g, market, side) : earlyNumber(price(g, market, side), market, side, skill, rand);
         const start = new Date(g.start).getTime();
         const madeAt = open ? at.getTime() - rand() * 6 * HOUR : start - (1 + rand() * 30) * HOUR;
         if (open && madeAt >= start) continue;
-        const units = [1, 1, 1, 2, 0.5, 3][Math.floor(rand() * 6)];
+        const units = Math.min([1, 1, 1, 2, 0.5, 3][Math.floor(rand() * 6)], maxUnits(chosen.odds));
         store.run(
           `INSERT OR IGNORE INTO picks (user_id, game_id, sport, market, side, line, odds, units, game_start, made_at)
            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -369,6 +371,26 @@ function seedStreaks(store, ids, today, rand) {
       if (mine && ++step === plan.length) break;
     }
   }
+}
+
+/**
+ * The number a pick got before the line settled at its close: up to a point
+ * either way on a spread or total, up to 15 cents on a moneyline. A sharper
+ * player's moves lean their way.
+ */
+function earlyNumber(close, market, side, skill, rand) {
+  const size = [0, 0, 0.5, 0.5, 1][Math.floor(rand() * 5)];
+  const good = rand() < 0.5 + (skill - 0.5) * 3 ? 1 : -1;
+  if (market === 'ml') {
+    const cents = size * 15 * good;
+    let odds = close.odds + cents;
+    if (close.odds < 0 && odds > -100) odds += 200;
+    if (close.odds > 0 && odds < 100) odds -= 200;
+    return { line: null, odds: Math.round(odds) };
+  }
+  // A higher spread is better for its side; a total is better lower for an over, higher for an under.
+  const better = market === 'total' && side === 'over' ? -1 : 1;
+  return { line: close.line + size * good * better, odds: close.odds };
 }
 
 // The site's sport names for the sports it posts picks in.

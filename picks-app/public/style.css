@@ -1001,3 +1001,14 @@ label.check.streak-check { margin: 10px 0 2px; padding: 10px 12px; border-radius
 
 /* ---- Group chat, CLV, injuries and form ---------------------------------- */
 .unread-count { display: inline-block; margin-left: 6px; padding: 1px 8px; border-radius: 999px; background: var(--accent); color: var(--accent-ink); font-family: var(--cond); font-size: 0.78rem; font-weight: 800; letter-spacing: 0.04em; text-transform: uppercase; white-space: nowrap; vertical-align: 1px; }
+.clv { display: inline-block; font-family: var(--cond); font-weight: 800; letter-spacing: 0.03em; color: var(--muted); white-space: nowrap; }
+.ticket .meta .clv { margin-left: 4px; padding: 0 6px; border-radius: 4px; background: var(--raised); font-size: 0.8rem; }
+.clv.up { color: var(--win); }
+.clv.down { color: var(--loss); }
+.ticket .meta .clv.up { background: var(--win-soft); }
+.ticket .meta .clv.down { background: var(--loss-soft); }
+.clv-line { margin: 12px 0 0; }
+.clv-line p { margin: 0; }
+.clv-help { margin-top: 4px; font-size: 0.88rem; color: var(--muted); }
+.clv-help summary { cursor: pointer; color: var(--accent); font-weight: 700; width: fit-content; }
+.clv-help p { margin: 6px 0 0; max-width: 46ch; }
