@@ -13,6 +13,14 @@ export function at(iso, style = 'short') {
 /** The tag beside the official BookieBullies account wherever it shows. */
 export const officialTag = html`<span class="official-tag" title="The Bookie Bullies model's picks">Official</span>`;
 
+/** The tag on a Streak pick (the streak game). */
+export const streakTag = html`<span class="streak-tag" title="Streak pick">${icons.flame}Streak</span>`;
+
+/** One small badge chip beside a name on a board: the player's most notable badge. */
+export function badgeMark(badge) {
+  return badge ? html`<span class="badge-mark" title="${badge.label}: ${badge.about}"><span class="sr-only">Badge: </span>${badge.short}</span>` : '';
+}
+
 /** A gold tag on official picks the site called a lock. */
 export const lockTag = html`<span class="lock-tag" title="A lock on bookiebullies.com">Lock</span>`;
 
@@ -85,15 +93,18 @@ export function teamLogo(team) {
   return html`<span class="logo" aria-hidden="true">${team.abbr.slice(0, 4)}${team.logo ? html`<img src="${team.logo}" alt="" loading="lazy" referrerpolicy="no-referrer">` : ''}</span>`;
 }
 
-/** Players with their records. `ranks: false` drops the # column, for lists that aren't a board. */
-export function boardTable(rows, { me, ranks = true, empty = 'No graded picks here yet. Results show up once games go final.' } = {}) {
+/**
+ * Players with their records. `ranks: false` drops the # column, for lists
+ * that aren't a board. `badges` (user id -> badge) puts one badge by a name.
+ */
+export function boardTable(rows, { me, ranks = true, badges = null, empty = 'No graded picks here yet. Results show up once games go final.' } = {}) {
   if (!rows.length) return html`<div class="card empty">${empty}</div>`;
   return html`<div class="table"><table>
     <thead><tr>${ranks ? html`<th>#</th>` : ''}<th>Player</th><th class="n">Record</th><th class="n hide-sm">Win</th><th class="n">Units</th><th class="n hide-sm">ROI</th></tr></thead>
     <tbody>
       ${rows.map((r) => html`<tr class="${r.id === me ? 'me' : ''}">
         ${ranks ? html`<td class="rank">${rankCell(r)}</td>` : ''}
-        <td><span class="player"><span class="avatar">${r.screen_name[0]}</span>${profileLink(r.screen_name, { official: r.official })}</span></td>
+        <td><span class="player"><span class="avatar">${r.screen_name[0]}</span>${profileLink(r.screen_name, { official: r.official })}${badges ? badgeMark(badges.get(r.id)) : ''}</span></td>
         <td class="n">${recordText(r)}</td>
         <td class="n hide-sm">${pct(r.winPct)}</td>
         <td class="n"><b>${units(r.units)}</b></td>
@@ -127,7 +138,7 @@ export function pickItem(p, { who = false, actions = null, mine = false, now = n
   const pl = won ? html` <span class="pl">${minus(won)}</span>` : '';
   const stake = mine ? `${formatUnits(p.units)}${p.result ? '' : ` to win ${formatUnits(toWin(p.odds, p.units))}`}` : formatUnits(p.units);
   return html`<li class="ticket">
-    <div class="sel">${who ? html`${profileLink(p.screenName, { official: p.official })} · ` : ''}${p.lock ? lockTag : ''}${selection(p.market, p.side, p.line, g)}<span class="odds">${minus(formatOdds(p.odds))}</span>${mine ? '' : html`<span class="units">${stake}</span>`}</div>
+    <div class="sel">${who ? html`${profileLink(p.screenName, { official: p.official })} · ` : ''}${p.lock ? lockTag : ''}${p.streakDay ? streakTag : ''}${selection(p.market, p.side, p.line, g)}<span class="odds">${minus(formatOdds(p.odds))}</span>${mine ? '' : html`<span class="units">${stake}</span>`}</div>
     <div class="status ${kind}">${label}${pl}</div>
     ${mine || actions ? html`<div class="stake">${mine ? stake : ''}</div>` : ''}
     ${actions ? html`<div class="act">${actions}</div>` : ''}

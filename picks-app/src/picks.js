@@ -2,6 +2,7 @@
 // kickoff, at the line ESPN shows right then, and gets graded off the final.
 
 import { VOID_STATUSES } from './espn.js';
+import { etDay } from './time.js';
 
 export const MARKETS = {
   spread: ['away', 'home'],
@@ -66,8 +67,10 @@ export function isLocked(game, now) {
 /**
  * Write a pick, or say why not. `seen` is the line and price the player was
  * shown; if the number moved since, they get the new one to confirm instead.
+ * With `streak`, it's also the player's Streak pick for the game's Eastern
+ * day, unless they already have one for that day (then `streakTaken`).
  */
-export function makePick(store, { userId, game, market, side, units, seen, now }) {
+export function makePick(store, { userId, game, market, side, units, seen, now, streak = false }) {
   if (isLocked(game, now)) return { error: 'That game has started. Picks lock at kickoff.' };
   const current = price(game, market, side);
   if (!current) return { error: 'That line is off the board right now.' };
@@ -86,12 +89,15 @@ export function makePick(store, { userId, game, market, side, units, seen, now }
   const taken = store.get('SELECT side FROM picks WHERE user_id = ? AND game_id = ? AND market = ?', userId, game.id, market);
   if (taken) return { error: `You already have a ${MARKET_NAME[market].toLowerCase()} pick on this game.` };
 
+  const day = etDay(game.start);
+  const streakTaken = streak && Boolean(store.get('SELECT 1 AS x FROM picks WHERE user_id = ? AND streak_day = ?', userId, day));
   const { lastInsertRowid } = store.run(
-    `INSERT INTO picks (user_id, game_id, sport, market, side, line, odds, units, game_start, made_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO picks (user_id, game_id, sport, market, side, line, odds, units, game_start, made_at, streak_day)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     userId, game.id, game.sport, market, side, current.line, current.odds, units, game.start, now.toISOString(),
+    streak && !streakTaken ? day : null,
   );
-  return { id: Number(lastInsertRowid), units };
+  return { id: Number(lastInsertRowid), units, streak: streak && !streakTaken, streakTaken };
 }
 
 /** Delete a pick before its game starts. After that it stays on the record. */

@@ -22,6 +22,8 @@ export function more(ctx, { liveCount, admin = false, reported = 0 }) {
       <ul class="menu">
         ${row('/install', icons.download, 'Get the app', 'Put Bookie Bullies on your Home Screen', '', 'get-app-row')}
         ${row('/live', icons.live, 'Live games', 'Scores right now, with your bets on them', liveCount ? html`<span class="count">${liveCount} live</span>` : '')}
+        ${row('/contest', icons.board, 'This week\'s contest', 'Free weekly contest, and the winners wall')}
+        ${row('/streak', icons.flame, 'Streak', 'One Streak pick a day. How long can you go?')}
         ${row('/hot', icons.line, 'Hot streaks', 'Who\'s on a heater: the best last ten')}
         ${row('/following', icons.groups, 'Following', 'Picks from players you follow')}
         ${row('/notifications', icons.bell, 'Notifications', 'Settled bets, players you follow, phone alerts', ctx.unread ? html`<span class="count">${ctx.unread} new</span>` : '')}
@@ -29,6 +31,7 @@ export function more(ctx, { liveCount, admin = false, reported = 0 }) {
         ${row('/leaderboard', icons.board, 'Leaderboard', 'Everyone, or one sport at a time')}
         ${row('/search', icons.search, 'Find players', 'Look someone up by screen name')}
         ${row('/groups', icons.groups, 'Groups', 'Your friends and their boards')}
+        ${row('/invite', icons.invite, 'Invite friends', 'Your own link, and who joined')}
         ${row(`/u/${encodeURIComponent(ctx.user.screenName)}`, icons.me, 'Profile and settings', 'Screen name, bio, link, app color')}
         ${admin ? row('/admin/reports', icons.flag, 'Admin', 'Reported chat messages', reported ? html`<span class="count">${reported}</span>` : '') : ''}
       </ul>
@@ -87,6 +90,9 @@ export function chatHub(ctx, { list }) {
   });
 }
 
+// The icon beside each kind of note in the inbox.
+const KIND_ICON = { follow: icons.groups, invite: icons.invite, badge: icons.medal, contest: icons.board, lines: icons.games, streak: icons.flame };
+
 /** The inbox, what to be told about, and phone notifications. */
 export function notifications(ctx, { list, prefs, phones, pushKey }) {
   return layout(ctx, {
@@ -97,7 +103,7 @@ export function notifications(ctx, { list, prefs, phones, pushKey }) {
       <h1>Notifications</h1>
       ${list.length
         ? html`<ul class="menu inbox">${list.map((n) => html`<li class="${n.read_at ? '' : 'unread'}"><a href="${n.url}">
-            <span class="icon">${n.kind === 'follow' ? icons.groups : icons.picks}</span>
+            <span class="icon">${KIND_ICON[n.kind] ?? icons.picks}</span>
             <span class="text">${n.text}<small><time datetime="${n.created_at}" data-local="long">${when(n.created_at)}</time></small></span>
           </a></li>`)}</ul>`
         : html`<div class="card empty">Nothing yet. You'll hear here when your bets settle and when players you follow make picks.</div>`}
@@ -107,6 +113,8 @@ export function notifications(ctx, { list, prefs, phones, pushKey }) {
         ${csrfField(ctx)}
         <label class="check"><input type="checkbox" name="settled" ${prefs.notify_settled ? 'checked' : ''}><span>My bets settle (won, lost, push)</span></label>
         <label class="check"><input type="checkbox" name="follows" ${prefs.notify_follows ? 'checked' : ''}><span>A player I follow locks a pick</span></label>
+        <label class="check"><input type="checkbox" name="lines" ${prefs.notify_lines ? 'checked' : ''}><span>Lines are up: today's games in my sports, about 11 AM ET</span></label>
+        <label class="check"><input type="checkbox" name="streak" ${prefs.notify_streak ? 'checked' : ''}><span>Streak reminder: no Streak pick yet today, about 5 PM ET</span></label>
         <button class="btn small">Save</button>
       </form>
 

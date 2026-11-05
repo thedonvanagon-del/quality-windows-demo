@@ -264,6 +264,60 @@ const MIGRATIONS = [
   );
   CREATE INDEX parlay_legs_game ON parlay_legs(game_id);
   `,
+  `
+  -- The free weekly contest (Monday to Sunday, Eastern). A week is closed
+  -- once, and its top 3 written once, so the winners wall never changes.
+  CREATE TABLE contest_weeks (
+    week TEXT PRIMARY KEY,           -- the Monday it starts, "20261102"
+    closed_at TEXT NOT NULL
+  );
+  CREATE TABLE contest_results (
+    week TEXT NOT NULL REFERENCES contest_weeks(week),
+    place INTEGER NOT NULL,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    units REAL NOT NULL,
+    record TEXT NOT NULL,
+    PRIMARY KEY (week, place)
+  );
+  CREATE INDEX contest_results_user ON contest_results(user_id);
+
+  -- The streak game: one straight pick per player per Eastern day is their
+  -- Streak pick. The day is the game's; deleting the pick deletes the flag.
+  ALTER TABLE picks ADD COLUMN streak_day TEXT;
+  CREATE UNIQUE INDEX picks_streak ON picks(user_id, streak_day) WHERE streak_day IS NOT NULL;
+
+  -- Badges, worked out from the record and awarded once each. ref keeps a
+  -- badge that can be won again apart (the week, for a weekly win); detail
+  -- is what the chip says about it.
+  CREATE TABLE badges (
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    key TEXT NOT NULL,
+    ref TEXT NOT NULL DEFAULT '',
+    detail TEXT,
+    earned_at TEXT NOT NULL,
+    PRIMARY KEY (user_id, key, ref)
+  );
+
+  -- Invite links: a code per player, and who brought each new player in.
+  -- An invite counts once the new player confirms their email and has a name.
+  ALTER TABLE users ADD COLUMN invite_code TEXT;
+  ALTER TABLE users ADD COLUMN invited_by INTEGER REFERENCES users(id) ON DELETE SET NULL;
+  ALTER TABLE users ADD COLUMN invite_counted_at TEXT;
+  CREATE UNIQUE INDEX users_invite_code ON users(invite_code);
+  CREATE INDEX users_invited_by ON users(invited_by);
+
+  -- Reminders: "Lines are up" in the morning and the Streak reminder in the
+  -- afternoon, each on by default and sent at most once a day.
+  ALTER TABLE users ADD COLUMN notify_lines INTEGER NOT NULL DEFAULT 1;
+  ALTER TABLE users ADD COLUMN notify_streak INTEGER NOT NULL DEFAULT 1;
+  CREATE TABLE reminders_sent (
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    kind TEXT NOT NULL,
+    day TEXT NOT NULL,
+    sent_at TEXT NOT NULL,
+    PRIMARY KEY (user_id, kind, day)
+  );
+  `,
 ];
 
 export function openStore(file) {

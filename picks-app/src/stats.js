@@ -9,7 +9,7 @@
 // when every leg is in that sport.
 
 /** Straight picks and parlays as one list of bets. A parlay's date is its first leg's start. */
-const BETS = `(
+export const BETS = `(
   SELECT id, user_id, sport, units, profit, result, game_start FROM picks
   UNION ALL
   SELECT id, user_id, sport, units, profit, result, first_start AS game_start FROM parlays
@@ -21,7 +21,7 @@ export const PERIODS = [
   { key: 'all', label: 'All time', days: null },
 ];
 
-const TOTALS = `
+export const TOTALS = `
   SUM(p.result = 'win') AS wins,
   SUM(p.result = 'loss') AS losses,
   SUM(p.result = 'push') AS pushes,
@@ -75,7 +75,7 @@ export function leaderboard(store, scope, now, limit = 100) {
  * Hand out rank numbers in order. The official account is listed but never
  * takes a number, so it can't be #1 and nobody gets pushed down by it.
  */
-function numbered(eligible) {
+export function numbered(eligible) {
   let n = 0;
   return (row) => {
     const official = Boolean(row.official);
@@ -252,7 +252,7 @@ export function rankOf(store, userId, now) {
   return rows.find((r) => r.id === userId)?.rank ?? null;
 }
 
-function withRates(row) {
+export function withRates(row) {
   const wins = row?.wins ?? 0;
   const losses = row?.losses ?? 0;
   const risked = row?.risked ?? 0;

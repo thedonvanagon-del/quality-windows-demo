@@ -28,18 +28,20 @@ export function home(ctx, { top }) {
   });
 }
 
-export function signup(ctx, { email = '', error, next, adult = false, terms = false }) {
+export function signup(ctx, { email = '', error, next, adult = false, terms = false, inviter = null }) {
   return layout(ctx, {
     title: 'Sign up',
     active: 'signup',
     body: html`
       <div class="auth">
         <h1>Start your record</h1>
+        ${inviter ? html`<p class="invited-by">${icons.invite}<span><b>${inviter.screen_name}</b> invited you. Make picks, build a record, see who's best.</span></p>` : ''}
         <p class="lede">Email and a password. You'll pick a screen name next.</p>
         ${error ? html`<div class="flash err" role="alert">${error}</div>` : ''}
         <form class="form" method="post" action="/signup">
           ${csrfField(ctx)}
           ${next ? html`<input type="hidden" name="next" value="${next}">` : ''}
+          ${inviter ? html`<input type="hidden" name="invite" value="${inviter.code}">` : ''}
           <label>Email<input type="email" name="email" value="${email}" autocomplete="email" required maxlength="254"></label>
           <label>Password <span class="hint">At least 8 characters.</span>
             <input type="password" name="password" autocomplete="new-password" required minlength="8" maxlength="200"></label>
