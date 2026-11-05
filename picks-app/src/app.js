@@ -325,7 +325,9 @@ export function createApp({ store, games, config, mailer = createMailer({ log: {
     if (!signedIn(ctx)) return;
     const market = ctx.query.get('market');
     const side = ctx.query.get('side');
-    const { game } = await games.current(ctx.query.get('game') ?? '');
+    // Show the slip from the cached line right away; the pick is checked
+    // against the live line when it's sent.
+    const { game } = await games.current(ctx.query.get('game') ?? '', { wait: false });
     if (!game || !MARKETS[market]?.includes(side)) return notFound(ctx);
     const back = `/games?sport=${game.sport}`;
     if (isLocked(game, ctx.now)) {

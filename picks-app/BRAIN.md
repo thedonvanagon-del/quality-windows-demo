@@ -53,6 +53,11 @@ not dollars, and nothing is paid out.
   locked pick gets a gold **LOCKED** stamp with the exact time.
 - **2026-11-04:** After a pick, the board comes back at the game you picked,
   not the top, with the LOCKED stamp right above that game (owner's ask).
+- **2026-11-05: Picks never look stuck.** Tapping a line opens the slip at
+  once ("Loading the line…") from the cached line; the pick itself is still
+  checked against the live line. A pick re-fetches only that game's day from
+  ESPN (it used to reload the sport's whole 3-day board, seconds on a big
+  college slate). "Lock it in" turns to "Locking it in…" and can't double-send.
 - **2026-10-25:** Dark and clean, like BetMGM, with our own colors. Odds
   tiles show the line in white and the price in the accent color.
 - **2026-10-25:** Orange ("ember") is the default because it's the easiest to

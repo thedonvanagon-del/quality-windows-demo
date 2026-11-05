@@ -139,6 +139,34 @@ function initSlip(slip) {
 const pageSlip = document.querySelector('form[data-odds]');
 if (pageSlip) initSlip(pageSlip);
 
+// "Lock it in" says it's working the moment it's tapped and can't be sent twice.
+document.addEventListener('submit', (event) => {
+  const form = event.target;
+  if (!form.matches('form[action="/picks"]')) return;
+  if (form.dataset.sending) {
+    event.preventDefault();
+    return;
+  }
+  form.dataset.sending = '1';
+  const button = form.querySelector('button.btn');
+  if (button) {
+    button.textContent = 'Locking it in…';
+    button.classList.add('busy');
+  }
+});
+// Coming back to a page from the phone's back button shouldn't leave it stuck on "Locking…".
+window.addEventListener('pageshow', (event) => {
+  if (!event.persisted) return;
+  for (const form of document.querySelectorAll('form[data-sending]')) {
+    delete form.dataset.sending;
+    const button = form.querySelector('button.btn');
+    if (button) {
+      button.textContent = 'Lock it in';
+      button.classList.remove('busy');
+    }
+  }
+});
+
 // On the games board, a tapped line opens its slip in a sheet that slides up
 // over the board instead of a new page. Anything off and it's a normal link.
 const board = document.querySelector('.event') && window.HTMLDialogElement && window.DOMParser;
@@ -150,11 +178,26 @@ if (board) {
   sheet.addEventListener('click', (event) => {
     if (event.target === sheet || event.target.closest('[data-close]')) sheet.close();
   });
+  // The sheet opens the moment a line is tapped, with a loading note, so a
+  // slow connection never looks like a dead tap. A second tap while one is
+  // loading is ignored.
+  let loading = null;
+  const loadingNote = () => {
+    const note = document.createElement('p');
+    note.className = 'sheet-loading';
+    note.textContent = 'Loading the line…';
+    return note;
+  };
   document.addEventListener('click', async (event) => {
     const link = event.target.closest('a.cell[href^="/pick?"]');
     if (!link || event.metaKey || event.ctrlKey || event.shiftKey) return;
     event.preventDefault();
+    if (loading) return;
+    loading = link;
+    link.classList.add('loading');
     try {
+      sheet.replaceChildren(loadingNote());
+      if (!sheet.open) sheet.showModal();
       const res = await fetch(link.href, { credentials: 'same-origin', headers: { accept: 'text/html' } });
       if (!res.ok || res.redirected) throw new Error('no slip');
       const doc = new DOMParser().parseFromString(await res.text(), 'text/html');
@@ -169,9 +212,12 @@ if (board) {
       sheet.replaceChildren(close, document.adoptNode(slip));
       initSlip(sheet.querySelector('form[data-odds]'));
       localTimes(sheet);
-      sheet.showModal();
+      if (!sheet.open) sheet.showModal();
     } catch {
       window.location.href = link.href;
+    } finally {
+      loading = null;
+      link.classList.remove('loading');
     }
   });
 }
