@@ -1,11 +1,33 @@
 import { html } from '../html.js';
+import { CHANGE_EVERY_DAYS, HOLD_DAYS } from '../names.js';
 import { formatUnits } from '../picks.js';
 import { SPORT, SPORTS } from '../sports.js';
 import { MIN_RANKED } from '../stats.js';
-import { joined } from '../time.js';
+import { joined, when } from '../time.js';
 import { trustMark } from './icons.js';
 import { csrfField, layout } from './layout.js';
-import { boardTable, periodTabs, pct, pickItem, profileLink, recordText, signedPct, sportTabs, units } from './parts.js';
+import { boardTable, officialTag, periodTabs, pct, pickItem, profileLink, rankCell, recordText, signedPct, sportTabs, units } from './parts.js';
+
+/** Find a player by the start of their screen name. */
+function searchBox(q = '') {
+  return html`<form class="search" method="get" action="/search" role="search">
+    <input type="search" name="q" value="${q}" placeholder="Find a player" aria-label="Screen name" maxlength="20" autocapitalize="off" autocomplete="off" spellcheck="false">
+    <button class="btn">Search</button>
+  </form>`;
+}
+
+export function search(ctx, { q, rows }) {
+  return layout(ctx, {
+    title: 'Find players',
+    active: 'board',
+    body: html`
+      <h1>Find players</h1>
+      <p class="lede">Type the start of a screen name.</p>
+      ${searchBox(q)}
+      ${q ? boardTable(rows, { me: ctx.user?.id, ranks: false, empty: html`Nobody's name starts with “${q}”.` }) : ''}
+    `,
+  });
+}
 
 export function leaderboard(ctx, { rows, sport }) {
   return layout(ctx, {
@@ -14,6 +36,7 @@ export function leaderboard(ctx, { rows, sport }) {
     body: html`
       <h1>${sport ? `${sport.name} leaderboard` : 'Leaderboard'}</h1>
       <p class="lede">Ranked by units won, not win rate, so betting only big favorites doesn't pay. Every graded pick counts, losses included. You need ${MIN_RANKED} graded picks in the window for a rank.</p>
+      ${searchBox()}
       ${sportTabs('/leaderboard', ctx.query)}
       ${periodTabs('/leaderboard', ctx.query)}
       ${boardTable(rows, { me: ctx.user?.id })}
@@ -141,6 +164,19 @@ function shareCard(player, record) {
   };
 }
 
+/** A new screen name, once every 30 days. The old one keeps working as a link for 90. */
+function screenNameForm(ctx, player, nextChange) {
+  return html`<h2>Screen name</h2>
+    ${nextChange
+      ? html`<p class="muted small">You changed it recently. You can change it again ${html`<time datetime="${nextChange.toISOString()}" data-local="long">${when(nextChange.toISOString())}</time>`}.</p>`
+      : html`<form class="form screen-name-form" method="post" action="/screen-name" data-confirm="Change your screen name? You can only do this once every ${CHANGE_EVERY_DAYS} days.">
+          ${csrfField(ctx)}
+          <label>New screen name <span class="hint">3 to 20 letters, numbers or underscores.</span>
+            <input type="text" name="screen_name" value="" placeholder="${player.screen_name}" required minlength="3" maxlength="20" pattern="[A-Za-z0-9_]{3,20}" autocapitalize="off" spellcheck="false"></label>
+          <div class="row"><button class="btn small">Change name</button><span class="muted small">Once every ${CHANGE_EVERY_DAYS} days. Links to your old name keep working for ${HOLD_DAYS} days.</span></div>
+        </form>`}`;
+}
+
 /** First and last name, both optional. */
 function nameForm(ctx, player) {
   return html`<h2>Your name</h2>
@@ -226,9 +262,9 @@ export function hot(ctx, { rows, followed }) {
       ${rows.length
         ? html`<div class="table"><table class="hot">
             <thead><tr><th>#</th><th>Player</th><th class="n">Last 10</th><th class="n">Units</th><th class="n">Streak</th>${me ? html`<th class="n"><span class="sr-only">Follow</span></th>` : ''}</tr></thead>
-            <tbody>${rows.map((r, i) => html`<tr class="${r.id === me ? 'me' : ''}">
-              <td class="rank"><span class="rk">${i + 1}</span></td>
-              <td>${profileLink(r.screen_name)}</td>
+            <tbody>${rows.map((r) => html`<tr class="${r.id === me ? 'me' : ''}">
+              <td class="rank">${rankCell(r)}</td>
+              <td>${profileLink(r.screen_name, { official: r.official })}</td>
               <td class="n">${recordText(r)}</td>
               <td class="n"><b>${units(r.units)}</b></td>
               <td class="n"><span class="streak ${r.streak.startsWith('W') ? 'hot' : ''}">${r.streak}</span></td>
@@ -271,7 +307,11 @@ function recordCard(ctx, { player, record, series, last10, rank }) {
       data-rank="${rank ? `#${rank}` : ''}" data-series="${series.join(',')}" data-url="${url.replace(/^https?:\/\//, '')}">
     <div class="rc-top">
       <span class="trust-small">${trustMark}<span>Trust Your Bets</span></span>
-      ${rank ? html`<span class="rank-badge">#${rank} overall</span>` : html`<span class="rank-badge muted">Unranked: ${MIN_RANKED} picks for a rank</span>`}
+      ${rank
+        ? html`<span class="rank-badge">#${rank} overall</span>`
+        : player.official
+          ? html`<span class="rank-badge muted">Official account: not ranked</span>`
+          : html`<span class="rank-badge muted">Unranked: ${MIN_RANKED} picks for a rank</span>`}
     </div>
     <div class="rc-main">
       <div><span class="rc-label">Record</span><b class="rc-big">${recordText(record)}</b></div>
@@ -318,14 +358,15 @@ function colorPicker(ctx) {
     </form>`;
 }
 
-export function profile(ctx, { player, record, bySport, split = null, series = [], last10 = null, rank = null, follows = { followers: 0, following: 0 }, following = false, picks, hidden }) {
+export function profile(ctx, { player, record, bySport, split = null, series = [], last10 = null, rank = null, follows = { followers: 0, following: 0 }, following = false, picks, hidden, nextChange = null }) {
   return layout(ctx, {
     title: player.screen_name,
     active: ctx.user?.id === player.id ? 'me' : null,
     description: `${player.screen_name}: ${recordText(record)}, ${record.units > 0 ? '+' : ''}${record.units} units. Every pick locked before the game and graded off the final.`,
     share: shareCard(player, record),
     body: html`
-      <div class="team"><span class="avatar big">${player.screen_name[0]}</span><h1>${player.screen_name}</h1></div>
+      <div class="team"><span class="avatar big">${player.screen_name[0]}</span><h1>${player.screen_name}</h1>${player.official ? officialTag : ''}</div>
+      ${player.official ? html`<p class="muted small">The official account. Listed on the boards, never ranked. <span class="lock-tag">Lock</span>marks the site's locks.</p>` : ''}
       ${player.first_name || player.last_name ? html`<p class="real-name">${[player.first_name, player.last_name].filter(Boolean).join(' ')}</p>` : ''}
       ${player.bio ? html`<p class="bio">${player.bio}</p>` : ''}
       <p class="follow-counts"><b>${follows.followers}</b> ${follows.followers === 1 ? 'follower' : 'followers'} · <b>${follows.following}</b> following</p>
@@ -336,7 +377,7 @@ export function profile(ctx, { player, record, bySport, split = null, series = [
       </div>
       <p class="lede">On the record since ${joined(player.created_at)}. ${record.graded} graded ${record.graded === 1 ? 'pick' : 'picks'}, every one locked before its game.</p>
       ${recordCard(ctx, { player, record, series, last10, rank })}
-      ${ctx.user?.id === player.id ? html`${nameForm(ctx, player)}${bioForm(ctx, player)}${linkForm(ctx, player)}${colorPicker(ctx)}` : ''}
+      ${ctx.user?.id === player.id ? html`${screenNameForm(ctx, player, nextChange)}${nameForm(ctx, player)}${bioForm(ctx, player)}${linkForm(ctx, player)}${colorPicker(ctx)}` : ''}
       ${bySport.length
         ? html`<h2>By sport</h2>
           <div class="table"><table>

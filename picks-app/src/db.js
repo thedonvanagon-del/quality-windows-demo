@@ -186,6 +186,36 @@ const MIGRATIONS = [
   ALTER TABLE users ADD COLUMN notify_settled INTEGER NOT NULL DEFAULT 1;
   ALTER TABLE users ADD COLUMN notify_follows INTEGER NOT NULL DEFAULT 1;
   `,
+  `
+  -- The official BookieBullies account (the site's model picks), first-time
+  -- setup, and screen name changes.
+  ALTER TABLE users ADD COLUMN official INTEGER NOT NULL DEFAULT 0;
+  ALTER TABLE users ADD COLUMN fav_sports TEXT;
+  ALTER TABLE users ADD COLUMN setup_done INTEGER NOT NULL DEFAULT 0;
+  ALTER TABLE users ADD COLUMN name_changed_at TEXT;
+  -- Everyone already playing skips first-time setup.
+  UPDATE users SET setup_done = 1 WHERE screen_name IS NOT NULL;
+
+  -- Old screen names point to the new one, and stay held, for 90 days.
+  CREATE TABLE name_history (
+    id INTEGER PRIMARY KEY,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    old_name TEXT NOT NULL COLLATE NOCASE,
+    changed_at TEXT NOT NULL
+  );
+  CREATE INDEX name_history_name ON name_history(old_name, changed_at);
+
+  -- Each row of the site's picks log that became an app pick, so nothing
+  -- is imported twice. source_id is the row's date and id.
+  CREATE TABLE official_picks (
+    source_id TEXT PRIMARY KEY,
+    pick_id INTEGER REFERENCES picks(id) ON DELETE SET NULL,
+    is_lock INTEGER NOT NULL DEFAULT 0,
+    conf INTEGER,
+    imported_at TEXT NOT NULL
+  );
+  CREATE INDEX official_picks_pick ON official_picks(pick_id);
+  `,
 ];
 
 export function openStore(file) {

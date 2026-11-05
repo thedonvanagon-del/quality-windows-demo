@@ -10,8 +10,21 @@ export function at(iso, style = 'short') {
   return html`<time datetime="${iso}" data-local="${style}">${style === 'long' ? when(iso) : kickoff(iso)}</time>`;
 }
 
-export function profileLink(name) {
-  return html`<a class="who" href="/u/${encodeURIComponent(name)}">${name}</a>`;
+/** The tag beside the official BookieBullies account wherever it shows. */
+export const officialTag = html`<span class="official-tag" title="The Bookie Bullies model's picks">Official</span>`;
+
+/** A gold tag on official picks the site called a lock. */
+export const lockTag = html`<span class="lock-tag" title="A lock on bookiebullies.com">Lock</span>`;
+
+export function profileLink(name, { official = false } = {}) {
+  return html`<a class="who" href="/u/${encodeURIComponent(name)}">${name}</a>${official ? officialTag : ''}`;
+}
+
+/** Where a row sits on a board: its number, or a dash for the unranked and the official account. */
+export function rankCell(r) {
+  if (r.official) return html`<span class="rk unranked" title="The official account isn't ranked">–</span>`;
+  if (!r.rank) return html`<span class="rk unranked" title="Needs ${MIN_RANKED} graded picks for a rank">–</span>`;
+  return html`<span class="rk ${r.rank <= 3 ? `r${r.rank}` : ''}">${r.rank}</span>`;
 }
 
 /** Tabs that keep the rest of the query string. `style` is "tabs" or "seg". */
@@ -72,14 +85,15 @@ export function teamLogo(team) {
   return html`<span class="logo" aria-hidden="true">${team.abbr.slice(0, 4)}${team.logo ? html`<img src="${team.logo}" alt="" loading="lazy" referrerpolicy="no-referrer">` : ''}</span>`;
 }
 
-export function boardTable(rows, { me } = {}) {
-  if (!rows.length) return html`<div class="card empty">No graded picks here yet. Results show up once games go final.</div>`;
+/** Players with their records. `ranks: false` drops the # column, for lists that aren't a board. */
+export function boardTable(rows, { me, ranks = true, empty = 'No graded picks here yet. Results show up once games go final.' } = {}) {
+  if (!rows.length) return html`<div class="card empty">${empty}</div>`;
   return html`<div class="table"><table>
-    <thead><tr><th>#</th><th>Player</th><th class="n">Record</th><th class="n hide-sm">Win</th><th class="n">Units</th><th class="n hide-sm">ROI</th></tr></thead>
+    <thead><tr>${ranks ? html`<th>#</th>` : ''}<th>Player</th><th class="n">Record</th><th class="n hide-sm">Win</th><th class="n">Units</th><th class="n hide-sm">ROI</th></tr></thead>
     <tbody>
-      ${rows.map((r, i) => html`<tr class="${r.id === me ? 'me' : ''}">
-        <td class="rank">${r.ranked === false ? html`<span class="rk unranked" title="Needs ${MIN_RANKED} graded picks for a rank">–</span>` : html`<span class="rk">${i + 1}</span>`}</td>
-        <td><span class="player"><span class="avatar">${r.screen_name[0]}</span>${profileLink(r.screen_name)}</span></td>
+      ${rows.map((r) => html`<tr class="${r.id === me ? 'me' : ''}">
+        ${ranks ? html`<td class="rank">${rankCell(r)}</td>` : ''}
+        <td><span class="player"><span class="avatar">${r.screen_name[0]}</span>${profileLink(r.screen_name, { official: r.official })}</span></td>
         <td class="n">${recordText(r)}</td>
         <td class="n hide-sm">${pct(r.winPct)}</td>
         <td class="n"><b>${units(r.units)}</b></td>
@@ -119,7 +133,7 @@ export function pickItem(p, { who = false, actions = null, mine = false, now = n
   const pl = won ? html` <span class="pl">${minus(won)}</span>` : '';
   const stake = mine ? `${formatUnits(p.units)}${p.result ? '' : ` to win ${formatUnits(toWin(p.odds, p.units))}`}` : formatUnits(p.units);
   return html`<li class="ticket">
-    <div class="sel">${who ? html`${profileLink(p.screenName)} · ` : ''}${selection(p.market, p.side, p.line, g)}<span class="odds">${minus(formatOdds(p.odds))}</span>${mine ? '' : html`<span class="units">${stake}</span>`}</div>
+    <div class="sel">${who ? html`${profileLink(p.screenName, { official: p.official })} · ` : ''}${p.lock ? lockTag : ''}${selection(p.market, p.side, p.line, g)}<span class="odds">${minus(formatOdds(p.odds))}</span>${mine ? '' : html`<span class="units">${stake}</span>`}</div>
     <div class="status ${kind}">${label}${pl}</div>
     ${mine || actions ? html`<div class="stake">${mine ? stake : ''}</div>` : ''}
     ${actions ? html`<div class="act">${actions}</div>` : ''}

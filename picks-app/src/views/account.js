@@ -1,7 +1,8 @@
 import { html } from '../html.js';
 import { icons, trustMark } from './icons.js';
 import { csrfField, layout } from './layout.js';
-import { boardTable } from './parts.js';
+import { SPORTS } from '../sports.js';
+import { boardTable, officialTag, recordText, units } from './parts.js';
 
 export function home(ctx, { top }) {
   return layout(ctx, {
@@ -151,6 +152,47 @@ export function welcome(ctx, { name = '', error, next, firstName = '', lastName 
           </div>
           <p class="muted small">A name shows on your profile next to your screen name. Leave it blank to go by your screen name alone.</p>
           <button class="btn block">Lock it in</button>
+        </form>
+      </div>
+    `,
+  });
+}
+
+/**
+ * First-time setup, right after the screen name: favorite sports, and a few
+ * players to follow. The official account comes checked.
+ */
+export function setup(ctx, { official, players, next }) {
+  const person = (p, checked) => html`<label class="check follow-pick">
+      <input type="checkbox" name="follow" value="${p.id}" ${checked ? 'checked' : ''}>
+      <span><b>${p.screen_name}</b>${p.official ? officialTag : ''}<small>${p.official ? "The site's model picks" : ''}${p.official && p.graded ? ' · ' : ''}${p.graded || !p.official ? html`${recordText(p)} · ${units(p.units)}` : ''}</small></span>
+    </label>`;
+  return layout(ctx, {
+    title: 'Get set up',
+    body: html`
+      <div class="auth setup">
+        <h1>You're in, ${ctx.user.screenName}</h1>
+        <p class="lede">Two quick things. You can skip both.</p>
+        <form class="form" method="post" action="/setup">
+          ${csrfField(ctx)}
+          ${next ? html`<input type="hidden" name="next" value="${next}">` : ''}
+          <fieldset class="stakes sport-picks">
+            <legend>Your sports</legend>
+            ${SPORTS.map((s) => html`<label><input type="checkbox" name="sport" value="${s.key}"><span>${s.short}</span></label>`)}
+          </fieldset>
+          <p class="muted small">The games page opens on your first one.</p>
+          <fieldset class="follow-picks">
+            <legend>Follow a few players</legend>
+            ${official ? person(official, true) : ''}
+            ${players.map((p) => person(p, false))}
+            <p class="muted small">You'll see their picks in Following once each game starts.</p>
+          </fieldset>
+          <button class="btn block">Done</button>
+        </form>
+        <form method="post" action="/setup/skip" class="skip-form">
+          ${csrfField(ctx)}
+          ${next ? html`<input type="hidden" name="next" value="${next}">` : ''}
+          <button class="link-button">Skip</button>
         </form>
       </div>
     `,

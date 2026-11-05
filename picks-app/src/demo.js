@@ -6,6 +6,7 @@
 import { hashPassword } from './auth.js';
 import { parseScoreboard } from './espn.js';
 import { createGroup, joinGroup } from './groups.js';
+import { createOfficialImporter, ensureOfficial } from './official.js';
 import { grade, gradeFinished, MARKETS, price } from './picks.js';
 import { SPORTS } from './sports.js';
 import { addDays, etDay, etToUtc, HOUR } from './time.js';
@@ -212,7 +213,7 @@ export async function seedDemo({ store, games, espn, now = () => new Date() }) {
   const all = store.all('SELECT * FROM games').map((row) => ({
     id: row.id, sport: row.sport, start: row.start_time, state: row.state,
     homeScore: row.home_score, awayScore: row.away_score,
-    lines: JSON.parse(row.lines), home: { short: row.home_short }, away: { short: row.away_short },
+    lines: JSON.parse(row.lines), home: { short: row.home_short, abbr: row.home_abbr }, away: { short: row.away_short, abbr: row.away_abbr },
   }));
   store.tx(() => {
     for (const [name, skill, activity] of PLAYERS) {
@@ -241,13 +242,59 @@ export async function seedDemo({ store, games, espn, now = () => new Date() }) {
       }
     }
   });
+  // The official account: a record on past games, like the site's would be.
+  const officialId = ensureOfficial(store, at);
+  store.run('UPDATE users SET created_at = ? WHERE id = ?', new Date(at.getTime() - (PAST_DAYS + 3) * 86_400_000).toISOString(), officialId);
+  store.tx(() => {
+    for (const g of all) {
+      if (!OFFICIAL_SPORTS[g.sport] || g.state === 'pre' || rand() > 0.4) continue;
+      const market = rand() < 0.6 ? 'spread' : 'ml';
+      let side = MARKETS[market][Math.floor(rand() * 2)];
+      const p = price(g, market, side);
+      if (!p) continue;
+      const wins = grade({ market, side, line: p.line }, g.homeScore, g.awayScore) === 'win';
+      if (wins !== rand() < 0.57) side = MARKETS[market].find((s) => s !== side);
+      const chosen = price(g, market, side);
+      const units = [1, 1.5, 2, 3.3][Math.floor(rand() * 4)];
+      const madeAt = new Date(new Date(g.start).getTime() - (2 + rand() * 10) * HOUR).toISOString();
+      const pickId = Number(store.run(
+        `INSERT INTO picks (user_id, game_id, sport, market, side, line, odds, units, game_start, made_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        officialId, g.id, g.sport, market, side, chosen.line, chosen.odds, units, g.start, madeAt,
+      ).lastInsertRowid);
+      store.run(
+        'INSERT INTO official_picks (source_id, pick_id, is_lock, conf, imported_at) VALUES (?, ?, ?, ?, ?)',
+        `demo:${g.id}:${market}`, pickId, rand() < 0.25 ? 1 : 0, 3 + Math.floor(rand() * 3), madeAt,
+      );
+    }
+  });
   gradeFinished(store, at);
 
   const crew = createGroup(store, { ownerId: ids.SharpShooter, name: 'Saturday Crew', sport: 'ncaaf', now: at });
   for (const n of ['BackdoorCover', 'ChalkEater', 'FadeMe']) joinGroup(store, { groupId: crew.id, userId: ids[n], now: at });
   const office = createGroup(store, { ownerId: ids.FadeMe, name: 'Office League', sport: '', now: at });
   for (const n of ['SharpShooter', 'DogLover', 'OverOverOver']) joinGroup(store, { groupId: office.id, userId: ids[n], now: at });
+
+  // Today's and tomorrow's official picks go in through the real importer, from a made-up picks log.
+  const soon = new Set([today, addDays(today, 1)]);
+  const log = all
+    .filter((g) => OFFICIAL_SPORTS[g.sport] && g.state === 'pre' && soon.has(etDay(g.start)) && rand() < 0.5)
+    .map((g, i) => {
+      const conf = 3 + Math.floor(rand() * 3);
+      const day = etDay(g.start);
+      return {
+        date: `${day.slice(0, 4)}-${day.slice(4, 6)}-${day.slice(6)}`, id: `demo${i}`, event_id: g.id.split(':')[1],
+        sport: OFFICIAL_SPORTS[g.sport], type: rand() < 0.5 ? 'ML' : 'RL', pick: rand() < 0.5 ? g.home.abbr : g.away.abbr,
+        away: g.away.abbr, home: g.home.abbr, odds: '-110', conf, is_lock: conf === 5, unit: [1, 1.5, 2, 3.3][Math.floor(rand() * 4)], result: null,
+      };
+    });
+  const quiet = { warn() {}, error() {}, log() {} };
+  const fakeFetch = async () => new Response(log.map((row) => JSON.stringify(row)).join('\n'));
+  await createOfficialImporter({ store, games, url: 'demo', fetch: fakeFetch, now, log: quiet }).run();
 }
+
+// The site's sport names for the sports it posts picks in.
+const OFFICIAL_SPORTS = { mlb: 'MLB', nba: 'NBA', ncaab: 'CBB' };
 
 function team(entry) {
   const parts = entry.split(' ');

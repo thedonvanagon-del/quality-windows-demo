@@ -39,7 +39,9 @@ describe('accounts', () => {
     assert.equal(signup.location, '/welcome');
     await b.get('/welcome');
     const welcome = await b.post('/welcome', { screen_name: 'Ann' });
-    assert.equal(welcome.location, '/games');
+    assert.equal(welcome.location, '/setup');
+    await b.get('/setup');
+    assert.equal((await b.post('/setup/skip')).location, '/games');
     const games = await b.get('/games');
     assert.equal(games.status, 200);
     assert.match(visible(games.text), /You're on the board, Ann/);

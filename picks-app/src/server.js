@@ -8,9 +8,11 @@ import { createEspn } from './espn.js';
 import { createGames } from './games.js';
 import { createMailer } from './mail.js';
 import { createNotifier } from './notify.js';
+import { createOfficialImporter } from './official.js';
 import { createPush } from './push.js';
 
 const GRADE_EVERY = 10 * 60_000;
+const IMPORT_EVERY = 15 * 60_000;
 
 const config = loadConfig();
 const store = openStore(config.databasePath);
@@ -45,8 +47,25 @@ async function checkFinals() {
 const timer = setInterval(checkFinals, GRADE_EVERY);
 checkFinals();
 
+// Post the site's model picks as the official BookieBullies account. The demo
+// seeds its own, with no network.
+const importer = config.officialPicksUrl && !config.demo
+  ? createOfficialImporter({ store, games, url: config.officialPicksUrl, notifier })
+  : null;
+async function importOfficial() {
+  try {
+    const { imported } = await importer.run();
+    if (imported) console.log(`imported ${imported} official picks`);
+  } catch (err) {
+    console.error('importing official picks:', err);
+  }
+}
+const importTimer = importer ? setInterval(importOfficial, IMPORT_EVERY) : null;
+if (importer) importOfficial();
+
 function shutdown() {
   clearInterval(timer);
+  clearInterval(importTimer);
   server.close(() => {
     store.close();
     process.exit(0);

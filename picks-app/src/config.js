@@ -2,6 +2,8 @@
 // scoreboard: navy and amber. market: black and green. ember: the first look, orange.
 export const THEMES = ['scoreboard', 'market', 'ember'];
 
+export const OFFICIAL_PICKS_URL = 'https://www.bookiebullies.com/picks_log.jsonl';
+
 export function loadConfig(env = process.env) {
   return {
     port: Number(env.PORT) || 3000,
@@ -22,6 +24,12 @@ export function loadConfig(env = process.env) {
     appUrl: (env.APP_URL || '').replace(/\/+$/, '') || null,
     // Where the Terms and Privacy pages tell people to write.
     contactEmail: env.CONTACT_EMAIL || 'hello@bookiebullies.com',
+    // Who can open /admin/reports: comma-separated emails, any case. An admin
+    // also has to have confirmed that email in the app.
+    adminEmails: String(env.ADMIN_EMAILS ?? '').split(',').map((e) => e.trim().toLowerCase()).filter(Boolean),
+    // The site's picks log, imported every 15 minutes as the official
+    // BookieBullies account. "off" turns the import off.
+    officialPicksUrl: env.OFFICIAL_PICKS_URL === 'off' ? null : env.OFFICIAL_PICKS_URL || OFFICIAL_PICKS_URL,
     // Outgoing email for password resets. For Google Workspace:
     // SMTP_HOST=smtp.gmail.com, SMTP_USER=you@yourdomain, SMTP_PASS=an app password.
     smtp: {
