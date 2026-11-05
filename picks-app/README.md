@@ -53,7 +53,15 @@ five.
 | `/picks` | My bets: open bets with their units, to-win and a countdown (deletable until the start), and settled ones. A badge on the tab counts what is open. |
 | `/leaderboard` | Everyone, or one sport, over 7 days, 30 days or all time. Public. |
 | `/groups` | Start a group (all sports or one), join with a code, see its board and its picks feed. |
-| `/u/<name>` | A player's public record: overall, by sport, and every pick with when it was locked. |
+| `/u/<name>` | A player's public record: overall, by sport, and every pick with when it was locked. Your own has your settings, including a new screen name (once every 30 days; the old one redirects for 90). |
+| `/search` | Find players by the start of their screen name. |
+| `/setup` | Once, after a new player picks a screen name: favorite sports and players to follow. |
+| `/admin/reports` | Reported chat messages, for admins only: restore or delete. |
+
+The official **BookieBullies** account posts the site's model picks
+(moneylines and spreads, MLB, NBA and college hoops) at the app's own line,
+before each game, and is graded like anyone. It shows on the boards with an
+Official tag but never takes a rank.
 
 It looks like a sportsbook: dark, with odds tiles, team logos from ESPN's
 image server, and an app-style tab bar on phones. Players pick their accent
@@ -81,6 +89,8 @@ npm start       # the real thing, against ESPN, with the database in data/bookie
 | `THEME` | `scoreboard` | The look for visitors and new players: `scoreboard` (navy and amber), `market` (black and green) or `ember` (orange). Each player can switch on their own profile. |
 | `TRUST_PROXY` | off | Turn on behind a host's proxy (Fly, Render, Railway) so it reads the real visitor IP and knows the site is on https. |
 | `DEMO` | off | Fake games and players. Never in production. |
+| `ADMIN_EMAILS` | none | Who can open `/admin/reports` (reported chat), comma-separated, any case. Each admin also has to have an account with that email, confirmed. |
+| `OFFICIAL_PICKS_URL` | `https://www.bookiebullies.com/picks_log.jsonl` | The site's picks log, read every 15 minutes and posted as the official BookieBullies account. `off` turns it off. |
 
 ## Putting it online
 
@@ -151,21 +161,22 @@ There's also a Dockerfile, for any host that runs containers and keeps a disk.
 
 ## Not built yet
 
-- **Changing a screen name.** It stays fixed for now so shared profile links
-  keep working.
 - **Props, parlays, futures.** Sides, totals and moneylines only.
-- **Admin tools.** Fixing a bad grade means editing the database by hand.
+- **More admin tools.** There's a page for reported chat; fixing a bad grade
+  still means editing the database by hand.
 
 ## Where things live
 
 ```
-src/server.js     starts everything, checks for finals every 10 minutes
+src/server.js     starts everything, checks for finals every 10 minutes, imports official picks every 15
 src/app.js        every page and form
 src/espn.js       reads ESPN's scoreboard: games, lines, scores
 src/games.js      keeps the games table fresh
 src/picks.js      lock rules, line checks, grading, payouts
 src/stats.js      records and leaderboards
 src/groups.js     friend groups and invite codes
+src/official.js   the official BookieBullies account and its picks importer
+src/names.js      screen name rules, changes and old-name redirects
 src/history.js    pick lists, with open picks hidden from other people
 src/auth.js       passwords, sessions, rate limits
 src/db.js         the schema; add migrations at the end, never edit a shipped one
