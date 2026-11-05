@@ -99,7 +99,7 @@ export function createOfficialImporter({ store, games, url, fetch = globalThis.f
       log.error(`official picks: the name ${OFFICIAL_NAME} belongs to someone else`);
       return { imported: 0, skipped: [], error: 'no official account' };
     }
-    const player = { id: userId, screenName: store.get('SELECT screen_name FROM users WHERE id = ?', userId).screen_name };
+    const player = { id: userId, official: true, screenName: store.get('SELECT screen_name FROM users WHERE id = ?', userId).screen_name };
     const done = new Set(store.all('SELECT source_id FROM official_picks').map((r) => r.source_id));
     const boards = new Set();
     const skipped = [];

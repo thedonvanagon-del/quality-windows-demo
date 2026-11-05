@@ -170,9 +170,15 @@ describe('official picks', () => {
         officialId, market, '2026-11-01T00:00:00.000Z', MORNING, MORNING,
       );
     }
-    // Picks stay hidden until tip, then the Grizzlies cover.
+    // The official picks are the site's published picks, so anyone sees them
+    // before tip (other players' open picks stay hidden). Then the Grizzlies cover.
     const before = visible((await app.browser().get('/u/BookieBullies')).text);
-    assert.match(before, /3 open picks, shown once the game starts/);
+    assert.match(before, /Grizzlies -3\.5/);
+    assert.doesNotMatch(before, /shown once the game starts/);
+    const fan = app.browser();
+    await fan.join('fan@example.com', 'Fan');
+    await fan.post('/u/BookieBullies/follow');
+    assert.match(visible((await fan.get('/following')).text), /Grizzlies -3\.5/, 'in a follower\'s feed before tip too');
     setFinal(grizzlies, 110, 100);
     time.set('2026-11-06T03:00:00.000Z');
     await app.games.checkFinals();

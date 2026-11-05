@@ -192,6 +192,10 @@ not dollars, and nothing is paid out.
   (the log doesn't say over or under). Each log row is imported once. The
   account is listed on the boards but **never takes a rank**, so it can't be #1.
   It has no password and can't log in.
+- **2026-11-05: Official picks are public before the game.** Everyone else's
+  open picks stay hidden until the start; the official account's show on its
+  profile and in follow/group feeds right away, since they're the site's
+  published picks. Its follow alert reads "posted a pick ... Tap to see it."
 - **2026-11-02: College hoops picks on www.bookiebullies.com first**, app
   later (owner's call). A separate engine (`cbb_picks.py` in the
   bookie-bullies repo) so the MLB/NBA code isn't touched. It blends ESPN's
