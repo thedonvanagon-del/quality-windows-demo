@@ -60,8 +60,19 @@ five.
 | `/groups` | Start a group (all sports or one), join with a code, see its board and its picks feed. |
 | `/u/<name>` | A player's public record: overall, by sport, and every pick with when it was locked. Your own has your settings, including a new screen name (once every 30 days; the old one redirects for 90). |
 | `/search` | Find players by the start of their screen name. |
+| `/contest` | The free weekly contest: most units on bets whose games start Monday to Sunday (ET), 5 graded bets to place. Public. |
+| `/winners` | The winners wall: every past week's top 3, and the most weekly wins. Public. |
+| `/streak` | The streak game: your current and best streak, today's Streak pick, the streak boards. |
+| `/invite` | Your invite link (`/i/<code>`), who joined from it, and progress to the Recruiter badge. |
+| `/notifications` | The inbox, and what to hear about: settled bets, players you follow, Lines are up (about 11 AM ET), the Streak reminder (about 5 PM ET). |
 | `/setup` | Once, after a new player picks a screen name: favorite sports and players to follow. |
 | `/admin/reports` | Reported chat messages, for admins only: restore or delete. |
+
+Every week has a free contest (no entry, nothing paid out); results close
+once the week's bets are graded, by Tuesday 6 AM ET at the latest, and the top
+3 go on the winners wall. One straight pick a day can be a **Streak pick**.
+Badges (First win, Hot hand, Weekly winner and more) are worked out from the
+record and show on profiles, with the most notable one on the boards.
 
 The official **BookieBullies** account posts the site's model picks
 (moneylines and spreads, MLB, NBA and college hoops) at the app's own line,
@@ -173,13 +184,19 @@ There's also a Dockerfile, for any host that runs containers and keeps a disk.
 ## Where things live
 
 ```
-src/server.js     starts everything, checks for finals every 10 minutes, imports official picks every 15
+src/server.js     starts everything, checks for finals every 10 minutes, imports official picks every 15,
+                  closes the weekly contest and sends reminders (checked every 5), badges hourly
 src/app.js        every page and form
 src/espn.js       reads ESPN's scoreboard: games, lines, scores
 src/games.js      keeps the games table fresh
 src/picks.js      lock rules, line checks, grading, payouts (parlays' too)
 src/parlays.js    the parlay draft, locking a parlay, deleting one
 src/stats.js      records and leaderboards
+src/contest.js    the free weekly contest: standings, closing a week once, the winners wall
+src/streak.js     the streak game: Streak picks, current and best streaks, the streak boards
+src/badges.js     badges: what earns each one, awarding once, the most notable for a board
+src/invites.js    invite links: codes, counting a friend once they're confirmed and named
+src/reminders.js  the Lines are up and Streak reminders, once a day each
 src/groups.js     friend groups and invite codes
 src/official.js   the official BookieBullies account and its picks importer
 src/names.js      screen name rules, changes and old-name redirects

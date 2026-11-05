@@ -4,12 +4,15 @@
 // same code as production. Log in as demo@example.com / letmein123.
 
 import { hashPassword } from './auth.js';
+import { checkAllBadges } from './badges.js';
+import { closeWeek } from './contest.js';
 import { parseScoreboard } from './espn.js';
 import { createGroup, joinGroup } from './groups.js';
+import { inviteCodeOf } from './invites.js';
 import { createOfficialImporter, ensureOfficial } from './official.js';
 import { grade, gradeFinished, MARKETS, parlayMaxUnits, parlayPrice, price } from './picks.js';
 import { SPORTS } from './sports.js';
-import { addDays, etDay, etToUtc, HOUR } from './time.js';
+import { addDays, etDay, etToUtc, HOUR, mondayOf } from './time.js';
 
 export const DEMO_LOGIN = { email: 'demo@example.com', password: 'letmein123' };
 
@@ -326,6 +329,46 @@ export async function seedDemo({ store, games, espn, now = () => new Date() }) {
   const quiet = { warn() {}, error() {}, log() {} };
   const fakeFetch = async () => new Response(log.map((row) => JSON.stringify(row)).join('\n'));
   await createOfficialImporter({ store, games, url: 'demo', fetch: fakeFetch, now, log: quiet }).run();
+
+  seedStreaks(store, ids, today, rand);
+  // The weeks already over get their contest closed, so the winners wall has history.
+  const week = mondayOf(at);
+  for (const back of [3, 2, 1]) closeWeek(store, addDays(week, -7 * back), at, { lastWeek: back === 1 });
+  store.run("INSERT OR IGNORE INTO settings (key, value) VALUES ('contest_since', ?)", addDays(week, -7));
+  // Two friends joined from the demo player's invite link: one more for Recruiter.
+  inviteCodeOf(store, ids.SharpShooter);
+  for (const name of ['DogLover', 'OverOverOver']) {
+    store.run('UPDATE users SET invited_by = ?, invite_counted_at = created_at WHERE id = ?', ids.SharpShooter, ids[name]);
+  }
+  checkAllBadges(store, at);
+}
+
+/**
+ * Streak picks on past days: one graded straight pick a day, most days. The
+ * demo player's are chosen to read as a run: nine wins, a loss, then six
+ * wins going now (a day with no fitting pick is skipped, which never breaks
+ * a streak). Nobody has today's yet, so the slip offers it.
+ */
+function seedStreaks(store, ids, today, rand) {
+  const plan = ['win', 'win', 'win', 'win', 'win', 'win', 'win', 'win', 'win', 'loss', 'win', 'win', 'win', 'win', 'win', 'win'];
+  for (const [name] of PLAYERS) {
+    const userId = ids[name];
+    const mine = name === 'SharpShooter';
+    let step = 0;
+    for (let d = -PAST_DAYS; d < 0; d++) {
+      const day = addDays(today, d);
+      if (mine && d < -plan.length - 3) continue;
+      if (!mine && rand() < 0.35) continue;
+      const picks = store.all(
+        "SELECT id, result, game_start FROM picks WHERE user_id = ? AND result IN ('win', 'loss', 'push') ORDER BY game_start, id",
+        userId,
+      ).filter((p) => etDay(p.game_start) === day);
+      const chosen = mine ? picks.find((p) => p.result === plan[step]) : picks[Math.floor(rand() * picks.length)];
+      if (!chosen) continue;
+      store.run('UPDATE picks SET streak_day = ? WHERE id = ?', day, chosen.id);
+      if (mine && ++step === plan.length) break;
+    }
+  }
 }
 
 // The site's sport names for the sports it posts picks in.

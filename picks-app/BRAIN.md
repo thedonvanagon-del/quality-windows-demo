@@ -169,6 +169,70 @@ not dollars, and nothing is paid out.
   as "Name · 47-31 · +17.5u" with the crest.
 - **2026-10-25:** Profiles have a short bio, up to 160 characters.
 
+### Weekly contest, streak game, badges, invites, reminders
+- **2026-11-05: Free weekly contest** (`/contest`, "This week's contest" on the
+  leaderboard and in More). No entry, no money, everyone's in. A week runs
+  Monday 12:00 AM to Sunday 11:59 PM ET. Standings are units won on graded
+  bets (straight picks and parlays) whose games **started** that week; 5
+  graded bets to place. Ties: better ROI, then whoever got there first, read
+  as **whose last counted bet started earlier** (grading runs in batches, so
+  grading time would tie too often). The official account shows, never places.
+  - **Closing:** once every bet in the week is graded, or Tuesday 6 AM ET at
+    the latest (anything still ungraded just doesn't count). A timer in
+    `server.js` checks every 5 minutes; a week closes once
+    (`contest_weeks`), its top 3 go in `contest_results` once, and each gets
+    "You finished #1 in last week's contest (+12.4u)." ("last week's", not the
+    approved "this week's", since it lands on Monday or Tuesday.) The first run
+    starts from the week before, so no older history is made up; a week missed
+    while the server was down still closes later.
+  - **Winners wall** (`/winners`): every closed week, newest first, top 3 with
+    record and units, plus the most weekly wins of all time.
+- **2026-11-05: Streak game** (`/streak`, in More). One **Streak pick** per
+  player per ET day (the game's day): a checkbox on the straight-pick slip,
+  sheet and full page, shown only while that day has none. Never a parlay.
+  Stored on the pick (`picks.streak_day`, one a day by a unique index), so
+  deleting the pick before the start takes the flag with it. My bets can move
+  it to another of that day's picks before the start; never after.
+  - Current streak: wins in a row, back from the newest graded Streak pick.
+    Pushes and voids are skipped; a day without one doesn't break it; a loss
+    resets to 0. Best streak is the longest run ever.
+  - The page shows yours, today's Streak pick (or a button to the board), and
+    the top 20 current (1+) and best streaks. Profiles show "Streak: 6 · Best:
+    9" once a player has made one; Streak picks carry a Streak tag.
+- **2026-11-05: Badges**, worked out from the record, never handed out by
+  hand: First win; 50, 100 and 500 bets (graded); Hot hand (8+ of the last 10
+  graded bets); Streak 5 and Streak 10; Weekly winner (one per win, with the
+  week); Podium (top 3 in a week, once); Parlay hitter (won a parlay of 4+
+  legs); Recruiter (3 invited friends joined). Stored once each in `badges`
+  with the date, checked after every grading, when a week closes, when an
+  invite counts, and hourly for everyone. A new one sends "New badge: Hot
+  hand." The official account earns none. Profiles show chips (hover or
+  screen reader gives the date); leaderboard and contest rows show the one
+  most notable (Weekly winner > Streak 10 > Hot hand > Podium > Streak 5 >
+  Parlay hitter > 500 bets > Recruiter > 100 bets > 50 bets). **First win
+  stays off the boards**: nearly everyone has it, so it says nothing there.
+- **2026-11-05: Invite friends** (`/invite`, in More and on your profile).
+  Each player gets a link, `/i/<code>` (8 characters, made the first time it's
+  needed). It goes to signup with the inviter remembered in the form and in a
+  30-day cookie, in case they wander off first. Signup stores
+  `users.invited_by`; the new player follows the inviter as soon as they pick a
+  screen name (setup's follows still come after). The invite **counts** once
+  they've confirmed their email and have a screen name, in either order: the
+  inviter hears "Bob joined from your invite." and three earn Recruiter. Group
+  links (`/join/<code>`) work as before, and both survive signup together.
+- **2026-11-05: Reminders**, two new notification settings, on by default,
+  through the same inbox and phone notifications:
+  - **Lines are up**, 11 AM to 1 PM ET, once a day: today's games still to
+    start in the player's favorite sports ("Lines are up: 9 NBA and 41
+    college hoops games today."). Skipped with no games, or no favorites.
+  - **Streak reminder**, 5 PM to 7 PM ET, once a day, for players with a
+    streak of 1+ (or a Streak pick in the last 7 days) and no Streak pick
+    today: "Keep your streak alive: make today's Streak pick." Skipped when no
+    games are left today in their sports (any sport, for players from before
+    setup who never picked favorites).
+  - Checked every 5 minutes; each send is written to `reminders_sent` first,
+    so restarts never double up. The official account gets nothing.
+
 ### Following, streaks, splits, notifications
 - **2026-11-05: Player search** (`/search`, a box on the leaderboard, "Find
   players" in More). Matches the start of a screen name, any case, up to 20,
@@ -317,6 +381,8 @@ Launch log:
   player search, and an admin page for reported chat
 - Parlays: 2 to 6 legs on different games, a draft and a parlay bar, the
   same 5u caps, graded with picks, one bet on every record and board
+- A free weekly contest with a winners wall, the streak game, badges, invite
+  links, and the Lines are up and Streak reminders
 - Demo mode: `npm run demo`, log in as demo@example.com / letmein123
 - Server setup in `aws/stacks/bookie-bullies-app` and a deploy-on-merge
   workflow (`.github/workflows/picks-app-deploy.yml`)
@@ -363,6 +429,7 @@ In rough order of value:
    changes state by state: some states ban paid contests, most need a license or
    registration, and coins that buy entries for cash prizes count as money.
    Free tournaments with bragging rights (or sponsor prizes) can ship anytime.
+   (~~A free weekly contest~~ built 2026-11-05; the paid kind still waits on the lawyer.)
 3. **Paid picks in the app.** Cappers set a monthly price, subscribers see their
    picks before games start, Bookie Bullies keeps 10 to 20% and Stripe Connect
    pays out the rest. Needs payouts, refunds and tax forms; Apple takes up to
@@ -371,9 +438,11 @@ In rough order of value:
 4. ~~The Bookie Bullies model as a player~~: built 2026-11-05 (the official
    BookieBullies account).
 5. **cfb-bot as a player**, same idea, for college football and the NFL.
-6. **Streaks and badges:** "8-2 last 10", "Hot in NBA", "Top 3 this week".
+6. ~~**Streaks and badges**~~: built 2026-11-05 (the streak game, badges,
+   the weekly contest). "Hot in NBA" (per-sport badges) is still open.
 7. **Weekly winners in groups.**
-8. **Notifications** when bets settle or games start (and the App Store push).
+8. ~~**Notifications** when bets settle~~ (built 2026-10-30) ~~or lines go up~~
+   (built 2026-11-05, Lines are up). Game-start alerts and the App Store push are still open.
 9. App Store and Google Play versions.
 10. Trash talk in groups. (~~Following players~~: built 2026-10-30.)
 11. ~~Changing a screen name~~ (built 2026-11-05), props, ~~parlays~~ (built 2026-11-05), more admin
