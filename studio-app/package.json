@@ -1,0 +1,15 @@
+{
+  "name": "studio-booking-app",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Online booking for a home-studio esthetician: services menu, live availability, client accounts, and a schedule for the owner.",
+  "type": "module",
+  "engines": {
+    "node": ">=22.13"
+  },
+  "scripts": {
+    "start": "node --disable-warning=ExperimentalWarning src/server.js",
+    "demo": "DEMO=1 DATABASE_PATH=:memory: ADMIN_EMAILS=owner@example.com node --disable-warning=ExperimentalWarning src/server.js",
+    "test": "node --disable-warning=ExperimentalWarning --test \"test/*.test.js\""
+  }
+}
