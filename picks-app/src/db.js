@@ -363,6 +363,55 @@ export const MIGRATIONS = [
   ALTER TABLE picks ADD COLUMN clv_points REAL;
   ALTER TABLE picks ADD COLUMN clv_pct REAL;
   `,
+  `
+  -- Tournaments (2026-11-06). A tournament is a window of time, the sports
+  -- it counts (sports: comma-separated keys, null for every sport) and a
+  -- minimum number of graded bets to place. The weekly contest shows as one
+  -- (kind 'weekly', everyone in, no entries); the timer makes the 'auto'
+  -- ones; admins make 'custom' ones. Free only, enforced here: buy-ins wait
+  -- on a lawyer (BRAIN.md), so entry_fee_cents can never be anything but 0.
+  CREATE TABLE tournaments (
+    id INTEGER PRIMARY KEY,
+    slug TEXT NOT NULL UNIQUE,
+    name TEXT NOT NULL,
+    sports TEXT,
+    starts_at TEXT NOT NULL,
+    ends_at TEXT NOT NULL,
+    min_bets INTEGER NOT NULL CHECK (min_bets >= 1),
+    prize TEXT NOT NULL DEFAULT '',
+    kind TEXT NOT NULL CHECK (kind IN ('weekly', 'auto', 'custom')),
+    created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    created_at TEXT NOT NULL,
+    closed_at TEXT,
+    canceled_at TEXT,
+    entry_fee_cents INTEGER NOT NULL DEFAULT 0 CHECK (entry_fee_cents = 0),
+    CHECK (ends_at > starts_at)
+  );
+  CREATE INDEX tournaments_window ON tournaments(ends_at, starts_at);
+  -- Who joined, and when: only bets made after joined_at count.
+  -- reminded_at marks the "starts in 1 hour" note, so it goes once.
+  CREATE TABLE tournament_entries (
+    tournament_id INTEGER NOT NULL REFERENCES tournaments(id) ON DELETE CASCADE,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    joined_at TEXT NOT NULL,
+    reminded_at TEXT,
+    PRIMARY KEY (tournament_id, user_id)
+  );
+  CREATE INDEX tournament_entries_user ON tournament_entries(user_id);
+  -- A closed tournament's top 3, written once. (The weekly one keeps using
+  -- contest_results.)
+  CREATE TABLE tournament_results (
+    tournament_id INTEGER NOT NULL REFERENCES tournaments(id) ON DELETE CASCADE,
+    place INTEGER NOT NULL,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    units REAL NOT NULL,
+    record TEXT NOT NULL,
+    PRIMARY KEY (tournament_id, place)
+  );
+  CREATE INDEX tournament_results_user ON tournament_results(user_id);
+  -- "NFL Sunday starts in 1 hour", on by default.
+  ALTER TABLE users ADD COLUMN notify_tournaments INTEGER NOT NULL DEFAULT 1;
+  `,
 ];
 
 export function openStore(file) {

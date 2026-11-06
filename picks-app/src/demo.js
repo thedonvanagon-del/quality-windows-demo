@@ -12,7 +12,8 @@ import { inviteCodeOf } from './invites.js';
 import { createOfficialImporter, ensureOfficial } from './official.js';
 import { grade, gradeFinished, MARKETS, maxUnits, parlayMaxUnits, parlayPrice, price } from './picks.js';
 import { SPORTS } from './sports.js';
-import { addDays, etDay, etToUtc, HOUR, mondayOf } from './time.js';
+import { addDays, etDay, etToUtc, HOUR, mondayOf, weekday } from './time.js';
+import { AUTO, closeTournament, createCustom, ensureAutoTournaments, joinTournament } from './tournaments.js';
 
 export const DEMO_LOGIN = { email: 'demo@example.com', password: 'letmein123' };
 
@@ -407,7 +408,64 @@ export async function seedDemo({ store, games, espn, now = () => new Date() }) {
   for (const name of ['DogLover', 'OverOverOver']) {
     store.run('UPDATE users SET invited_by = ?, invite_counted_at = created_at WHERE id = ?', ids.SharpShooter, ids[name]);
   }
+  await seedTournaments(store, ids, at);
   checkAllBadges(store, at);
+}
+
+/**
+ * Tournaments: the timer's own (this week's Weekly Open, and whatever NFL
+ * Sunday, College Saturday and Hoops Night fall in the next two days), a
+ * custom one that's live with entrants (the demo player not in it yet, so
+ * Join can be tried), and last week's auto ones finished and closed.
+ */
+async function seedTournaments(store, ids, at) {
+  const today = etDay(at);
+  await ensureAutoTournaments(store, at);
+  const others = Object.keys(ids).filter((n) => n !== 'SharpShooter');
+  const enter = (t, names, joinedAt) => {
+    for (const n of names) {
+      store.run('INSERT OR IGNORE INTO tournament_entries (tournament_id, user_id, joined_at) VALUES (?, ?, ?)', t.id, ids[n], joinedAt);
+    }
+  };
+
+  // Finished: the auto ones from the last week, everyone in from the day before.
+  for (let d = 7; d >= 1; d--) {
+    const day = addDays(today, -d);
+    for (const a of AUTO) {
+      if (a.weekday != null && weekday(day) !== a.weekday) continue;
+      if (a.weekday == null && d > 2) continue;
+      const first = store.get(
+        `SELECT MIN(start_time) AS first FROM games WHERE sport IN (${a.sports.map(() => '?').join(', ')}) AND start_time >= ? AND start_time < ?`,
+        ...a.sports, etToUtc(day, 0).toISOString(), etToUtc(addDays(day, 1), 0).toISOString(),
+      ).first;
+      if (!first) continue;
+      const slug = `${a.key}-${day.slice(0, 4)}-${day.slice(4, 6)}-${day.slice(6)}`;
+      store.run(
+        `INSERT OR IGNORE INTO tournaments (slug, name, sports, starts_at, ends_at, min_bets, prize, kind, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, 'Tournament champion badge and a spot on the winners wall', 'auto', ?)`,
+        slug, a.name, a.sports.join(','), first, etToUtc(addDays(day, 1), 0).toISOString(), a.min, etToUtc(addDays(day, -2), 12).toISOString(),
+      );
+      const t = store.get('SELECT * FROM tournaments WHERE slug = ?', slug);
+      enter(t, Object.keys(ids), etToUtc(addDays(day, -2), 12).toISOString());
+      closeTournament(store, t, at);
+    }
+  }
+
+  // Live: a custom one, all sports, started three days ago.
+  const admin = ids.SharpShooter;
+  const date = (day) => `${day.slice(0, 4)}-${day.slice(4, 6)}-${day.slice(6)}`;
+  const cup = createCustom(store, {
+    name: 'Bullies Fall Classic', sports: [], startDate: date(addDays(today, -3)), startTime: '00:00',
+    endDate: date(addDays(today, 3)), endTime: '23:59', minBets: 5, prize: 'Champion badge and the top spot on the winners wall',
+    userId: admin, now: new Date(etToUtc(addDays(today, -4), 9)),
+  });
+  enter(store.get('SELECT * FROM tournaments WHERE slug = ?', cup.slug), others, etToUtc(addDays(today, -4), 12).toISOString());
+
+  // Coming up: most players are in early; the demo player is in NFL Sunday.
+  for (const t of store.all("SELECT * FROM tournaments WHERE kind = 'auto' AND starts_at > ?", at.toISOString())) {
+    enter(t, others.slice(0, 2 + (t.id % 3)), at.toISOString());
+    if (t.slug.startsWith('nfl-sunday')) joinTournament(store, t, admin, at);
+  }
 }
 
 /**

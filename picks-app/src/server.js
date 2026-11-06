@@ -14,12 +14,15 @@ import { createOfficialImporter } from './official.js';
 import { createPush } from './push.js';
 import { createReminders } from './reminders.js';
 import { createSummaries } from './summaries.js';
+import { closeDueTournaments, ensureAutoTournaments, sendStartReminders } from './tournaments.js';
 
 const GRADE_EVERY = 10 * 60_000;
 const IMPORT_EVERY = 15 * 60_000;
-// The weekly contest and the daily reminders check whether it's time this often.
+// The weekly contest, tournaments and the daily reminders check whether it's time this often.
 const DAILY_EVERY = 5 * 60_000;
 const BADGES_EVERY = 60 * 60_000;
+// New auto tournaments (NFL Sunday, College Saturday, Hoops Night, the Weekly Open), about two days ahead.
+const TOURNAMENTS_EVERY = 60 * 60_000;
 
 const config = loadConfig();
 const store = openStore(config.databasePath);
@@ -86,14 +89,19 @@ const importTimer = importer ? setInterval(importOfficial, IMPORT_EVERY) : null;
 if (importer) importOfficial();
 
 // Close last week's contest once it's all graded (Tuesday 6 AM ET at the
-// latest), and send the morning and afternoon reminders. Both only act when
-// it's time, and never twice.
+// latest), close finished tournaments, send "starts in 1 hour" notes, and the
+// morning and afternoon reminders. Each only acts when it's time, and never twice.
 const reminders = createReminders({ store, games, notifier });
 async function daily() {
   try {
     for (const { week, podium } of closeDueWeeks(store, new Date(), notifier)) {
       console.log(`closed the contest for the week of ${week}: ${podium.map((r) => r.screen_name).join(', ') || 'nobody placed'}`);
     }
+    for (const { slug, podium } of closeDueTournaments(store, new Date(), notifier)) {
+      console.log(`closed tournament ${slug}: ${podium.map((r) => r.screen_name).join(', ') || 'nobody placed'}`);
+    }
+    const starting = sendStartReminders(store, new Date(), notifier);
+    if (starting) console.log(`sent ${starting} tournament start reminders`);
     const sent = await reminders.run();
     if (sent.lines || sent.streak) console.log(`sent ${sent.lines} lines-up and ${sent.streak} streak reminders`);
   } catch (err) {
@@ -101,7 +109,18 @@ async function daily() {
   }
 }
 const dailyTimer = setInterval(daily, DAILY_EVERY);
-daily();
+
+// Make the auto tournaments a couple of days ahead, once each.
+async function tournaments() {
+  try {
+    const made = await ensureAutoTournaments(store, new Date(), { games });
+    if (made.length) console.log(`made tournaments: ${made.join(', ')}`);
+  } catch (err) {
+    console.error('tournaments:', err);
+  }
+}
+const tournamentsTimer = setInterval(tournaments, TOURNAMENTS_EVERY);
+tournaments().then(daily);
 
 // Badges are checked after every grading; this catches anything else, once an hour.
 function badges() {
@@ -120,6 +139,7 @@ function shutdown() {
   clearInterval(importTimer);
   clearInterval(dailyTimer);
   clearInterval(badgesTimer);
+  clearInterval(tournamentsTimer);
   server.close(() => {
     store.close();
     process.exit(0);

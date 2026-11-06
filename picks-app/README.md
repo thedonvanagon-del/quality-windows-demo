@@ -62,16 +62,24 @@ five.
 | `/u/<name>` | A player's public record: overall, by sport, how often they beat the closing line, and every pick with when it was locked (and its CLV once the game starts). Your own has your settings, including a new screen name (once every 30 days; the old one redirects for 90). |
 | `/search` | Find players by the start of their screen name. |
 | `/contest` | The free weekly contest: most units on bets whose games start Monday to Sunday (ET), 5 graded bets to place. Public. |
-| `/winners` | The winners wall: every past week's top 3, and the most weekly wins. Public. |
+| `/winners` | The winners wall: every past week's top 3 and the most weekly wins, and a Tournaments tab with every finished tournament's. Public. |
+| `/tournaments` | Free tournaments: live now, starting soon, finished. Join in one tap; only bets made after joining, on games inside the window and in its sports, count. Public. |
+| `/tournaments/<slug>` | One tournament: rules, countdown, Join or Leave (before the start), standings, the final podium. |
+| `/admin/tournaments` | For admins only: make a tournament, or cancel one before it starts. |
 | `/streak` | The streak game: your current and best streak, today's Streak pick, the streak boards. |
 | `/invite` | Your invite link (`/i/<code>`), who joined from it, and progress to the Recruiter badge. |
-| `/notifications` | The inbox, and what to hear about: settled bets, players you follow, Lines are up (about 11 AM ET), the Streak reminder (about 5 PM ET). |
+| `/notifications` | The inbox, and what to hear about: settled bets, players you follow, Lines are up (about 11 AM ET), the Streak reminder (about 5 PM ET), a tournament you joined starting in an hour. |
 | `/setup` | Once, after a new player picks a screen name: favorite sports and players to follow. |
 | `/admin/reports` | Reported chat messages, from games and groups, for admins only: restore or delete. |
 
 Every week has a free contest (no entry, nothing paid out); results close
 once the week's bets are graded, by Tuesday 6 AM ET at the latest, and the top
-3 go on the winners wall. One straight pick a day can be a **Streak pick**.
+3 go on the winners wall. **Tournaments** are free too, and only free: the
+database refuses any entry fee but 0. The weekly contest shows there as The
+Weekly Open; NFL Sunday, College Saturday and Hoops Night are made about two
+days ahead when their sports have games; admins can add their own. A
+tournament closes once its counted bets are graded (30 hours after the end at
+the latest), and its top 3 get Tournament champion and Tournament podium badges. One straight pick a day can be a **Streak pick**.
 Badges (First win, Hot hand, Weekly winner and more) are worked out from the
 record and show on profiles, with the most notable one on the boards.
 
@@ -81,7 +89,8 @@ before each game, and is graded like anyone. It shows on the boards with an
 Official tag but never takes a rank.
 
 It looks like a sportsbook: dark, with odds tiles, team logos from ESPN's
-image server, and an app-style tab bar on phones. Players pick their accent
+image server, and an app-style tab bar on phones (Games, My bets, Tourneys, Leaders,
+Groups, More; your profile is the avatar at the top right). Players pick their accent
 look (Scoreboard navy and amber, Bull Market black and green, or Ember orange) on their profile.
 
 Sports: NFL, college football, NBA, college basketball, MLB and NHL. Run lines
@@ -106,7 +115,7 @@ npm start       # the real thing, against ESPN, with the database in data/bookie
 | `THEME` | `scoreboard` | The look for visitors and new players: `scoreboard` (navy and amber), `market` (black and green) or `ember` (orange). Each player can switch on their own profile. |
 | `TRUST_PROXY` | off | Turn on behind a host's proxy (Fly, Render, Railway) so it reads the real visitor IP and knows the site is on https. |
 | `DEMO` | off | Fake games and players. Never in production. |
-| `ADMIN_EMAILS` | none | Who can open `/admin/reports` (reported chat), comma-separated, any case. Each admin also has to have an account with that email, confirmed. |
+| `ADMIN_EMAILS` | none | Who can open `/admin/reports` (reported chat) and `/admin/tournaments`, comma-separated, any case. Each admin also has to have an account with that email, confirmed. |
 | `OFFICIAL_PICKS_URL` | `https://www.bookiebullies.com/picks_log.jsonl` | The site's picks log, read every 15 minutes and posted as the official BookieBullies account. `off` turns it off. |
 
 ## Putting it online
@@ -186,7 +195,8 @@ There's also a Dockerfile, for any host that runs containers and keeps a disk.
 
 ```
 src/server.js     starts everything, checks for finals every 10 minutes, imports official picks every 15,
-                  closes the weekly contest and sends reminders (checked every 5), badges hourly
+                  closes the weekly contest and tournaments and sends reminders (checked every 5),
+                  badges and new auto tournaments hourly
 src/app.js        every page and form
 src/espn.js       reads ESPN's scoreboard (games, lines, scores) and game summaries (injuries, last five)
 src/games.js      keeps the games table fresh, and freezes each game's closing line when it starts
@@ -196,7 +206,8 @@ src/chat.js       game and group chat: posting, deleting, reports, unread counts
 src/picks.js      lock rules, line checks, grading, payouts (parlays' too)
 src/parlays.js    the parlay draft, locking a parlay, deleting one
 src/stats.js      records and leaderboards
-src/contest.js    the free weekly contest: standings, closing a week once, the winners wall
+src/contest.js    the free weekly contest: standings and closing for any window, a week, the winners wall
+src/tournaments.js free tournaments: auto and admin-made ones, joining, closing once, start reminders
 src/streak.js     the streak game: Streak picks, current and best streaks, the streak boards
 src/badges.js     badges: what earns each one, awarding once, the most notable for a board
 src/invites.js    invite links: codes, counting a friend once they're confirmed and named

@@ -25,6 +25,8 @@ export const icons = {
   invite: svg('<circle cx="10" cy="8" r="3.5"/><path d="M3.5 20a6.5 6.5 0 0 1 13 0"/><path d="M19 8v6M16 11h6"/>'),
   medal: svg('<circle cx="12" cy="14.5" r="5.5"/><path d="M8.5 10L6 3h4l2 4.5M15.5 10L18 3h-4l-2 4.5"/>'),
   grade: svg('<circle cx="12" cy="12" r="9"/><path d="M8 12.5l3 3 5-6"/>'),
+  // Tournaments: two lines meeting in a bracket, into the winner's box.
+  bracket: svg('<path d="M3 5h5v12H3M8 11h6"/><rect x="14" y="8" width="7" height="6" rx="1.5"/>'),
 };
 
 // The "Trust Your Bets" mark: a white check on a gold tile. Gold in every theme.

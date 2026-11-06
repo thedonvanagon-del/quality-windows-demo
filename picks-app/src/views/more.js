@@ -20,6 +20,7 @@ export function more(ctx, { liveCount, admin = false, reported = 0 }) {
       <h1>More</h1>
       <p class="lede">Everything else in the app.</p>
       <ul class="menu">
+        ${row(`/u/${encodeURIComponent(ctx.user.screenName)}`, icons.me, 'Your profile', 'Your record, badges and settings')}
         ${row('/install', icons.download, 'Get the app', 'Put Bookie Bullies on your Home Screen', '', 'get-app-row')}
         ${row('/live', icons.live, 'Live games', 'Scores right now, with your bets on them', liveCount ? html`<span class="count">${liveCount} live</span>` : '')}
         ${row('/contest', icons.board, 'This week\'s contest', 'Free weekly contest, and the winners wall')}
@@ -32,8 +33,8 @@ export function more(ctx, { liveCount, admin = false, reported = 0 }) {
         ${row('/search', icons.search, 'Find players', 'Look someone up by screen name')}
         ${row('/groups', icons.groups, 'Groups', 'Your friends and their boards')}
         ${row('/invite', icons.invite, 'Invite friends', 'Your own link, and who joined')}
-        ${row(`/u/${encodeURIComponent(ctx.user.screenName)}`, icons.me, 'Profile and settings', 'Screen name, bio, link, app color')}
         ${admin ? row('/admin/reports', icons.flag, 'Admin', 'Reported chat messages', reported ? html`<span class="count">${reported}</span>` : '') : ''}
+        ${admin ? row('/admin/tournaments', icons.bracket, 'Admin: tournaments', 'Make a tournament, or cancel one before it starts') : ''}
       </ul>
       <h2>Account</h2>
       <ul class="menu">
@@ -93,7 +94,7 @@ export function chatHub(ctx, { list }) {
 }
 
 // The icon beside each kind of note in the inbox.
-const KIND_ICON = { follow: icons.groups, invite: icons.invite, badge: icons.medal, contest: icons.board, lines: icons.games, streak: icons.flame };
+const KIND_ICON = { follow: icons.groups, invite: icons.invite, badge: icons.medal, contest: icons.board, lines: icons.games, streak: icons.flame, tournament: icons.bracket };
 
 /** The inbox, what to be told about, and phone notifications. */
 export function notifications(ctx, { list, prefs, phones, pushKey }) {
@@ -117,6 +118,7 @@ export function notifications(ctx, { list, prefs, phones, pushKey }) {
         <label class="check"><input type="checkbox" name="follows" ${prefs.notify_follows ? 'checked' : ''}><span>A player I follow locks a pick</span></label>
         <label class="check"><input type="checkbox" name="lines" ${prefs.notify_lines ? 'checked' : ''}><span>Lines are up: today's games in my sports, about 11 AM ET</span></label>
         <label class="check"><input type="checkbox" name="streak" ${prefs.notify_streak ? 'checked' : ''}><span>Streak reminder: no Streak pick yet today, about 5 PM ET</span></label>
+        <label class="check"><input type="checkbox" name="tournaments" ${prefs.notify_tournaments ? 'checked' : ''}><span>A tournament I joined starts in an hour</span></label>
         <button class="btn small">Save</button>
       </form>
 

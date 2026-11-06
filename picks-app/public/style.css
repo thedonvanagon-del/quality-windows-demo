@@ -1029,3 +1029,38 @@ label.check.streak-check { margin: 10px 0 2px; padding: 10px 12px; border-radius
 .form-chip b { display: inline-grid; place-items: center; width: 20px; height: 20px; border-radius: 4px; font-family: var(--cond); font-size: 0.85rem; background: var(--line); color: var(--ink); }
 .form-chip.w b { background: var(--win-soft); color: var(--win); }
 .form-chip.l b { background: var(--loss-soft); color: var(--loss); }
+
+/* ---- Tournaments (2026-11-06) ------------------------------------------- */
+.free-chip { display: inline-block; padding: 1px 8px; border-radius: 999px; background: var(--win-soft); color: var(--win); font-family: var(--cond); font-size: 0.8rem; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; white-space: nowrap; }
+.sport-chips { display: inline-flex; flex-wrap: wrap; gap: 4px; }
+.sport-chip { padding: 1px 7px; border-radius: 4px; background: var(--raised); color: var(--ink); font-family: var(--cond); font-size: 0.8rem; font-weight: 800; letter-spacing: 0.05em; text-transform: uppercase; }
+.tn-list { display: grid; gap: 10px; grid-template-columns: repeat(auto-fill, minmax(min(100%, 320px), 1fr)); }
+.tn-card { display: grid; gap: 8px; padding: 14px; min-width: 0; }
+.tn-card.live { border-left: 3px solid var(--accent); }
+.tn-top, .tn-title { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.tn-title { justify-content: flex-start; margin-bottom: 8px; }
+.tn-name { font-family: var(--cond); font-size: 1.3rem; font-weight: 800; letter-spacing: 0.02em; text-transform: uppercase; min-width: 0; overflow-wrap: anywhere; }
+.tn-name:hover { color: var(--accent); }
+.tn-line { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; font-size: 0.9rem; }
+.tn-title + .tn-line { margin-bottom: 12px; }
+.tn-window { font-weight: 700; }
+.tn-line .dot::before { content: "· "; }
+.tn-prize { display: flex; gap: 8px; align-items: flex-start; margin: 0 0 4px; font-size: 0.9rem; color: var(--muted); }
+.tn-prize svg { width: 17px; height: 17px; flex: none; color: var(--accent); margin-top: 1px; }
+.tn-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding-top: 8px; border-top: 1px solid var(--line); }
+.tn-min { color: var(--faint); font-size: 0.82rem; }
+.tn-status { display: inline-flex; align-items: center; gap: 5px; font-weight: 800; font-size: 0.88rem; color: var(--muted); white-space: nowrap; }
+.tn-status svg { width: 16px; height: 16px; }
+.tn-status.joined { color: var(--win); }
+.tn-status.ranked { color: var(--accent); font-family: var(--cond); font-size: 1.05rem; letter-spacing: 0.03em; text-transform: uppercase; }
+.tn-join, .tn-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin: 4px 0 14px; }
+.tn-who { display: grid; min-width: 0; }
+.tn-who .to-place { color: var(--faint); font-size: 0.78rem; font-weight: 600; }
+.tn-who .badge-mark { justify-self: start; margin-left: 0; }
+.tn-rules { margin: 0; padding-left: 1.2em; color: var(--muted); display: grid; gap: 6px; max-width: 46em; }
+.tn-form input[type="date"], .tn-form input[type="time"], .tn-form input[type="number"] { font: inherit; padding: 12px 13px; border-radius: 8px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); width: 100%; min-width: 0; }
+.tn-sports { border: 0; padding: 0; margin: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
+.tn-sports legend { font-weight: 700; font-size: 0.88rem; margin-bottom: 8px; padding: 0; }
+.tn-sports legend .hint { margin-left: 6px; font-weight: 500; color: var(--muted); font-size: 0.82rem; }
+.tn-admin-row { display: flex; align-items: center; gap: 12px; padding: 12px 16px; }
+.tn-admin-row .text a { font-weight: 800; }

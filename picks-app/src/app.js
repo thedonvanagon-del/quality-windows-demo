@@ -28,6 +28,7 @@ import { validSubscription } from './push.js';
 import { deletePick, formatLine, formatOdds, formatUnits, isLocked, makePick, MARKETS, price, toWin } from './picks.js';
 import { SPORT, SPORTS } from './sports.js';
 import { setStreak, streakBoards, streakOf, streakPickOn } from './streak.js';
+import { adminList, bySlug, cancelTournament, cardOf, createCustom, entrantCount, entryOf, hub, joinTournament, leaveTournament, standingsOf, tournamentWinners } from './tournaments.js';
 import { addDays, etDay, mondayOf, weekLabel } from './time.js';
 import { breakdown, hotStreaks, lastTen, leaderboard, PERIODS, rankOf, record, recordBySport, searchPlayers, splits, unitsSeries } from './stats.js';
 import * as account from './views/account.js';
@@ -35,6 +36,7 @@ import * as legal from './views/legal.js';
 import * as moreViews from './views/more.js';
 import * as play from './views/play.js';
 import * as social from './views/social.js';
+import * as tourneyViews from './views/tournaments.js';
 
 const PUBLIC_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'public');
 const MAX_BODY = 16 * 1024;
@@ -696,7 +698,84 @@ export function createApp({ store, games, config, mailer = createMailer({ log: {
   }
 
   function winnersPage(ctx) {
-    send(ctx, 200, social.winners(ctx, winnersWall(store)));
+    const tab = ctx.query.get('tab') === 'tournaments' ? 'tournaments' : 'weekly';
+    send(ctx, 200, social.winners(ctx, { ...winnersWall(store), tab, tournaments: tournamentWinners(store) }));
+  }
+
+  // ---- tournaments ------------------------------------------------------------
+
+  /** The hub: live now, starting soon, finished. Public, like the contest. */
+  function tournamentsPage(ctx) {
+    const userId = ctx.user?.screenName ? ctx.user.id : null;
+    send(ctx, 200, tourneyViews.hub(ctx, { ...hub(store, ctx.now, userId), admin: isAdmin(ctx) }));
+  }
+
+  /** One tournament: rules, the clock, Join or Leave, standings, the podium once closed. */
+  function tournamentPage(ctx, { slug }) {
+    const row = bySlug(store, slug);
+    if (!row) return notFound(ctx);
+    const userId = ctx.user?.screenName ? ctx.user.id : null;
+    const t = cardOf(store, row, userId, ctx.now);
+    const rows = standingsOf(store, row);
+    send(ctx, 200, tourneyViews.detail(ctx, {
+      t,
+      rows,
+      badges: topBadges(store, rows.map((r) => r.id)),
+      entry: row.kind === 'weekly' ? null : entryOf(store, row, userId),
+      entrants: entrantCount(store, row),
+      podium: t.podium,
+    }));
+  }
+
+  function tournamentJoin(ctx, { slug }) {
+    if (!signedIn(ctx)) return;
+    const t = bySlug(store, slug);
+    if (!t) return notFound(ctx);
+    const result = joinTournament(store, t, ctx.user.id, ctx.now);
+    flash(ctx, result.error ? 'error' : 'ok', result.error ?? `You're in ${t.name}. Bets you make from now on count.`);
+    redirect(ctx, safeNext(ctx.form.get('next')) ?? `/tournaments/${t.slug}`);
+  }
+
+  function tournamentLeave(ctx, { slug }) {
+    if (!signedIn(ctx)) return;
+    const t = bySlug(store, slug);
+    if (!t) return notFound(ctx);
+    const result = leaveTournament(store, t, ctx.user.id, ctx.now);
+    flash(ctx, result.error ? 'error' : 'ok', result.error ?? `You left ${t.name}.`);
+    redirect(ctx, `/tournaments/${t.slug}`);
+  }
+
+  /** Make a tournament, or cancel one before it starts. Anyone who isn't an admin gets a plain 404. */
+  function adminTournaments(ctx) {
+    if (!isAdmin(ctx)) return notFound(ctx);
+    send(ctx, 200, tourneyViews.admin(ctx, { list: adminList(store, ctx.now) }));
+  }
+
+  function adminTournamentCreate(ctx) {
+    if (!isAdmin(ctx)) return notFound(ctx);
+    const form = {
+      name: ctx.form.get('name') ?? '',
+      sports: ctx.form.getAll('sports'),
+      startDate: ctx.form.get('start_date') ?? '',
+      startTime: ctx.form.get('start_time') ?? '',
+      endDate: ctx.form.get('end_date') ?? '',
+      endTime: ctx.form.get('end_time') ?? '',
+      minBets: ctx.form.get('min_bets') ?? '',
+      prize: ctx.form.get('prize') ?? '',
+    };
+    const result = createCustom(store, { ...form, userId: ctx.user.id, now: ctx.now });
+    if (result.error) return send(ctx, 400, tourneyViews.admin(ctx, { list: adminList(store, ctx.now), error: result.error, form }));
+    flash(ctx, 'ok', 'Tournament made. It shows on the Tournaments page now.');
+    redirect(ctx, `/tournaments/${result.slug}`);
+  }
+
+  function adminTournamentCancel(ctx, { slug }) {
+    if (!isAdmin(ctx)) return notFound(ctx);
+    const t = bySlug(store, slug);
+    if (!t) return notFound(ctx);
+    const result = cancelTournament(store, t, ctx.now, notifier);
+    flash(ctx, result.error ? 'error' : 'ok', result.error ?? `${t.name} is canceled.`);
+    redirect(ctx, '/admin/tournaments');
   }
 
   /** The streak game: your streak, today's Streak pick, and the streak boards. */
@@ -912,7 +991,7 @@ export function createApp({ store, games, config, mailer = createMailer({ log: {
   function notificationsPage(ctx) {
     if (!signedIn(ctx)) return;
     const list = notifier.list(ctx.user.id);
-    const prefs = store.get('SELECT notify_settled, notify_follows, notify_lines, notify_streak FROM users WHERE id = ?', ctx.user.id);
+    const prefs = store.get('SELECT notify_settled, notify_follows, notify_lines, notify_streak, notify_tournaments FROM users WHERE id = ?', ctx.user.id);
     const phones = store.get('SELECT COUNT(*) AS n FROM push_subscriptions WHERE user_id = ?', ctx.user.id).n;
     notifier.markRead(ctx.user.id, ctx.now);
     ctx.unread = 0;
@@ -923,8 +1002,8 @@ export function createApp({ store, games, config, mailer = createMailer({ log: {
     if (!signedIn(ctx)) return;
     const on = (name) => (ctx.form.get(name) === 'on' ? 1 : 0);
     store.run(
-      'UPDATE users SET notify_settled = ?, notify_follows = ?, notify_lines = ?, notify_streak = ? WHERE id = ?',
-      on('settled'), on('follows'), on('lines'), on('streak'), ctx.user.id,
+      'UPDATE users SET notify_settled = ?, notify_follows = ?, notify_lines = ?, notify_streak = ?, notify_tournaments = ? WHERE id = ?',
+      on('settled'), on('follows'), on('lines'), on('streak'), on('tournaments'), ctx.user.id,
     );
     flash(ctx, 'ok', 'Saved.');
     redirect(ctx, '/notifications');
@@ -1080,6 +1159,13 @@ export function createApp({ store, games, config, mailer = createMailer({ log: {
     ['GET', '/search', searchPage],
     ['GET', '/contest', contestPage],
     ['GET', '/winners', winnersPage],
+    ['GET', '/tournaments', tournamentsPage],
+    ['GET', '/tournaments/:slug', tournamentPage],
+    ['POST', '/tournaments/:slug/join', tournamentJoin],
+    ['POST', '/tournaments/:slug/leave', tournamentLeave],
+    ['GET', '/admin/tournaments', adminTournaments],
+    ['POST', '/admin/tournaments', adminTournamentCreate],
+    ['POST', '/admin/tournaments/:slug/cancel', adminTournamentCancel],
     ['GET', '/streak', streakPage],
     ['GET', '/invite', invitePage],
     ['GET', '/i/:code', inviteLink],
