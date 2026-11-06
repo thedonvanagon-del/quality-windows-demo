@@ -987,3 +987,7 @@ for (const form of document.querySelectorAll('form[data-bb-dismiss]')) {
     fetch(form.action, { method: 'POST', body: new URLSearchParams(new FormData(form)), credentials: 'same-origin', redirect: 'manual' }).catch(() => {});
   });
 }
+
+// The launch screen fades on its own; a tap skips it.
+const splashScreen = document.querySelector('[data-splash]');
+if (splashScreen) splashScreen.addEventListener('click', () => splashScreen.remove());
