@@ -1,6 +1,7 @@
 import { THEMES } from '../config.js';
 import { html } from '../html.js';
 import { formatOdds } from '../picks.js';
+import { showsSitePicks, siteLink } from '../site.js';
 import { barColor, sheetPath } from '../themes.js';
 import { when } from '../time.js';
 import { avatar } from './avatar.js';
@@ -107,7 +108,7 @@ ${active === 'install' ? '' : html`<div class="ios-install" data-ios-install hid
   <div class="ios-arrow" aria-hidden="true">↓</div>
 </div>`}
 <main class="wrap">
-  ${flash?.type === 'locked' ? lockedTicket(flash) : flash ? html`<div class="flash ${flash.type === 'error' ? 'err' : 'ok'}" role="status">${flash.text}</div>` : ''}
+  ${flash?.type === 'locked' ? lockedTicket(ctx, flash) : flash ? html`<div class="flash ${flash.type === 'error' ? 'err' : 'ok'}" role="status">${flash.text}</div>` : ''}
   ${body}
 </main>
 <footer>
@@ -134,13 +135,17 @@ export function csrfField(ctx) {
   return ctx.session ? html`<input type="hidden" name="_csrf" value="${ctx.session.csrf}">` : '';
 }
 
-/** The receipt a pick gets the moment it goes in: the bet, a LOCKED stamp and the exact time. */
-function lockedTicket(flash) {
+/**
+ * The receipt a pick gets the moment it goes in: the bet, a LOCKED stamp and
+ * the exact time. With the site's picks on, one quiet line points to them.
+ */
+function lockedTicket(ctx, flash) {
   return html`<div class="locked-ticket" role="status">
     <span class="stamp">Locked</span>
     <div class="lt-body">
       <b>${flash.text}</b>
       ${flash.at ? html`<span>On the record <time datetime="${flash.at}" data-local="long">${when(flash.at)}</time>. It can't be edited after the game starts.</span>` : ''}
+      ${showsSitePicks(ctx.user) ? html`<a class="lt-site" href="${siteLink(ctx.app.site, 'ticket')}" target="_blank" rel="noopener">Want a second opinion? See the model's picks →</a>` : ''}
     </div>
   </div>`;
 }

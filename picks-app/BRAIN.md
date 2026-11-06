@@ -292,6 +292,95 @@ not dollars, and nothing is paid out.
 - **2026-10-25:** Profiles have a short bio, up to 160 characters.
 
 ### Tournaments
+- **2026-11-06: Tournaments, round two** (owner approved list of five).
+  - **Live standings.** While a tournament is live its page shows **As it
+    stands** in place of Standings: the graded standings plus every counted
+    bet on a game in progress, graded at the current score by the same code
+    as finals (`grade` and `profit` from `picks.js`; a parlay through
+    `settleParlay`, so a live leg losing loses it, and one with a leg still
+    to start stands nowhere yet). **Nothing provisional is written**:
+    results, closing, badges and alerts use graded bets only. Each row shows
+    its move against the graded-only order (▲3 / ▼1, beside the rank) and
+    "2 live" under the name; a note says "Live: counts games in progress.
+    Final standings use final scores." The section refreshes every 45
+    seconds through the live games page's `[data-live-poll]` swap (it now
+    reads `data-poll-every`). Scores come from the stored games; a live page
+    view calls `games.live()` once (already rate-limited to one ESPN read per
+    sport-day a minute). `liveStandingsOf` in `tournaments.js`;
+    `rankStandings` and `openBetsIn` came out of `contest.js` so both orders
+    follow the same rules. The Weekly Open gets it too. "You" (the card at
+    the top) stays graded.
+  - **Player-made tournaments** (`/tournaments/new`, a Make a tournament
+    button on the hub and on group pages). Any signed-in player with a
+    confirmed email. Name 3–40 characters, tidied, **no links, no @
+    mentions, and nothing that passes for the official account** (the
+    screen-name look-alike check, spaces ignored; bios have no check to
+    reuse). One or more sports; start 15+ minutes off; 1 hour to 14 days; 1
+    to 20 graded bets to place. **Public** (listed under Player tournaments
+    in the hub) or **Private** (unlisted; opened from `/t/<code>`, an 8-letter
+    code, and joined only with it). An optional **group or local room** the
+    maker is in: only its members can join and it shows on that group's page
+    (a Tournaments section). The prize is fixed, "Bragging rights and a
+    Tournament champion badge", and it's free like the rest. The maker is in
+    it from the start. **Limits:** 2 going (live or coming up) at once and 5
+    made in any 24 hours (canceled ones count for the day); admins none.
+    **Powers:** the maker can copy the invite link and cancel before the
+    start (entrants hear); nothing else. Admins can cancel a player-made one
+    any time before it's final. Stored as a `custom` tournament plus a
+    `player_tournaments` row (visibility, code, group, `members_only`,
+    `reviewed_at`), so the kind CHECK and the tournaments table stay as they
+    were. Winners get the same badges; the winners wall lists public ones.
+  - **Moderation:** anyone signed in can **report** a player-made one, once
+    ever (`tournament_reports`). Three since the last review hide it from
+    the hub, group pages and winners wall, and close it to new players;
+    people in it still see it. `/admin/tournaments` has a **Reported**
+    section (hidden first) with Dismiss (stamps `reviewed_at`, so earlier
+    reports stop counting) and Cancel; More shows a count on Admin:
+    tournaments.
+  - **Where you stand alerts**, a new **Tournament updates** setting (on by
+    default, next to the start reminder), through the inbox and push:
+    "You moved into 2nd in Hoops Night (+3.4u)." when a player enters the
+    graded top 3 or moves up within it, at most one per player per
+    tournament every 2 hours; and once, in the first 15 minutes of the last
+    two hours, "2 hours left in NFL Sunday. You're 1.4u out of first." to
+    placed entrants ranked 2–10 within 5u of first, or "You're in first by
+    2.1u." for the leader. The place seen and both sends are kept on the
+    entry (`alert_place`, `moved_at`, `final_alert_at`), claimed before
+    sending, so restarts never double up. Moves run after every grading and
+    every 5 minutes; "2 hours left" every 5 minutes. Not for the Weekly
+    Open (the contest has its own notes); the official account gets nothing.
+  - **Tournament chat** on each tournament's page (`#chat`): entrants only
+    (everyone signed in for the Weekly Open), with every chat rule (280
+    characters, confirmed email, the shared 8-a-minute limit across games,
+    groups and tournaments, delete your own, report, three hide, admin
+    restore or delete on `/admin/reports` as "Tournament: name", 15-second
+    refresh). The maker has no say over other people's messages. A canceled
+    tournament's page stays up for its entrants with the chat read-only.
+    `chat_messages` was rebuilt with `tournament_id` and the CHECK "exactly
+    one of game, group, tournament", foreign keys off, every row copied
+    (`SELECT *`, so an unknown column stops it); `chat_reports` keeps
+    pointing at it. `tournament_id` has no ON DELETE, so a tournament with
+    chat can't be deleted; the app only cancels.
+  - **Share cards.** On a closed tournament's page, a player in the top 3
+    gets "You finished 1st. Out of 24 players." and **Share**: a 1080 square
+    drawn on a canvas in the page's colors (crest, "1st in Hoops Night",
+    their name and photo, units and record, "Out of N players", the date,
+    the link), to the share sheet or downloaded, like the profile's Share as
+    image. Weekly contest winners get the same on their own rows on
+    `/contest` (last week's top 3) and `/winners` (players counted only for
+    the weeks they placed in).
+  - **Decided differently from the brief:** "Admins can cancel anything"
+    means any **player-made** one at any time before it's final; the
+    timer's and admin-made ones still cancel only before the start (an
+    existing rule and test). A canceled tournament was a 404; now its page
+    stays for the players who were in it (the old test was changed to say
+    so) and is a 404 for everyone else. A player-made tournament tied to a
+    **private group** is never in the public hub, even if public, so the
+    group's name doesn't leak; a local room's public one is. The "2 hours
+    left" note isn't sent late: a server down for its first 15 minutes skips
+    it. Alerts skip the Weekly Open. The demo now always has three games
+    under way when it starts (their own random numbers, so the rest of the
+    schedule is unchanged).
 - **2026-11-06: Tournaments** (owner approved), a tab of their own
   (`/tournaments`, `src/tournaments.js`). **Free, every one of them.**
   - **What counts:** units won on graded bets (picks and parlays, through
@@ -611,6 +700,51 @@ not dollars, and nothing is paid out.
   (Admin screen added 2026-11-05, above.)
 
 ### The official account
+- **2026-11-06: The app sends people to www.bookiebullies.com** (owner's ask:
+  promote the site without a new tab, since the bar is full). Everything is
+  in `src/site.js`; the address is one setting, `SITE_URL` (default
+  `https://www.bookiebullies.com`), and every link is built by one helper,
+  `siteLink(base, medium)`, as `?utm_source=app&utm_medium=<spot>`: `bb_chip`,
+  `locks_card`, `more_menu`, `ticket`. Links open in a new tab with
+  `rel="noopener"`.
+  - **BB Pick chips** on `/games`: a game the official account has an open
+    (ungraded) pick on gets one chip under its board, next to Chat: gold
+    **"🔒 BB Lock · Lakers −4.5"** for a site Lock, else **"BB Pick · Over
+    223"**, using the same selection text as everywhere. With two picks on a
+    game the Lock shows, then the most confident. The board's official picks
+    come from **one query** for all its games (`officialOnGames`, `json_each`).
+  - **The chip opens a sheet**: it's a link to `/games/<id>/bb`, a page with
+    the model's picks on that game (pick, line, odds, units, confidence as
+    1 to 5 stars from `official_picks.conf`), "Locked at the app's line
+    before the game", a gold **See all today's picks on bookiebullies.com**
+    button and a link to the official profile. `app.js` shows it in the same
+    slide-up sheet as the pick slip (it's a `.slip`), so it works without
+    JavaScript too.
+  - **Today's Locks card**, under the sport tabs on every board: "🔒 3
+    Bookie Bullies Locks today · 8 picks · See them" (or "8 Bookie Bullies
+    picks today" with no Locks), counting official picks on games that start
+    today in ET, every sport. Hidden with none. A second link goes to the
+    official profile. The **×** is a form (POST with the form token) that
+    stores the ET day on the player (`users.bb_card_hidden_day`), so it stays
+    hidden until the next ET day; `app.js` hides it at once and posts in the
+    background.
+  - **More**: a top row, **Free picks: bookiebullies.com**, with the crest
+    and "The Bookie Bullies model's daily picks and Locks". "Your profile" is
+    the first page in the app, right under it.
+  - **The LOCKED ticket** gets one muted line: "Want a second opinion? See
+    the model's picks →".
+  - **The share image** (the profile's record card, the only canvas image in
+    the app; no tournament or contest win cards exist yet) gets a second
+    footer line in gold: "Free daily picks · bookiebullies.com". Any new share
+    image should carry it too.
+  - **A setting**, "Show Bookie Bullies picks on the board", on by default,
+    on your profile under App color (`users.show_bb`). Off hides the chips,
+    the Locks card and the ticket line. More's row stays.
+  - **Decided differently from the brief:** the ticket line shows on parlays
+    too (the wording fits any bet). The chip sits in the card's footer row
+    beside Chat rather than on a row of its own, to keep cards short. The
+    More row goes above "Your profile", so the test that Profile tops More
+    now allows for it.
 - **2026-11-05: The site's model picks post in the app** as **BookieBullies**,
   with an **Official** tag wherever it shows and a gold **LOCK** tag on the
   site's locks. Every 15 minutes the app reads
@@ -724,6 +858,13 @@ Launch log:
   (2026-11-06)
 - Name colors and scoreboard icons (emoji, four earned by badges, and any
   team's logo from ESPN's daily team lists) on every board, standings and chat
+- Tournaments, round two (2026-11-06): live "As it stands" standings,
+  player-made tournaments (public, private by invite link, or for a group or
+  local room) with reports and an admin review, "where you stand" alerts,
+  a chat per tournament, and Share cards for top-3 finishes
+- Links to www.bookiebullies.com: BB Pick chips and a sheet on the board, a
+  Today's Locks card, a More row, a line on the LOCKED ticket and the site
+  on the share image, with a setting to hide them (2026-11-06)
 - Demo mode: `npm run demo`, log in as demo@example.com / letmein123
 - Server setup in `aws/stacks/bookie-bullies-app` and a deploy-on-merge
   workflow (`.github/workflows/picks-app-deploy.yml`)

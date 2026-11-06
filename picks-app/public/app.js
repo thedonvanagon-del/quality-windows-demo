@@ -172,7 +172,8 @@ window.addEventListener('pageshow', (event) => {
 });
 
 // On the games board, a tapped line opens its slip in a sheet that slides up
-// over the board instead of a new page. Anything off and it's a normal link.
+// over the board instead of a new page. A BB Pick chip opens the model's picks
+// the same way. Anything off and it's a normal link.
 const board = document.querySelector('.event') && window.HTMLDialogElement && window.DOMParser;
 if (board) {
   const sheet = document.createElement('dialog');
@@ -193,12 +194,13 @@ if (board) {
     return note;
   };
   document.addEventListener('click', async (event) => {
-    const link = event.target.closest('a.cell[href^="/pick?"]');
+    const link = event.target.closest('a.cell[href^="/pick?"], a.bb-chip');
     if (!link || event.metaKey || event.ctrlKey || event.shiftKey) return;
     event.preventDefault();
     if (loading) return;
     loading = link;
     link.classList.add('loading');
+    sheet.setAttribute('aria-label', link.dataset.sheet ?? 'Pick slip');
     try {
       sheet.replaceChildren(loadingNote());
       if (!sheet.open) sheet.showModal();
@@ -214,7 +216,8 @@ if (board) {
       close.setAttribute('aria-label', 'Close');
       close.textContent = '×';
       sheet.replaceChildren(close, document.adoptNode(slip));
-      initSlip(sheet.querySelector('form[data-odds]'));
+      const form = sheet.querySelector('form[data-odds]');
+      if (form) initSlip(form);
       localTimes(sheet);
       if (!sheet.open) sheet.showModal();
     } catch {
@@ -279,6 +282,128 @@ for (const button of document.querySelectorAll('[data-share-image]')) {
       button.disabled = false;
     }
   });
+}
+
+// Share a top-3 finish (a tournament, or a weekly contest) as a square picture,
+// the same way: the share sheet where it takes files, else a download.
+for (const button of document.querySelectorAll('[data-share-win]')) {
+  if (!HTMLCanvasElement.prototype.toBlob) continue;
+  button.hidden = false;
+  button.addEventListener('click', async () => {
+    button.disabled = true;
+    try {
+      const blob = await drawWinCard(button.dataset);
+      const name = `bookie-bullies-${button.dataset.place}-${button.dataset.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')}.png`;
+      const file = new File([blob], name, { type: 'image/png' });
+      if (navigator.canShare?.({ files: [file] })) {
+        try {
+          await navigator.share({ files: [file], title: `${button.dataset.place} in ${button.dataset.title}` });
+        } catch (err) {
+          if (err.name !== 'AbortError') throw err;
+        }
+      } else {
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = name;
+        link.click();
+        setTimeout(() => URL.revokeObjectURL(link.href), 10_000);
+      }
+    } catch {
+      button.textContent = "Couldn't make the image";
+    } finally {
+      button.disabled = false;
+    }
+  });
+}
+
+/** Shrink a font until `text` fits `max` pixels wide. Leaves the font set on `c`. */
+function fitText(c, text, weight, family, size, max, min = 36) {
+  do {
+    c.font = `${weight} ${size}px ${family}`;
+    size -= 4;
+  } while (size > min && c.measureText(text).width > max);
+}
+
+/**
+ * The win card: 1080 square, in the page's own colors. The crest and name up
+ * top, "1st in Hoops Night" big, the units and record, "Out of 24 players",
+ * the date and the app's address.
+ */
+async function drawWinCard(d) {
+  const css = getComputedStyle(document.documentElement);
+  const v = (name) => css.getPropertyValue(name).trim();
+  const W = 1080;
+  const canvas = document.createElement('canvas');
+  canvas.width = W;
+  canvas.height = W;
+  const c = canvas.getContext('2d');
+  const cond = '"Barlow Condensed", "Arial Narrow", sans-serif';
+  await Promise.all(['800 40px "Barlow Condensed"', '700 40px "Barlow Condensed"', '600 40px Barlow'].map((f) => document.fonts?.load(f).catch(() => {})));
+  const gold = v('--gold') || '#ffd257';
+
+  c.fillStyle = v('--bg');
+  c.fillRect(0, 0, W, W);
+  c.fillStyle = v('--accent');
+  c.fillRect(0, 0, W, 14);
+  c.fillRect(0, W - 14, W, 14);
+
+  const crest = document.querySelector('.brand-logo');
+  if (crest?.complete && crest.naturalWidth) c.drawImage(crest, 80, 80, 110, 110);
+  c.fillStyle = v('--ink');
+  c.font = `800 60px ${cond}`;
+  c.fillText('BOOKIE BULLIES', 214, 142);
+  c.fillStyle = gold;
+  c.font = `800 32px ${cond}`;
+  c.fillText('✓ TRUST YOUR BETS', 216, 184);
+
+  // The place, huge, in gold, with the tournament under it.
+  c.fillStyle = gold;
+  c.font = `800 250px ${cond}`;
+  c.fillText(d.place, 72, 470);
+  c.fillStyle = v('--ink');
+  fitText(c, `in ${d.title}`, 800, cond, 92, W - 160);
+  c.fillText(`in ${d.title}`, 80, 572);
+
+  // Who, with their photo when they have one.
+  const face = d.photo ? await loadImage(d.photo).catch(() => null) : null;
+  let x = 80;
+  if (face) {
+    c.save();
+    c.beginPath();
+    c.arc(122, 652, 42, 0, Math.PI * 2);
+    c.clip();
+    c.drawImage(face, 80, 610, 84, 84);
+    c.restore();
+    x = 184;
+  }
+  c.fillStyle = v('--muted');
+  fitText(c, d.name, 700, cond, 52, W - x - 80);
+  c.fillText(d.name, x, 670);
+
+  // Units and record.
+  const units = Number(d.units);
+  const unitText = `${units > 0 ? '+' : ''}${units}u`;
+  c.fillStyle = v('--card');
+  c.fillRect(80, 724, W - 160, 150);
+  c.fillStyle = units > 0 ? v('--win') : units < 0 ? v('--loss') : v('--ink');
+  c.font = `800 112px ${cond}`;
+  c.fillText(unitText, 112, 840);
+  c.textAlign = 'right';
+  c.fillStyle = v('--ink');
+  c.font = `800 72px ${cond}`;
+  c.fillText(d.record, W - 112, 822);
+  c.fillStyle = v('--muted');
+  c.font = `700 28px ${cond}`;
+  c.fillText('RECORD', W - 112, 856);
+  c.textAlign = 'left';
+
+  c.fillStyle = v('--ink');
+  c.font = `600 36px Barlow, sans-serif`;
+  if (d.players) c.fillText(`Out of ${d.players} ${d.players === '1' ? 'player' : 'players'}`, 80, 940);
+  c.fillStyle = v('--muted');
+  fitText(c, `${d.date} · ${d.url}`, 600, 'Barlow, sans-serif', 30, W - 160, 18);
+  c.fillText(`${d.date} · ${d.url}`, 80, 994);
+  return new Promise((resolve, reject) => canvas.toBlob((b) => (b ? resolve(b) : reject(new Error('no image'))), 'image/png'));
 }
 
 async function drawCard(d) {
@@ -402,16 +527,24 @@ async function drawCard(d) {
 
   c.fillStyle = v('--muted');
   c.font = `600 30px Barlow, sans-serif`;
-  c.fillText(`Every pick locked before the game · ${d.url}`, 80, 1290);
+  c.fillText(`Every pick locked before the game · ${d.url}`, 80, 1268);
+  // The daily picks site, on every share image.
+  if (d.site) {
+    c.fillStyle = v('--gold') || '#ffd257';
+    c.font = `700 30px Barlow, sans-serif`;
+    c.fillText(`Free daily picks · ${d.site}`, 80, 1314);
+  }
   return new Promise((resolve, reject) => canvas.toBlob((b) => (b ? resolve(b) : reject(new Error('no image'))), 'image/png'));
 }
 
 // Game chat stays current: every 15 seconds while the page is in view, swap in
 // the newest messages. Typing isn't touched; only the list changes.
 // Live games keep their scores current: every 30 seconds while the page is in
-// view, swap in the latest list from the server.
+// view, swap in the latest list from the server. A live tournament's "As it
+// stands" does the same every 45 (data-poll-every, in seconds).
 const liveList = document.querySelector('[data-live-poll]');
 if (liveList && window.DOMParser) {
+  const every = Math.max(15, Number(liveList.dataset.pollEvery) || 30) * 1000;
   setInterval(async () => {
     if (document.hidden) return;
     try {
@@ -422,7 +555,7 @@ if (liveList && window.DOMParser) {
     } catch {
       // Try again on the next tick.
     }
-  }, 30_000);
+  }, every);
 }
 
 const chatBox = document.querySelector('.chat[data-poll]');
@@ -842,4 +975,15 @@ if (nametag) {
     league.addEventListener('change', narrow);
     find.addEventListener('input', narrow);
   }
+}
+
+// The Today's Locks card on the board: the × hides it at once and tells the
+// server, which keeps it hidden until the next ET day. Without this the form
+// posts and the page comes back without it.
+for (const form of document.querySelectorAll('form[data-bb-dismiss]')) {
+  form.addEventListener('submit', (event) => {
+    event.preventDefault();
+    form.closest('[data-bb-locks]')?.remove();
+    fetch(form.action, { method: 'POST', body: new URLSearchParams(new FormData(form)), credentials: 'same-origin', redirect: 'manual' }).catch(() => {});
+  });
 }

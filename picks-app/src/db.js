@@ -515,6 +515,76 @@ export const MIGRATIONS = [
   -- Reports on covers go in the same table; kind says which picture it was.
   ALTER TABLE photo_reports ADD COLUMN kind TEXT NOT NULL DEFAULT 'avatar' CHECK (kind IN ('avatar', 'cover'));
   `,
+  `${KEYS_OFF}
+  -- Tournament chat, player-made tournaments and "where you stand" alerts
+  -- (2026-11-06).
+  --
+  -- A chat message now belongs to a game, a group or a tournament: exactly
+  -- one. chat_messages is rebuilt with a third optional key under the CHECK,
+  -- every row copied as it is. Foreign keys are off while this runs, so
+  -- dropping the old table takes nothing with it: chat_reports keeps pointing
+  -- at chat_messages by name, and the new table takes that name. A tournament
+  -- with chat can't be deleted (no ON DELETE), so its chat is never lost;
+  -- the app only ever cancels one, and a canceled one's chat stays read-only.
+  CREATE TABLE chat_messages_v3 (
+    id INTEGER PRIMARY KEY,
+    game_id TEXT REFERENCES games(id),
+    group_id INTEGER REFERENCES friend_groups(id) ON DELETE CASCADE,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    body TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    deleted_at TEXT,
+    tournament_id INTEGER REFERENCES tournaments(id),
+    CHECK ((game_id IS NOT NULL) + (group_id IS NOT NULL) + (tournament_id IS NOT NULL) = 1)
+  );
+  -- SELECT * stops this with an error if chat_messages has a column this list doesn't know.
+  INSERT INTO chat_messages_v3 (id, game_id, group_id, user_id, body, created_at, deleted_at) SELECT * FROM chat_messages;
+  DROP TABLE chat_messages;
+  ALTER TABLE chat_messages_v3 RENAME TO chat_messages;
+  CREATE INDEX chat_messages_game ON chat_messages(game_id, id);
+  CREATE INDEX chat_messages_group ON chat_messages(group_id, id);
+  CREATE INDEX chat_messages_tournament ON chat_messages(tournament_id, id);
+
+  -- Player-made tournaments: a 'custom' tournament with a row here. Public
+  -- ones are listed in the hub; private ones only open from /t/<invite_code>.
+  -- group_id ties one to a group or local room: with members_only, only its
+  -- members can join (and if the group is deleted, nobody new can). Three
+  -- reports since reviewed_at hide it from the lists until an admin looks.
+  CREATE TABLE player_tournaments (
+    tournament_id INTEGER PRIMARY KEY REFERENCES tournaments(id) ON DELETE CASCADE,
+    visibility TEXT NOT NULL CHECK (visibility IN ('public', 'private')),
+    invite_code TEXT NOT NULL UNIQUE,
+    group_id INTEGER REFERENCES friend_groups(id) ON DELETE SET NULL,
+    members_only INTEGER NOT NULL DEFAULT 0,
+    reviewed_at TEXT
+  );
+  CREATE INDEX player_tournaments_group ON player_tournaments(group_id);
+  -- One report per player per tournament, ever.
+  CREATE TABLE tournament_reports (
+    tournament_id INTEGER NOT NULL REFERENCES tournaments(id) ON DELETE CASCADE,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    created_at TEXT NOT NULL,
+    PRIMARY KEY (tournament_id, user_id)
+  );
+
+  -- "Where you stand" alerts, written on the entry like reminded_at, so a
+  -- restart never sends one twice: the graded top-3 place last seen, when
+  -- the last "You moved into 2nd" went, and when "2 hours left" went.
+  ALTER TABLE tournament_entries ADD COLUMN alert_place INTEGER;
+  ALTER TABLE tournament_entries ADD COLUMN moved_at TEXT;
+  ALTER TABLE tournament_entries ADD COLUMN final_alert_at TEXT;
+  -- The Tournament updates setting, on by default.
+  ALTER TABLE users ADD COLUMN notify_tournament_updates INTEGER NOT NULL DEFAULT 1;
+  `,
+  `
+  -- www.bookiebullies.com in the app (src/site.js). show_bb: the official
+  -- account's picks on the board (BB Pick chips, the Locks card, the line on
+  -- the LOCKED ticket), on unless the player turns it off. bb_card_hidden_day:
+  -- the ET day ("20261106") the player closed the Locks card; it shows again
+  -- the next day.
+  ALTER TABLE users ADD COLUMN show_bb INTEGER NOT NULL DEFAULT 1;
+  ALTER TABLE users ADD COLUMN bb_card_hidden_day TEXT;
+  `,
 ];
 
 export function openStore(file) {

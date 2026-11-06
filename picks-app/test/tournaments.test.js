@@ -440,7 +440,10 @@ describe('tournaments: admin', () => {
     await b.get('/admin/tournaments');
     assert.equal((await b.post(`/admin/tournaments/${t.slug}/cancel`)).status, 303);
     assert.equal(bySlug(app.store, t.slug), null);
-    assert.equal((await ann.get(`/tournaments/${t.slug}`)).status, 404);
+    // Off the lists; only those who were in it still see its page (its chat stays, read-only).
+    assert.equal((await app.browser().get(`/tournaments/${t.slug}`)).status, 404);
+    assert.match(visible((await ann.get(`/tournaments/${t.slug}`)).text), /This tournament was canceled/);
+    assert.doesNotMatch(visible((await ann.get('/tournaments')).text), /Bullies Hoops Cup/);
     assert.match(app.store.get("SELECT text FROM notifications WHERE kind = 'tournament'").text, /Bullies Hoops Cup was canceled before it started/);
 
     // Not once it's started.
@@ -464,7 +467,8 @@ describe('tab bar', () => {
     assert.doesNotMatch(tabbar, /\/u\/Ann/);
     assert.match(games.text, /<a class="user-chip [^"]*" href="\/u\/Ann">/);
     const more = visible((await ann.get('/more')).text);
-    assert.match(more, /More Everything else in the app\. Your profile Your record, badges and settings/);
+    // The site's row sits above it (2026-11-06); Profile is the first page in the app.
+    assert.match(more, /More Everything else in the app\. Free picks: bookiebullies\.com The Bookie Bullies model's daily picks and Locks Your profile Your record, badges and settings/);
     assert.match((await ann.get('/tournaments')).text, /<a href="\/tournaments" class="on" aria-current="page">/);
   });
 

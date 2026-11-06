@@ -14,7 +14,7 @@ import { CITY, cityGroups } from './cities.js';
 import { allRooms, archiveRoom, createGroup, deleteGroup, findByCode, groupFor, groupsOf, joinGroup, joinRoom, leaveGroup, localRooms, membersOf, renameRoom, roomFor, roomsOf, setHomeCity, settleHomeCity, startRoom } from './groups.js';
 import { follow, followCounts, followingAmong, followingList, isFollowing, unfollow } from './follows.js';
 import { followFeed, groupFeed, ownPick, ownPicks, picksOnGames, publicPicks } from './history.js';
-import { THEMES } from './config.js';
+import { SITE_URL, THEMES } from './config.js';
 import { clearPhoto, cleanImage, deleteFile, dismissPhoto, filesOf, KINDS, kindOf, MEDIA_NAME, MEDIA_TYPES, mediaDir, mediaOwner, parseMultipart, PHOTO_BLOCK_DAYS, PHOTO_HIDE_AFTER, photosFor, removeReportedPhoto, reportedBy, reportedPhotos, reportPhoto, savePhoto, tooBigText, uploadBlockedUntil } from './photos.js';
 import { cleanHex, customTokens, parseSheet, styleOf, teamAccent, teamByKey, teamsBySport, themeCss } from './themes.js';
 import { CONTEST_MIN, results, standings, timeLeft, weekBounds, winnersWall } from './contest.js';
@@ -31,9 +31,14 @@ import { addLeg, deleteParlay, draftLegs, draftOnGames, draftSummary, lockParlay
 import { validSubscription } from './push.js';
 import { deletePick, formatLine, formatOdds, formatUnits, isLocked, makePick, MARKETS, price, toWin } from './picks.js';
 import { SPORT, SPORTS } from './sports.js';
+import { hideLocksCard, locksCardHidden, officialOnGames, setShowSitePicks, showsSitePicks, todaysSitePicks } from './site.js';
 import { setStreak, streakBoards, streakOf, streakPickOn } from './streak.js';
 import { createTeamCatalog } from './teams.js';
-import { adminList, bySlug, cancelTournament, cardOf, createCustom, entrantCount, entryOf, hub, joinTournament, leaveTournament, standingsOf, tournamentWinners } from './tournaments.js';
+import {
+  accessTo, adminList, byCode, bySlug, cancelTournament, canChat, cardOf, createCustom, createPlayerTournament, dismissTournamentReports, entrantCount,
+  entryOf, findTournament, formDefaults, groupChoices, groupTournaments, hostOf, hub, invitePath, joinTournament, leaveTournament, liveStandingsOf,
+  reportedByMe, reportedTournaments, reportTournament, standingsOf, tournamentWinners,
+} from './tournaments.js';
 import { addDays, dateLabel, etDay, mondayOf, weekLabel } from './time.js';
 import { breakdown, hotStreaks, lastTen, leaderboard, PERIODS, rankOf, record, recordBySport, searchPlayers, splits, unitsSeries } from './stats.js';
 import * as account from './views/account.js';
@@ -73,6 +78,8 @@ export function createApp({ store, games, config, mailer = createMailer({ log: {
   const app = {
     name: config.appName,
     theme: config.theme ?? THEMES[0],
+    // www.bookiebullies.com, for links to the site (src/site.js).
+    site: config.siteUrl ?? SITE_URL,
     assets: {
       css: assets.url('style.css'),
       js: assets.url('app.js'),
@@ -191,9 +198,19 @@ export function createApp({ store, games, config, mailer = createMailer({ log: {
     send(ctx, 200, account.home(ctx, { top: withLooks(leaderboard(store, { period: '30' }, ctx.now, 10)) }));
   }
 
+  /**
+   * For uptime monitors (and the deploy check): "ok" only if the database
+   * answers, so a broken database sets off the alert too, not just a dead app.
+   */
   function health(ctx) {
-    ctx.res.writeHead(200, { 'Content-Type': 'text/plain', 'Cache-Control': 'no-store' });
-    ctx.res.end('ok');
+    let ok = false;
+    try {
+      ok = store.get('SELECT 1 AS ok')?.ok === 1;
+    } catch {
+      ok = false;
+    }
+    ctx.res.writeHead(ok ? 200 : 503, { 'Content-Type': 'text/plain', 'Cache-Control': 'no-store' });
+    ctx.res.end(ok ? 'ok' : 'database not answering');
   }
 
   /** The player whose invite link brought this visitor, from the form, the address or the invite cookie. */
@@ -447,7 +464,37 @@ export function createApp({ store, games, config, mailer = createMailer({ log: {
     const chats = chatCounts(store, list.map((g) => g.id));
     const split = splits(store, list.map((g) => g.id));
     const draft = draftOnGames(store, ctx.user.id, list.map((g) => g.id));
-    send(ctx, 200, play.games(ctx, { sport, list, mine, draft, chats, split, problem: games.problem(sport.key) }));
+    // The official account's picks: a chip on each game it picked, and today's count up top.
+    const site = showsSitePicks(ctx.user);
+    const bb = site ? officialOnGames(store, list.map((g) => g.id)) : new Map();
+    const locks = site && !locksCardHidden(ctx.user, ctx.now) ? todaysSitePicks(store, ctx.now) : null;
+    send(ctx, 200, play.games(ctx, { sport, list, mine, draft, chats, split, bb, locks, problem: games.problem(sport.key) }));
+  }
+
+  // ---- www.bookiebullies.com on the board (src/site.js) -----------------------
+
+  /** What a BB Pick chip opens: the model's picks on one game. A page, so it works without JavaScript; app.js shows it in the sheet. */
+  function sitePicksPage(ctx, { id }) {
+    if (!signedIn(ctx)) return;
+    const game = games.get(id);
+    if (!game) return notFound(ctx);
+    const picks = officialOnGames(store, [game.id]).get(game.id) ?? [];
+    send(ctx, 200, play.sitePicks(ctx, { game, picks }));
+  }
+
+  /** The × on the Locks card: hidden until the next ET day. */
+  function locksCardDismiss(ctx) {
+    if (!signedIn(ctx)) return;
+    hideLocksCard(store, ctx.user.id, ctx.now);
+    redirect(ctx, safeNext(ctx.form.get('next')) ?? '/games');
+  }
+
+  /** "Show Bookie Bullies picks on the board", from profile settings. */
+  function sitePicksSetting(ctx) {
+    if (!signedIn(ctx)) return;
+    setShowSitePicks(store, ctx.user.id, ctx.form.get('show') === 'on');
+    flash(ctx, 'ok', 'Saved.');
+    redirect(ctx, `/u/${encodeURIComponent(ctx.user.screenName)}#bb-picks`);
   }
 
   async function pickForm(ctx) {
@@ -625,8 +672,9 @@ export function createApp({ store, games, config, mailer = createMailer({ log: {
   }
 
   /**
-   * Post to a thread, after the same checks for a game or a group: a
-   * confirmed email and the rate limit (eight a minute, games and groups together).
+   * Post to a thread, after the same checks for a game, a group or a
+   * tournament: a confirmed email and the rate limit (eight a minute, every
+   * thread together).
    */
   function postChat(ctx, where) {
     if (!ctx.user.verified) {
@@ -647,14 +695,25 @@ export function createApp({ store, games, config, mailer = createMailer({ log: {
     redirect(ctx, `${gamePath(game.id)}#chat`);
   }
 
-  /** Where a thread lives: its game's page or its group's. */
-  const threadPath = (where) => (where?.groupId != null ? `/groups/${where.groupId}#chat` : where?.gameId ? `${gamePath(where.gameId)}#chat` : '/chat');
+  /** Where a thread lives: its game's page, its group's or its tournament's. */
+  function threadPath(where) {
+    if (where?.groupId != null) return `/groups/${where.groupId}#chat`;
+    if (where?.tournamentId != null) {
+      const slug = store.get('SELECT slug FROM tournaments WHERE id = ?', where.tournamentId)?.slug;
+      return slug ? `/tournaments/${slug}#chat` : '/tournaments';
+    }
+    return where?.gameId ? `${gamePath(where.gameId)}#chat` : '/chat';
+  }
 
-  /** The thread a message is in, if this player may see it. Group threads are for members only. */
+  /** The thread a message is in, if this player may see it. Group threads are for members only, tournament threads for entrants. */
   function visibleThread(ctx, messageId) {
     const where = threadOfMessage(store, messageId);
     if (!where) return { where: null };
     if (where.groupId != null && !groupFor(store, where.groupId, ctx.user.id)) return null;
+    if (where.tournamentId != null) {
+      const t = store.get('SELECT * FROM tournaments WHERE id = ?', where.tournamentId);
+      if (!t || !canChat(store, t, ctx.user.id)) return null;
+    }
     return { where };
   }
 
@@ -689,7 +748,8 @@ export function createApp({ store, games, config, mailer = createMailer({ log: {
     const liveCount = store.get("SELECT COUNT(*) AS n FROM games WHERE state = 'in'").n;
     const admin = isAdmin(ctx);
     const reported = admin ? reportedMessages(store).length + reportedPhotos(store).length : 0;
-    send(ctx, 200, moreViews.more(ctx, { liveCount, admin, reported }));
+    const reportedCups = admin ? reportedTournaments(store).length : 0;
+    send(ctx, 200, moreViews.more(ctx, { liveCount, admin, reported, reportedCups }));
   }
 
   async function livePage(ctx) {
@@ -735,13 +795,23 @@ export function createApp({ store, games, config, mailer = createMailer({ log: {
       me: ctx.user?.screenName ? rows.find((r) => r.id === ctx.user.id) ?? null : null,
       left: timeLeft(ctx.now, weekBounds(week).end),
       min: CONTEST_MIN,
-      last: { label: weekLabel(lastWeek), podium: results(store, lastWeek) },
+      last: { label: weekLabel(lastWeek), week: lastWeek, podium: results(store, lastWeek) },
+      players: (week) => standings(store, week, 100_000).length,
     }));
   }
 
+  /**
+   * The winners wall. A player's own podium rows get a Share button, with
+   * how many played: counted only for the weeks and tournaments they placed in.
+   */
   function winnersPage(ctx) {
     const tab = ctx.query.get('tab') === 'tournaments' ? 'tournaments' : 'weekly';
-    send(ctx, 200, social.winners(ctx, { ...winnersWall(store), tab, tournaments: tournamentWinners(store) }));
+    const tournaments = tournamentWinners(store);
+    const userId = ctx.user?.screenName ? ctx.user.id : null;
+    if (userId) {
+      for (const t of tournaments.list) if (t.podium?.some((r) => r.id === userId)) t.players = standingsOf(store, t, 100_000).length;
+    }
+    send(ctx, 200, social.winners(ctx, { ...winnersWall(store), tab, tournaments, players: (week) => standings(store, week, 100_000).length }));
   }
 
   // ---- tournaments ------------------------------------------------------------
@@ -752,28 +822,79 @@ export function createApp({ store, games, config, mailer = createMailer({ log: {
     send(ctx, 200, tourneyViews.hub(ctx, { ...hub(store, ctx.now, userId), admin: isAdmin(ctx) }));
   }
 
-  /** One tournament: rules, the clock, Join or Leave, standings, the podium once closed. */
+  /** One tournament: rules, the clock, Join or Leave, standings (as it stands while live), chat, the podium once closed. */
   function tournamentPage(ctx, { slug }) {
-    const row = bySlug(store, slug);
+    const row = findTournament(store, slug);
     if (!row) return notFound(ctx);
+    return showTournament(ctx, row, null);
+  }
+
+  /** A private tournament's invite link: its page, with Join for anyone holding the code. */
+  function tournamentInvite(ctx, { code }) {
+    const row = byCode(store, code);
+    if (!row) return notFound(ctx);
+    return showTournament(ctx, row, hostOf(store, row).invite_code);
+  }
+
+  async function showTournament(ctx, row, code) {
     const userId = ctx.user?.screenName ? ctx.user.id : null;
+    const admin = isAdmin(ctx);
+    const seen = accessTo(store, row, { userId, admin, code });
+    if (!seen.see) return notFound(ctx);
     const t = cardOf(store, row, userId, ctx.now);
-    const rows = withLooks(standingsOf(store, row));
+    const canceled = Boolean(row.canceled_at);
+    const graded = standingsOf(store, row, 100_000);
+    // While it's live: scores from the stored games, freshened once (games.live is rate-limited), and "As it stands".
+    let live = false;
+    let rows = graded;
+    if (t.phase === 'live' && !canceled) {
+      try {
+        await games.live();
+      } catch (err) {
+        log.warn(`tournament live scores: ${err.message}`);
+      }
+      rows = liveStandingsOf(store, row);
+      live = true;
+    }
+    rows = withLooks(rows.slice(0, 100));
+    const chat = canChat(store, row, userId) ? withLooks(messages(store, { tournamentId: row.id }), 'user_id') : null;
+    const host = seen.host ?? null;
+    const mine = Boolean(host && userId != null && row.created_by === userId);
+    const won = userId != null ? t.podium?.find((r) => r.id === userId) ?? null : null;
     send(ctx, 200, tourneyViews.detail(ctx, {
       t,
       rows,
+      live,
+      myRow: userId != null ? graded.find((r) => r.id === userId) ?? null : null,
       badges: topBadges(store, rows.map((r) => r.id)),
       entry: row.kind === 'weekly' ? null : entryOf(store, row, userId),
       entrants: entrantCount(store, row),
       podium: t.podium,
+      canceled,
+      host,
+      mine,
+      code: host?.visibility === 'private' ? code ?? (mine ? host.invite_code : null) : null,
+      inviteUrl: mine ? `${ctx.origin}${invitePath(row, host)}` : null,
+      reported: host ? reportedByMe(store, row, userId) : false,
+      chat,
+      share: won ? { place: won.place, units: won.units, record: won.record, players: graded.length } : null,
     }));
+  }
+
+  /** The tournament a form is about, if this player may see it. */
+  function visibleTournament(ctx, slug, code = null) {
+    const row = findTournament(store, slug);
+    if (!row) return null;
+    const userId = ctx.user?.screenName ? ctx.user.id : null;
+    return accessTo(store, row, { userId, admin: isAdmin(ctx), code }).see ? row : null;
   }
 
   function tournamentJoin(ctx, { slug }) {
     if (!signedIn(ctx)) return;
-    const t = bySlug(store, slug);
+    const code = ctx.form.get('code') || null;
+    const t = visibleTournament(ctx, slug, code);
     if (!t) return notFound(ctx);
-    const result = joinTournament(store, t, ctx.user.id, ctx.now);
+    const result = joinTournament(store, t, ctx.user.id, ctx.now, { code });
     flash(ctx, result.error ? 'error' : 'ok', result.error ?? `You're in ${t.name}. Bets you make from now on count.`);
     redirect(ctx, safeNext(ctx.form.get('next')) ?? `/tournaments/${t.slug}`);
   }
@@ -787,10 +908,84 @@ export function createApp({ store, games, config, mailer = createMailer({ log: {
     redirect(ctx, `/tournaments/${t.slug}`);
   }
 
+  /** The new-tournament form. Anyone signed in sees it; making one needs a confirmed email. */
+  function tournamentNewForm(ctx, extra = {}, status = 200) {
+    if (!signedIn(ctx)) return;
+    send(ctx, status, tourneyViews.newTournament(ctx, {
+      groups: groupChoices(store, ctx.user.id),
+      form: extra.form ?? { ...formDefaults(ctx.now), group: ctx.query?.get('group') ?? '' },
+      error: extra.error ?? null,
+    }));
+  }
+
+  function tournamentCreate(ctx) {
+    if (!signedIn(ctx)) return;
+    const form = {
+      name: ctx.form.get('name') ?? '',
+      sports: ctx.form.getAll('sports'),
+      startDate: ctx.form.get('start_date') ?? '',
+      startTime: ctx.form.get('start_time') ?? '',
+      endDate: ctx.form.get('end_date') ?? '',
+      endTime: ctx.form.get('end_time') ?? '',
+      minBets: ctx.form.get('min_bets') ?? '',
+      visibility: ctx.form.get('visibility') ?? '',
+      group: ctx.form.get('group') ?? '',
+    };
+    if (!ctx.user.verified) return tournamentNewForm(ctx, { form, error: 'Confirm your email to make a tournament. The link is in your inbox.' }, 403);
+    const result = createPlayerTournament(store, { ...form, groupId: form.group || null, userId: ctx.user.id, now: ctx.now, limit: !isAdmin(ctx) });
+    if (result.error) return tournamentNewForm(ctx, { form, error: result.error }, 400);
+    flash(ctx, 'ok', form.visibility === 'private'
+      ? "Tournament made, and you're in. Copy the invite link below and send it to your friends."
+      : "Tournament made, and you're in. It's listed under Player tournaments.");
+    redirect(ctx, `/tournaments/${result.slug}`);
+  }
+
+  /** Cancel: its maker before the start, or an admin any time before it's final (player-made) or before the start (the rest). */
+  function tournamentCancel(ctx, { slug }) {
+    if (!signedIn(ctx)) return;
+    const t = bySlug(store, slug);
+    if (!t) return notFound(ctx);
+    const host = hostOf(store, t);
+    const admin = isAdmin(ctx);
+    if (!admin && !(host && t.created_by === ctx.user.id)) return notFound(ctx);
+    const result = cancelTournament(store, t, ctx.now, notifier, { anytime: Boolean(admin && host) });
+    flash(ctx, result.error ? 'error' : 'ok', result.error ?? `${t.name} is canceled. Everyone who joined hears about it.`);
+    redirect(ctx, result.error ? `/tournaments/${t.slug}` : '/tournaments');
+  }
+
+  /** Report a player-made tournament, once. */
+  function tournamentReport(ctx, { slug }) {
+    if (!signedIn(ctx)) return;
+    const t = visibleTournament(ctx, slug, ctx.form.get('code') || null);
+    if (!t) return notFound(ctx);
+    const result = reportTournament(store, t, ctx.user.id, ctx.now);
+    flash(ctx, result.error ? 'error' : 'ok', result.error ?? 'Thanks. Tournaments enough people report come off the lists until an admin looks.');
+    redirect(ctx, `/tournaments/${t.slug}`);
+  }
+
+  /** Tournament chat: entrants only (everyone signed in, in the Weekly Open). A canceled one's is read-only. */
+  function tournamentChatPost(ctx, { slug }) {
+    if (!signedIn(ctx)) return;
+    const t = findTournament(store, slug);
+    if (!t || !canChat(store, t, ctx.user.id)) return notFound(ctx);
+    if (t.canceled_at) flash(ctx, 'error', 'This tournament was canceled. Its chat is read-only.');
+    else postChat(ctx, { tournamentId: t.id });
+    redirect(ctx, `/tournaments/${t.slug}#chat`);
+  }
+
   /** Make a tournament, or cancel one before it starts. Anyone who isn't an admin gets a plain 404. */
   function adminTournaments(ctx) {
     if (!isAdmin(ctx)) return notFound(ctx);
-    send(ctx, 200, tourneyViews.admin(ctx, { list: adminList(store, ctx.now) }));
+    send(ctx, 200, tourneyViews.admin(ctx, { list: adminList(store, ctx.now), reported: reportedTournaments(store) }));
+  }
+
+  /** An admin looked at a reported tournament and it's fine: it's listed again. */
+  function adminTournamentDismiss(ctx, { slug }) {
+    if (!isAdmin(ctx)) return notFound(ctx);
+    const t = bySlug(store, slug);
+    if (!t || !dismissTournamentReports(store, t, ctx.now)) return notFound(ctx);
+    flash(ctx, 'ok', `${t.name} is back on the lists. Its reports are cleared.`);
+    redirect(ctx, '/admin/tournaments');
   }
 
   function adminTournamentCreate(ctx) {
@@ -806,7 +1001,7 @@ export function createApp({ store, games, config, mailer = createMailer({ log: {
       prize: ctx.form.get('prize') ?? '',
     };
     const result = createCustom(store, { ...form, userId: ctx.user.id, now: ctx.now });
-    if (result.error) return send(ctx, 400, tourneyViews.admin(ctx, { list: adminList(store, ctx.now), error: result.error, form }));
+    if (result.error) return send(ctx, 400, tourneyViews.admin(ctx, { list: adminList(store, ctx.now), reported: reportedTournaments(store), error: result.error, form }));
     flash(ctx, 'ok', 'Tournament made. It shows on the Tournaments page now.');
     redirect(ctx, `/tournaments/${result.slug}`);
   }
@@ -815,7 +1010,8 @@ export function createApp({ store, games, config, mailer = createMailer({ log: {
     if (!isAdmin(ctx)) return notFound(ctx);
     const t = bySlug(store, slug);
     if (!t) return notFound(ctx);
-    const result = cancelTournament(store, t, ctx.now, notifier);
+    // A player-made one can be taken down any time before it's final; the rest only before the start.
+    const result = cancelTournament(store, t, ctx.now, notifier, { anytime: Boolean(hostOf(store, t)) });
     flash(ctx, result.error ? 'error' : 'ok', result.error ?? `${t.name} is canceled.`);
     redirect(ctx, '/admin/tournaments');
   }
@@ -914,6 +1110,7 @@ export function createApp({ store, games, config, mailer = createMailer({ log: {
       city: group.kind === 'local' ? CITY[group.city_slug] ?? null : null,
       home: group.kind === 'local' && store.get('SELECT home_city FROM users WHERE id = ?', ctx.user.id).home_city === group.city_slug,
       admin: isAdmin(ctx),
+      tournaments: groupTournaments(store, group.id, ctx.user.id, ctx.now),
     }));
   }
 
@@ -1203,7 +1400,7 @@ export function createApp({ store, games, config, mailer = createMailer({ log: {
       if (row) faces.set(`/u/${encodeURIComponent(row.screen_name)}`, { screen_name: row.screen_name, photo: row.photo });
     }
     for (const n of list) if (n.kind !== 'photo') n.face = faces.get(n.url) ?? null;
-    const prefs = store.get('SELECT notify_settled, notify_follows, notify_lines, notify_streak, notify_tournaments FROM users WHERE id = ?', ctx.user.id);
+    const prefs = store.get('SELECT notify_settled, notify_follows, notify_lines, notify_streak, notify_tournaments, notify_tournament_updates FROM users WHERE id = ?', ctx.user.id);
     const phones = store.get('SELECT COUNT(*) AS n FROM push_subscriptions WHERE user_id = ?', ctx.user.id).n;
     notifier.markRead(ctx.user.id, ctx.now);
     ctx.unread = 0;
@@ -1214,8 +1411,8 @@ export function createApp({ store, games, config, mailer = createMailer({ log: {
     if (!signedIn(ctx)) return;
     const on = (name) => (ctx.form.get(name) === 'on' ? 1 : 0);
     store.run(
-      'UPDATE users SET notify_settled = ?, notify_follows = ?, notify_lines = ?, notify_streak = ?, notify_tournaments = ? WHERE id = ?',
-      on('settled'), on('follows'), on('lines'), on('streak'), on('tournaments'), ctx.user.id,
+      'UPDATE users SET notify_settled = ?, notify_follows = ?, notify_lines = ?, notify_streak = ?, notify_tournaments = ?, notify_tournament_updates = ? WHERE id = ?',
+      on('settled'), on('follows'), on('lines'), on('streak'), on('tournaments'), on('tournament_updates'), ctx.user.id,
     );
     flash(ctx, 'ok', 'Saved.');
     redirect(ctx, '/notifications');
@@ -1531,6 +1728,9 @@ export function createApp({ store, games, config, mailer = createMailer({ log: {
     ['POST', '/setup/skip', setupSkip],
     ['GET', '/games', gamesPage],
     ['GET', '/games/:id', gamePage],
+    ['GET', '/games/:id/bb', sitePicksPage],
+    ['POST', '/bb/locks/dismiss', locksCardDismiss],
+    ['POST', '/bb/settings', sitePicksSetting],
     ['POST', '/games/:id/chat', chatPost],
     ['POST', '/chat/:id/delete', chatDelete],
     ['POST', '/chat/:id/report', chatReport],
@@ -1550,12 +1750,19 @@ export function createApp({ store, games, config, mailer = createMailer({ log: {
     ['GET', '/contest', contestPage],
     ['GET', '/winners', winnersPage],
     ['GET', '/tournaments', tournamentsPage],
+    ['GET', '/tournaments/new', (ctx) => tournamentNewForm(ctx)],
+    ['POST', '/tournaments/new', tournamentCreate],
     ['GET', '/tournaments/:slug', tournamentPage],
+    ['GET', '/t/:code', tournamentInvite],
     ['POST', '/tournaments/:slug/join', tournamentJoin],
     ['POST', '/tournaments/:slug/leave', tournamentLeave],
+    ['POST', '/tournaments/:slug/cancel', tournamentCancel],
+    ['POST', '/tournaments/:slug/report', tournamentReport],
+    ['POST', '/tournaments/:slug/chat', tournamentChatPost],
     ['GET', '/admin/tournaments', adminTournaments],
     ['POST', '/admin/tournaments', adminTournamentCreate],
     ['POST', '/admin/tournaments/:slug/cancel', adminTournamentCancel],
+    ['POST', '/admin/tournaments/:slug/dismiss', adminTournamentDismiss],
     ['GET', '/streak', streakPage],
     ['GET', '/invite', invitePage],
     ['GET', '/i/:code', inviteLink],

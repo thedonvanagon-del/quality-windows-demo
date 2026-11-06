@@ -272,3 +272,19 @@ function chatMessage(ctx, m, tags, canDelete) {
     ${m.hidden ? html`<p class="msg-body hidden-msg">Hidden after reports.</p>` : html`<p class="msg-body">${m.body}</p>`}
   </li>`;
 }
+
+/** 1 -> "1st", 2 -> "2nd", 3 -> "3rd". */
+export const placeWord = (n) => ({ 1: '1st', 2: '2nd', 3: '3rd' })[n] ?? `${n}th`;
+
+/**
+ * Share for a player's own top-3 finish (a tournament or a weekly contest):
+ * app.js draws a square card from these on a canvas, the way the profile's
+ * Share as image does, and hands it to the share sheet or saves it. Hidden
+ * until the script shows it, so it never shows where it can't work.
+ */
+export function winShare(ctx, { place, title, units: u, record, players, date, path }) {
+  return html`<button class="btn small win-share" type="button" hidden data-share-win
+    data-place="${placeWord(place)}" data-title="${title}" data-units="${u}" data-record="${record}"
+    data-players="${players ?? ''}" data-date="${date}" data-url="${`${ctx.origin}${path}`.replace(/^https?:\/\//, '')}"
+    data-name="${ctx.user?.screenName ?? ''}" data-photo="${ctx.user?.photo ? `/media/${ctx.user.photo}` : ''}">${icons.download}<span>Share</span></button>`;
+}
