@@ -216,7 +216,8 @@ describe('injuries and form on the game page', () => {
     assert.match(text, /Injuries BUF Bills Bill Hurt CB Questionable · Hamstring KC Chiefs Ir One LB Injured Reserve · Ankle Out One QB Out · Knee Doubt One/);
     assert.doesNotMatch(text, /Seventh Guy|Probable Guy/, 'six a team, worst first');
     assert.match(text, /Recent form BUF Bills 1-0 W Won 112-104 vs BOS KC Chiefs 3-1-1 W Won 23-20 @ CIN W Won 31-10 vs LAC L Lost 17-24 @ LV W Won 27-20 vs DEN T Tied 20-20 @ PIT Chat/);
-    assert.ok(text.indexOf('Recent form') < text.indexOf('Chat'), 'above the chat');
+    // The header's Chat Rooms tab comes first; the game's chat section is the one with id="chat".
+    assert.ok(next.text.indexOf('Recent form') < next.text.indexOf('id="chat"'), 'above the chat');
     assert.match(next.text, /<li class="form-chip l">/);
     assert.equal(app.espn.summaryCalls, 1);
   });

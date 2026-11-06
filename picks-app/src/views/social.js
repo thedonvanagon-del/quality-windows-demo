@@ -58,10 +58,10 @@ const sportName = (key) => (key ? SPORT[key]?.name ?? key : 'All sports');
 
 export function groups(ctx, { list, rooms = [], unread = new Map(), error, name = '', sport = '' }) {
   return layout(ctx, {
-    title: 'Groups',
+    title: 'Chat Rooms',
     active: 'groups',
     body: html`
-      <h1>Groups</h1>
+      <h1>Chat Rooms</h1>
       <p class="lede">Your friends, your board. Your picks and record are the same everywhere; a group just decides who you're up against.</p>
       ${error ? html`<div class="flash err" role="alert">${error}</div>` : ''}
       ${groupsSection(ctx, { rooms, unread })}
@@ -113,7 +113,7 @@ export function group(ctx, { group, rows, members, feed, inviteUrl, messages = [
     title: group.name,
     active: 'groups',
     body: html`
-      ${isLocal ? html`<a class="back" href="/local">← Local rooms</a>` : html`<a class="back" href="/groups">← Groups</a>`}
+      ${isLocal ? html`<a class="back" href="/local">← Local rooms</a>` : html`<a class="back" href="/groups">← Chat Rooms</a>`}
       <h1>${group.name}</h1>
       <p class="lede">${isLocal
         ? html`<span class="local-tag">${icons.pin}Local room</span>${city ? ` · ${groupLabel(city)}` : ''}`

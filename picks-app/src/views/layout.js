@@ -27,7 +27,7 @@ export function layout(ctx, { title, active, body, description, share }) {
         ['picks', '/picks', 'My bets', icons.picks],
         ['tournaments', '/tournaments', 'Tournaments', icons.bracket],
         ['board', '/leaderboard', 'Leaderboard', icons.board],
-        ['groups', '/groups', 'Groups', icons.groups],
+        ['groups', '/groups', 'Chat Rooms', icons.groups],
         ['more', '/more', 'More', icons.more],
       ]
     : [['board', '/leaderboard', 'Leaderboard', icons.board]];
@@ -37,8 +37,8 @@ export function layout(ctx, { title, active, body, description, share }) {
   const parlayBar = draft
     ? html`<a class="parlay-bar" href="/parlay"><span><b>Parlay</b> · ${draft.legs} ${draft.legs === 1 ? 'leg' : 'legs'} · <span class="pb-odds">${formatOdds(draft.odds).replace(/^-/, '\u2212')}</span></span><span class="pb-go">Review</span></a>`
     : '';
-  const link = ([key, href, label, icon]) =>
-    html`<a href="${href}" class="${key === active ? 'on' : ''}" ${key === active ? html`aria-current="page"` : ''}><span class="ic">${icon}</span><span>${label}</span></a>`;
+  const link = ([key, href, label, icon], wrap = false) =>
+    html`<a href="${href}" class="${key === active ? 'on' : ''}" ${key === active ? html`aria-current="page"` : ''}><span class="ic">${icon}</span><span ${wrap ? html`class="tab-wrap"` : ''}>${label}</span></a>`;
 
   return html`<!doctype html>
 <html lang="en" data-theme="${theme}" data-mode="${mode}">
@@ -123,13 +123,17 @@ ${playing
   ? html`<div class="dock">${parlayBar}<nav class="tabbar" aria-label="Main">${nav
     // Six tabs share a phone's width, so the longest labels get shorter names.
     // Profile isn't a tab (2026-11-06): it's the avatar up top, and first in More.
-    .map(([key, href, label, icon]) => link([key, href, TAB_LABEL[key] ?? label, icon]))}</nav></div>`
+    .map(([key, href, label, icon]) => link([key, href, TAB_LABEL[key] ?? label, icon], TAB_WRAP.has(key)))}</nav></div>`
   : ''}
 </body>
 </html>`;
 }
 
 const TAB_LABEL = { board: 'Leaders', tournaments: 'Tourneys' };
+// "Chat Rooms" (2026-11-06) measures 60px in the tab font, inside a tab's
+// 64px at 390px wide, so it's one line there. On a narrower phone it may
+// wrap to "Chat" over "Rooms" rather than cut off (style.css, under 380px).
+const TAB_WRAP = new Set(['groups']);
 
 export function csrfField(ctx) {
   return ctx.session ? html`<input type="hidden" name="_csrf" value="${ctx.session.csrf}">` : '';

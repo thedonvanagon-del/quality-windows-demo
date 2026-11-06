@@ -1741,6 +1741,11 @@ button.sv-team:hover { background: var(--tile-hover); }
 .bk-results { display: grid; gap: 10px; }
 .bracket-feature .ft-kicker svg, .lg-card .pm-chip { flex: none; }
 
+/* "Chat Rooms" fits one line at 390px; on a narrower phone it wraps to two short lines instead of cutting off. */
+@media (max-width: 379px) {
+  .tabbar a > span.tab-wrap { white-space: normal; overflow: visible; text-overflow: clip; text-align: center; line-height: 1.05; word-spacing: 100vw; }
+}
+
 /* Text boxes on the admin forms (prize delivery, a pasted bracket field) match the inputs; a button that can't be used looks it. */
 .form textarea { font: inherit; padding: 11px 13px; border-radius: 8px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); width: 100%; resize: vertical; }
 .form textarea:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }

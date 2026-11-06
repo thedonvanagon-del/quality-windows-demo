@@ -464,6 +464,9 @@ describe('tab bar', () => {
     const tabs = [...tabbar.matchAll(/<a href="([^"]+)"/g)].map((m) => m[1]);
     assert.deepEqual(tabs, ['/games', '/picks', '/tournaments', '/leaderboard', '/groups', '/more']);
     assert.match(visible(tabbar), /Tourneys/);
+    // Groups reads "Chat Rooms" (owner's call, 2026-11-06); the address stays /groups.
+    assert.match(visible(tabbar), /Games My bets Tourneys Leaders Chat Rooms More/);
+    assert.match(visible((await ann.get('/groups')).text), /Chat Rooms Your friends, your board\./);
     assert.doesNotMatch(tabbar, /\/u\/Ann/);
     assert.match(games.text, /<a class="user-chip [^"]*" href="\/u\/Ann">/);
     const more = visible((await ann.get('/more')).text);

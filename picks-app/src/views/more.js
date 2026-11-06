@@ -38,7 +38,7 @@ export function more(ctx, { liveCount, admin = false, reported = 0, reportedCups
         ${row('/chat', icons.chat, 'Game chat', 'Talk about today\'s games while they\'re on')}
         ${row('/leaderboard', icons.board, 'Leaderboard', 'Everyone, or one sport at a time')}
         ${row('/search', icons.search, 'Find players', 'Look someone up by screen name')}
-        ${row('/groups', icons.groups, 'Groups', 'Your friends and their boards')}
+        ${row('/groups', icons.groups, 'Chat Rooms', 'Your groups and local rooms: chat and boards')}
         ${row('/local', icons.pin, 'Local rooms', 'A chat and a board for your city')}
         ${row('/invite', icons.invite, 'Invite friends', 'Your own link, and who joined')}
         ${admin ? row('/admin/reports', icons.flag, 'Admin', 'Reported chat and photos', reported ? html`<span class="count">${reported}</span>` : '') : ''}
