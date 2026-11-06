@@ -26,6 +26,7 @@ export const icons = {
   medal: svg('<circle cx="12" cy="14.5" r="5.5"/><path d="M8.5 10L6 3h4l2 4.5M15.5 10L18 3h-4l-2 4.5"/>'),
   pin: svg('<path d="M12 21s-6.5-6.2-6.5-11.2a6.5 6.5 0 0 1 13 0C18.5 14.8 12 21 12 21z"/><circle cx="12" cy="9.8" r="2.4"/>'),
   grade: svg('<circle cx="12" cy="12" r="9"/><path d="M8 12.5l3 3 5-6"/>'),
+  camera: svg('<path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/>'),
   // Tournaments: two lines meeting in a bracket, into the winner's box.
   bracket: svg('<path d="M3 5h5v12H3M8 11h6"/><rect x="14" y="8" width="7" height="6" rx="1.5"/>'),
 };

@@ -60,7 +60,7 @@ five.
 | `/groups` | Start a group (all sports or one), join with a code, see its board, its picks feed and its members-only chat. The list shows how many chat messages are new in each group. |
 | `/local` | Local rooms: one public room per city, each with its own chat and board. Start one for your city from the list, or join one with a tap. |
 | `/games/<id>` | One game: its lines (or score), the public split, injuries and each team's last five before the start, and the game chat. |
-| `/u/<name>` | A player's public record: a banner in their colors, their photo, overall, by sport, how often they beat the closing line, and every pick with when it was locked (and its CLV once the game starts), and their city if they picked one. Signed-in players can report a photo. Your own has your settings: your photo, your city, a new screen name (once every 30 days; the old one redirects for 90), the app color, and your name on the boards: a color and an icon (saved with a POST to `/nametag`). |
+| `/u/<name>` | A player's public record: a banner (their cover photo, or a band in their colors), their photo, overall, by sport, how often they beat the closing line, and every pick with when it was locked (and its CLV once the game starts), and their city if they picked one. Signed-in players can report a photo or a cover. Your own has your settings: your photo, your cover photo (an Edit cover button on the banner goes to it), your city, a new screen name (once every 30 days; the old one redirects for 90), the app color, and your name on the boards: a color and an icon (saved with a POST to `/nametag`). |
 | `/search` | Find players by the start of their screen name. |
 | `/contest` | The free weekly contest: most units on bets whose games start Monday to Sunday (ET), 5 graded bets to place. Public. |
 | `/winners` | The winners wall: every past week's top 3 and the most weekly wins, and a Tournaments tab with every finished tournament's. Public. |
@@ -71,7 +71,7 @@ five.
 | `/invite` | Your invite link (`/i/<code>`), who joined from it, and progress to the Recruiter badge. |
 | `/notifications` | The inbox, and what to hear about: settled bets, players you follow, Lines are up (about 11 AM ET), the Streak reminder (about 5 PM ET), a tournament you joined starting in an hour. |
 | `/setup` | Once, after a new player picks a screen name: favorite sports, players to follow, and their city. |
-| `/admin/reports` | For admins only: reported chat messages, from games, groups and local rooms (restore or delete), and reported profile photos (dismiss or remove). |
+| `/admin/reports` | For admins only: reported chat messages, from games, groups and local rooms (restore or delete), and reported profile and cover photos (dismiss or remove). |
 | `/admin/rooms` | Local rooms, for admins only: rename, archive or restore. |
 
 Every week has a free contest (no entry, nothing paid out); results close
@@ -98,6 +98,7 @@ green, Ember orange, Ice, Royal, Crimson, Forest, and Light, a white one), their
 team's colors ("Match my team"), or two colors of their own, on a dark or light
 background. A color too dark or too light to read gets a shade lighter or
 darker. Players can add a profile photo; it shows on boards, chat and feeds.
+They can also put a cover photo across the top of their profile.
 They can also pick how their name shows on the boards, standings and chat:
 one of 12 name colors (each readable on every look) and an icon: an emoji,
 one earned with a badge (👑 for a weekly win, 🏆 for a tournament, 🔥🔥 for a
@@ -124,7 +125,7 @@ npm start       # the real thing, against ESPN, with the database in data/bookie
 | `DATABASE_PATH` | `data/bookiebullies.db` | The SQLite file. This holds every account and every record. |
 | `APP_NAME` | `Bookie Bullies` | The name in the header and the page titles. |
 | `THEME` | `scoreboard` | The look for visitors and new players: `scoreboard` (navy and amber), `market` (black and green), `ember` (orange), `ice`, `royal`, `crimson`, `forest` or `light`. Each player can switch on their own profile. |
-| `MEDIA_DIR` | a `media` folder next to the database | Where profile photos are kept (`data/media` by default, `/var/lib/bookie-bullies-app/media` on the server). Made if it isn't there. Keep it on the same disk as the database and in the same backups. |
+| `MEDIA_DIR` | a `media` folder next to the database | Where profile and cover photos are kept (`data/media` by default, `/var/lib/bookie-bullies-app/media` on the server). Made if it isn't there. Keep it on the same disk as the database and in the same backups. |
 | `TRUST_PROXY` | off | Turn on behind a host's proxy (Fly, Render, Railway) so it reads the real visitor IP and knows the site is on https. |
 | `DEMO` | off | Fake games and players. Never in production. |
 | `ADMIN_EMAILS` | none | Who can open `/admin/reports` (reported chat) and `/admin/tournaments`, comma-separated, any case. Each admin also has to have an account with that email, confirmed. |
@@ -203,11 +204,12 @@ There's also a Dockerfile, for any host that runs containers and keeps a disk.
   and checked again whenever a name is drawn. Team logos come from ESPN's
   team lists and must be https on `a.espncdn.com`, the one outside image
   host the security policy allows; anything else is dropped.
-- Profile photos: 1 MB at most, JPEG, PNG or WebP by their first bytes
-  (not by name or type), with EXIF, GPS and other metadata stripped on the
-  server even when the browser already did. Each is stored under a random
-  name and served from `/media/<name>` with its own type and `nosniff`; any
-  other name is a 404. Three reports hide a photo until an admin looks.
+- Profile photos (1 MB at most) and cover photos (2 MB): JPEG, PNG or WebP
+  by their first bytes (not by name or type), with EXIF, GPS and other
+  metadata stripped on the server even when the browser already did. Each
+  is stored under a random name and served from `/media/<name>` with its own
+  type and `nosniff`, only while someone has it; any other name is a 404.
+  Three reports hide a photo or cover until an admin looks.
 
 ## Not built yet
 
@@ -247,7 +249,7 @@ src/auth.js       passwords, sessions, rate limits
 src/db.js         the schema; add migrations at the end, never edit a shipped one
 src/demo.js       the fake ESPN and players behind npm run demo
 src/themes.js     looks: the presets, the readability guard, team and custom colors, the /theme stylesheet
-src/photos.js     profile photos: checks, metadata stripping, storage, reports, and form uploads (multipart)
+src/photos.js     profile and cover photos: checks, metadata stripping, storage, reports, and form uploads (multipart)
 src/views/        the pages (avatar.js: a player's photo, or their initial)
 public/           styles and a little script that shows times in your own time zone
 ```

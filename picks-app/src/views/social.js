@@ -519,10 +519,19 @@ function nametagPicker(ctx, { player, record, nametag }) {
 }
 
 /**
- * The band behind a profile's header: the player's team colors if they
- * matched one, else their look's accent. An SVG, since inline styles are blocked.
+ * The band behind a profile's header: the player's cover photo when they
+ * have one, else their team colors if they matched one, else their look's
+ * accent. An SVG, since inline styles are blocked. `edit`, on your own
+ * profile, is a Cover photo button on the banner that goes to the form (and,
+ * with JavaScript, opens the file picker).
  */
-function banner(look) {
+function banner(look, cover = null, edit = false) {
+  const button = edit
+    ? html`<a class="cover-btn" href="#cover" data-cover-pick>${icons.camera}<span>${cover ? 'Edit cover' : 'Add cover'}</span></a>`
+    : '';
+  if (cover) {
+    return html`<div class="banner cover"><img src="/media/${cover}" alt="" width="1200" height="400" decoding="async"></div>${button}`;
+  }
   const [a, b] = bannerColors(look);
   return html`<svg class="banner" viewBox="0 0 400 100" preserveAspectRatio="none" aria-hidden="true">
     <rect width="400" height="100" fill="${b}"></rect>
@@ -530,7 +539,35 @@ function banner(look) {
     <polygon points="250,0 280,0 220,100 190,100" fill="${a}" opacity="0.6"></polygon>
     <polygon points="294,0 308,0 248,100 234,100" fill="${a}" opacity="0.35"></polygon>
     <rect width="400" height="100" class="banner-shade"></rect>
-  </svg>`;
+  </svg>${button}`;
+}
+
+/**
+ * Your cover photo (or, for an admin, the official account's): choose, crop
+ * to 3:1 in the browser (drag to choose what shows), save, or remove.
+ */
+function coverForm(ctx, player, cover) {
+  const official = cover.upload !== '/cover';
+  const remove = official ? '/admin/official/cover/delete' : '/cover/delete';
+  return html`<h2 id="cover">${official ? 'Official account cover' : 'Cover photo'}</h2>
+    <div class="cover-edit">
+      <div class="cover-now">${cover.file
+        ? html`<img class="cover-thumb" src="/media/${cover.file}" alt="Your cover photo" width="1200" height="400" loading="lazy" decoding="async">`
+        : html`<span class="cover-thumb cover-empty">No cover photo yet</span>`}<canvas class="cover-thumb cover-crop" width="1200" height="400" hidden tabindex="0" aria-label="Cover preview. Drag, or use the arrow keys, to choose what shows." data-cover-canvas></canvas></div>
+      ${cover.hidden && !official ? html`<p class="muted small">Your cover photo is hidden after reports until an admin looks at it.</p>` : ''}
+      ${cover.blockedUntil
+        ? html`<p class="muted small">An admin removed your last cover photo. You can add a new one after ${dateLabel(cover.blockedUntil)}.</p>`
+        : html`<form class="form photo-form" method="post" action="${cover.upload}" enctype="multipart/form-data" data-cover-form>
+            ${csrfField(ctx)}
+            <label>Choose a cover photo <span class="hint">JPEG, PNG or WebP, up to 2 MB. It's cut to a wide strip, 3 times as wide as it is tall.</span>
+              <input type="file" name="cover" accept="image/jpeg,image/png,image/webp" required data-cover-input></label>
+            <div class="row"><button class="btn small" data-cover-save>Save cover</button><span class="muted small" data-cover-status role="status"></span></div>
+          </form>`}
+      ${cover.file || cover.hidden
+        ? html`<form method="post" action="${remove}" data-confirm="Remove your cover photo?">${csrfField(ctx)}<button class="btn ghost small">Remove cover</button></form>`
+        : ''}
+      <p class="muted small">Everyone can see it. The same rules as photos; reported covers get looked at.</p>
+    </div>`;
 }
 
 /** Your photo (or, for an admin, the official account's): choose, crop in the browser, save, or remove. */
@@ -590,7 +627,7 @@ function homeCityForm(ctx, home, cities) {
     </form>`;
 }
 
-export function profile(ctx, { player, nametag = null, record, bySport, split = null, series = [], last10 = null, rank = null, follows = { followers: 0, following: 0 }, following = false, picks, hidden, nextChange = null, badges = [], streak = null, clv = null, look = { preset: null }, photo = {}, teams = null, home = null, cities = null }) {
+export function profile(ctx, { player, nametag = null, record, bySport, split = null, series = [], last10 = null, rank = null, follows = { followers: 0, following: 0 }, following = false, picks, hidden, nextChange = null, badges = [], streak = null, clv = null, look = { preset: null }, photo = {}, cover = {}, teams = null, home = null, cities = null }) {
   const own = ctx.user?.id === player.id;
   const team = look.team ?? null;
   // Anyone signed in can report someone else's photo, once.
@@ -599,14 +636,19 @@ export function profile(ctx, { player, nametag = null, record, bySport, split = 
       ? html`<span class="muted small">Photo reported</span>`
       : html`<form method="post" action="/u/${encodeURIComponent(player.screen_name)}/photo/report" data-confirm="Report ${player.screen_name}'s photo to the admins?">${csrfField(ctx)}<button class="link-btn">Report photo</button></form>`
     : '';
+  const reportCover = ctx.user?.screenName && !own && cover.file
+    ? cover.reported
+      ? html`<span class="muted small">Cover reported</span>`
+      : html`<form method="post" action="/u/${encodeURIComponent(player.screen_name)}/cover/report" data-confirm="Report ${player.screen_name}'s cover photo to the admins?">${csrfField(ctx)}<button class="link-btn">Report cover</button></form>`
+    : '';
   return layout(ctx, {
     title: player.screen_name,
     active: ctx.user?.id === player.id ? 'me' : null,
     description: `${player.screen_name}: ${recordText(record)}, ${record.units > 0 ? '+' : ''}${record.units} units. Every pick locked before the game and graded off the final.`,
     share: shareCard(player, record),
     body: html`
-      <header class="profile-head ${player.photo ? 'has-photo' : ''}">
-        ${banner(look)}
+      <header class="profile-head ${player.photo ? 'has-photo' : ''} ${cover.file ? 'has-cover' : ''}">
+        ${banner(look, cover.file, Boolean(cover.upload) && !cover.blockedUntil)}
         <div class="profile-face">${avatar(player, player.photo ? 'huge' : 'big')}</div>
         <div class="team">${!player.official && player.nameColor ? html`<h1 class="name-c-${player.nameColor}">${player.screen_name}</h1>` : html`<h1>${player.screen_name}</h1>`}${player.official ? officialTag : nameIcon(player.nameIcon)}${team
           ? html`<span class="team-badge" title="${team.name} fan">${teamLogo(team)}<span class="sr-only">${team.name} fan</span></span>`
@@ -623,14 +665,16 @@ export function profile(ctx, { player, nametag = null, record, bySport, split = 
         <button class="btn ghost small" type="button" data-share="${ctx.origin}/u/${encodeURIComponent(player.screen_name)}" data-share-text="${shareCard(player, record).title}" hidden>Share profile</button>
         ${ctx.user?.id === player.id ? html`<a class="btn ghost small" href="/invite">Invite friends</a>` : ''}
         ${report}
+        ${reportCover}
       </div>
       <p class="lede">On the record since ${joined(player.created_at)}. ${record.graded} graded ${record.graded === 1 ? 'pick' : 'picks'}, every one locked before its game.</p>
       ${recordCard(ctx, { player, record, series, last10, rank })}
       ${clvLine(clv)}
       ${streak?.played ? html`<p class="streak-line"><a href="/streak">${icons.flame}<span>Streak: <b>${streak.current}</b> · Best: <b>${streak.best}</b></span></a></p>` : ''}
       ${badgeChips(badges)}
-      ${own ? html`${photoForm(ctx, player, photo)}${screenNameForm(ctx, player, nextChange)}${nameForm(ctx, player)}${bioForm(ctx, player)}${linkForm(ctx, player)}${cities ? homeCityForm(ctx, home, cities) : ''}${colorPicker(ctx, { teams, look })}${nametag ? nametagPicker(ctx, { player, record, nametag }) : ''}` : ''}
+      ${own ? html`${photoForm(ctx, player, photo)}${coverForm(ctx, player, cover)}${screenNameForm(ctx, player, nextChange)}${nameForm(ctx, player)}${bioForm(ctx, player)}${linkForm(ctx, player)}${cities ? homeCityForm(ctx, home, cities) : ''}${colorPicker(ctx, { teams, look })}${nametag ? nametagPicker(ctx, { player, record, nametag }) : ''}` : ''}
       ${!own && photo.upload ? photoForm(ctx, player, photo) : ''}
+      ${!own && cover.upload ? coverForm(ctx, player, cover) : ''}
       ${bySport.length
         ? html`<h2>By sport</h2>
           <div class="table"><table>

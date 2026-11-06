@@ -1,7 +1,8 @@
-// Profile photos. The browser crops and shrinks a photo to a 400×400 JPEG
-// before sending it (which also drops its EXIF and GPS), but the server
-// trusts none of that: it checks the size and the file's first bytes, strips
-// metadata itself, and stores the file under a random name in MEDIA_DIR.
+// Profile photos and cover photos. The browser crops and shrinks a photo to
+// a 400×400 JPEG (a cover to 1200×400) before sending it, which also drops
+// its EXIF and GPS. The server trusts none of that: it checks the size and
+// the file's first bytes, strips metadata itself, and stores the file under
+// a random name in MEDIA_DIR.
 // No image library: the formats are walked by hand, segment by segment.
 
 import crypto from 'node:crypto';
@@ -9,10 +10,26 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 export const PHOTO_MAX = 1024 * 1024;
+/** A cover photo (the banner across the top of a profile) is bigger: 1200×400. */
+export const COVER_MAX = 2 * 1024 * 1024;
 /** Reports that hide a photo until an admin looks, the same as chat. */
 export const PHOTO_HIDE_AFTER = 3;
 /** How long a player can't upload after an admin removes their photo. */
 export const PHOTO_BLOCK_DAYS = 7;
+
+/**
+ * The two kinds of picture a player has: their face (`avatar`) and the
+ * banner across the top of their profile (`cover`). Both go through the
+ * same checks, storage, reports and admin tools; this says where each lives.
+ * Column names come from here only, never from a request.
+ */
+export const KINDS = {
+  avatar: { column: 'photo', hidden: 'photo_hidden', blocked: 'photo_blocked_until', field: 'photo', max: PHOTO_MAX, anchor: 'photo', label: 'profile photo' },
+  cover: { column: 'cover', hidden: 'cover_hidden', blocked: 'cover_blocked_until', field: 'cover', max: COVER_MAX, anchor: 'cover', label: 'cover photo' },
+};
+
+/** The kind named, or avatar for anything else. */
+export const kindOf = (name) => (Object.hasOwn(KINDS, name) ? name : 'avatar');
 
 export const MEDIA_NAME = /^[0-9a-f]{32}\.(jpg|png|webp)$/;
 export const MEDIA_TYPES = { jpg: 'image/jpeg', png: 'image/png', webp: 'image/webp' };
@@ -113,10 +130,13 @@ export function stripWebp(buf) {
   return Buffer.concat([head, body]);
 }
 
+/** What a too-big upload hears, for this kind. */
+export const tooBigText = (kind = 'avatar') => `That photo is over ${KINDS[kindOf(kind)].max / (1024 * 1024)} MB. Pick a smaller one.`;
+
 /** Check an upload and strip its metadata: { ext, data } or { error } in plain words. */
-export function cleanImage(buf) {
+export function cleanImage(buf, kind = 'avatar') {
   if (!buf?.length) return { error: 'Pick a photo first.' };
-  if (buf.length > PHOTO_MAX) return { error: 'That photo is over 1 MB. Pick a smaller one.' };
+  if (buf.length > KINDS[kindOf(kind)].max) return { error: tooBigText(kind) };
   const ext = sniff(buf);
   if (!ext) return { error: 'That isn\'t a photo we can use. Use a JPEG, PNG or WebP.' };
   const data = { jpg: stripJpeg, png: stripPng, webp: stripWebp }[ext](buf);
@@ -136,87 +156,115 @@ export function deleteFile(dir, name) {
   fs.rmSync(path.join(dir, name), { force: true });
 }
 
-/** Write a cleaned image as this player's photo. The old file and its reports go. */
-export function savePhoto(store, dir, userId, { ext, data }) {
+/** Write a cleaned image as this player's photo (or cover). The old file and its reports go. */
+export function savePhoto(store, dir, userId, { ext, data }, kind = 'avatar') {
+  const k = KINDS[kindOf(kind)];
   const name = `${crypto.randomBytes(16).toString('hex')}.${ext}`;
   fs.writeFileSync(path.join(dir, name), data, { flag: 'wx' });
-  const old = store.get('SELECT photo FROM users WHERE id = ?', userId)?.photo ?? null;
+  const old = store.get(`SELECT ${k.column} AS file FROM users WHERE id = ?`, userId)?.file ?? null;
   store.tx(() => {
-    store.run('UPDATE users SET photo = ?, photo_hidden = 0 WHERE id = ?', name, userId);
-    store.run('DELETE FROM photo_reports WHERE user_id = ?', userId);
+    store.run(`UPDATE users SET ${k.column} = ?, ${k.hidden} = 0 WHERE id = ?`, name, userId);
+    store.run('DELETE FROM photo_reports WHERE user_id = ? AND kind = ?', userId, kindOf(kind));
   });
   deleteFile(dir, old);
   return name;
 }
 
-/** Take a player's photo down (their own choice, or an admin's), file and all. */
-export function clearPhoto(store, dir, userId) {
-  const old = store.get('SELECT photo FROM users WHERE id = ?', userId)?.photo ?? null;
+/** Take a player's photo (or cover) down, their own choice or an admin's, file and all. */
+export function clearPhoto(store, dir, userId, kind = 'avatar') {
+  const k = KINDS[kindOf(kind)];
+  const old = store.get(`SELECT ${k.column} AS file FROM users WHERE id = ?`, userId)?.file ?? null;
   store.tx(() => {
-    store.run('UPDATE users SET photo = NULL, photo_hidden = 0 WHERE id = ?', userId);
-    store.run('DELETE FROM photo_reports WHERE user_id = ?', userId);
+    store.run(`UPDATE users SET ${k.column} = NULL, ${k.hidden} = 0 WHERE id = ?`, userId);
+    store.run('DELETE FROM photo_reports WHERE user_id = ? AND kind = ?', userId, kindOf(kind));
   });
   deleteFile(dir, old);
   return old;
 }
 
-/** When a player may upload again, if an admin removed their photo in the last week. */
-export function uploadBlockedUntil(store, userId, now) {
-  const until = store.get('SELECT photo_blocked_until FROM users WHERE id = ?', userId)?.photo_blocked_until ?? null;
+/** Every picture file a player has (photo and cover), for deleting the account. */
+export function filesOf(store, userId) {
+  const row = store.get(`SELECT ${Object.values(KINDS).map((k) => k.column).join(', ')} FROM users WHERE id = ?`, userId) ?? {};
+  return Object.values(KINDS).map((k) => row[k.column]).filter(Boolean);
+}
+
+/**
+ * Who has this file as a photo or cover, and whether it's hidden: { hidden }
+ * or null when nobody does. Only files someone has right now are served.
+ */
+export function mediaOwner(store, name) {
+  for (const k of Object.values(KINDS)) {
+    const row = store.get(`SELECT ${k.hidden} AS hidden FROM users WHERE ${k.column} = ?`, name);
+    if (row) return { hidden: Boolean(row.hidden) };
+  }
+  return null;
+}
+
+/** When a player may upload again, if an admin removed that kind of photo in the last week. */
+export function uploadBlockedUntil(store, userId, now, kind = 'avatar') {
+  const k = KINDS[kindOf(kind)];
+  const until = store.get(`SELECT ${k.blocked} AS until FROM users WHERE id = ?`, userId)?.until ?? null;
   return until && until > now.toISOString() ? until : null;
 }
 
-/** One player reporting another's photo, once. Three reports hide it. */
-export function reportPhoto(store, { ownerId, reporterId, now }) {
-  const owner = store.get('SELECT photo, photo_hidden FROM users WHERE id = ?', ownerId);
-  if (!owner?.photo) return { error: 'That photo is already gone.' };
-  if (ownerId === reporterId) return { error: "You can't report your own photo." };
-  store.run('INSERT OR IGNORE INTO photo_reports (user_id, photo, reporter_id, created_at) VALUES (?, ?, ?, ?)', ownerId, owner.photo, reporterId, now.toISOString());
-  const { n } = store.get('SELECT COUNT(*) AS n FROM photo_reports WHERE user_id = ? AND photo = ?', ownerId, owner.photo);
-  if (n >= PHOTO_HIDE_AFTER && !owner.photo_hidden) store.run('UPDATE users SET photo_hidden = 1 WHERE id = ?', ownerId);
+/** One player reporting another's photo (or cover), once. Three reports hide it. */
+export function reportPhoto(store, { ownerId, reporterId, now, kind = 'avatar' }) {
+  const k = KINDS[kindOf(kind)];
+  const owner = store.get(`SELECT ${k.column} AS file, ${k.hidden} AS hidden FROM users WHERE id = ?`, ownerId);
+  if (!owner?.file) return { error: 'That photo is already gone.' };
+  if (ownerId === reporterId) return { error: `You can't report your own ${kind === 'cover' ? 'cover' : 'photo'}.` };
+  store.run('INSERT OR IGNORE INTO photo_reports (user_id, photo, reporter_id, created_at, kind) VALUES (?, ?, ?, ?, ?)', ownerId, owner.file, reporterId, now.toISOString(), kindOf(kind));
+  const { n } = store.get('SELECT COUNT(*) AS n FROM photo_reports WHERE user_id = ? AND photo = ?', ownerId, owner.file);
+  if (n >= PHOTO_HIDE_AFTER && !owner.hidden) store.run(`UPDATE users SET ${k.hidden} = 1 WHERE id = ?`, ownerId);
   return { reports: n, hidden: n >= PHOTO_HIDE_AFTER };
 }
 
-/** Whether this player already reported this photo. */
+/** Whether this player already reported this file (a photo or a cover: the names never repeat). */
 export function reportedBy(store, ownerId, photo, reporterId) {
   return Boolean(reporterId && photo && store.get('SELECT 1 AS x FROM photo_reports WHERE user_id = ? AND photo = ? AND reporter_id = ?', ownerId, photo, reporterId));
 }
 
-/** Photos with reports on them, most reported first, for the admin page. */
+/** Photos and covers with reports on them, most reported first, for the admin page. */
 export function reportedPhotos(store) {
-  return store.all(
-    `SELECT u.id, u.screen_name, u.photo, u.photo_hidden AS hidden, COUNT(*) AS reports, MAX(r.created_at) AS last_report
-       FROM photo_reports r JOIN users u ON u.id = r.user_id AND u.photo = r.photo
-      GROUP BY u.id ORDER BY reports DESC, last_report DESC`,
-  ).map((r) => ({ ...r, hidden: Boolean(r.hidden) }));
+  return Object.entries(KINDS).flatMap(([kind, k]) => store.all(
+    `SELECT u.id, u.screen_name, u.${k.column} AS photo, u.${k.hidden} AS hidden, COUNT(*) AS reports, MAX(r.created_at) AS last_report
+       FROM photo_reports r JOIN users u ON u.id = r.user_id AND u.${k.column} = r.photo
+      WHERE r.kind = ?
+      GROUP BY u.id`,
+    kind,
+  ).map((r) => ({ ...r, kind, hidden: Boolean(r.hidden) })))
+    .sort((a, b) => b.reports - a.reports || (b.last_report > a.last_report ? 1 : b.last_report < a.last_report ? -1 : 0));
 }
 
-/** An admin keeping the photo: reports cleared, shown again. `photo` must still be the current one. */
-export function dismissPhoto(store, { userId, photo }) {
-  const current = store.get('SELECT photo FROM users WHERE id = ?', userId)?.photo;
+/** An admin keeping the photo (or cover): reports cleared, shown again. `photo` must still be the current one. */
+export function dismissPhoto(store, { userId, photo, kind = 'avatar' }) {
+  const k = KINDS[kindOf(kind)];
+  const current = store.get(`SELECT ${k.column} AS file FROM users WHERE id = ?`, userId)?.file;
   if (!current || current !== photo) return { error: 'That photo was already changed or removed.' };
   store.tx(() => {
-    store.run('DELETE FROM photo_reports WHERE user_id = ?', userId);
-    store.run('UPDATE users SET photo_hidden = 0 WHERE id = ?', userId);
+    store.run('DELETE FROM photo_reports WHERE user_id = ? AND kind = ?', userId, kindOf(kind));
+    store.run(`UPDATE users SET ${k.hidden} = 0 WHERE id = ?`, userId);
   });
   return {};
 }
 
 /**
- * An admin removing a photo: the file goes, the owner is told, and they
- * can't upload another for a week. `photo` must still be the current one.
+ * An admin removing a photo (or cover): the file goes, the owner is told,
+ * and they can't upload another of that kind for a week. `photo` must still
+ * be the current one.
  */
-export function removeReportedPhoto(store, dir, { userId, photo, now, notifier }) {
-  const current = store.get('SELECT photo FROM users WHERE id = ?', userId)?.photo;
+export function removeReportedPhoto(store, dir, { userId, photo, now, notifier, kind = 'avatar' }) {
+  const k = KINDS[kindOf(kind)];
+  const current = store.get(`SELECT ${k.column} AS file FROM users WHERE id = ?`, userId)?.file;
   if (!current || current !== photo) return { error: 'That photo was already changed or removed.' };
-  clearPhoto(store, dir, userId);
+  clearPhoto(store, dir, userId, kind);
   const until = new Date(now.getTime() + PHOTO_BLOCK_DAYS * 86_400_000).toISOString();
-  store.run('UPDATE users SET photo_blocked_until = ? WHERE id = ?', until, userId);
+  store.run(`UPDATE users SET ${k.blocked} = ? WHERE id = ?`, until, userId);
   const owner = store.get('SELECT screen_name FROM users WHERE id = ?', userId);
   notifier?.tell(userId, {
     kind: 'photo',
-    text: 'Your profile photo was removed for breaking the rules',
-    url: owner?.screen_name ? `/u/${encodeURIComponent(owner.screen_name)}#photo` : '/notifications',
+    text: `Your ${k.label} was removed for breaking the rules`,
+    url: owner?.screen_name ? `/u/${encodeURIComponent(owner.screen_name)}#${k.anchor}` : '/notifications',
   }, now);
   return { until };
 }

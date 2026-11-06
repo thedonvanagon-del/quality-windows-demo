@@ -451,9 +451,10 @@ function seedNametags(store, ids) {
 }
 
 /**
- * A few players get photos (made here: a figure on a colored square) and
- * team looks: one on a team too dark for the page, one on a light team with
- * the light background, so both sides of the readability guard show.
+ * A few players get photos (made here: a figure on a colored square), two
+ * get cover photos (a colored gradient with stripes), and three get team
+ * looks: one on a team too dark for the page, one on a light team with the
+ * light background, so both sides of the readability guard show.
  */
 function seedLooks(store, ids, dir) {
   const faces = { BackdoorCover: ['#1d4ed8', '#fde68a'], ChalkEater: ['#b91c1c', '#fecaca'], DogLover: ['#047857', '#a7f3d0'], FadeMe: ['#6d28d9', '#ddd6fe'] };
@@ -461,6 +462,11 @@ function seedLooks(store, ids, dir) {
   for (const [name, [bg, fg]] of Object.entries(faces)) {
     const image = cleanImage(demoFace(bg, fg));
     if (!image.error) savePhoto(store, dir, ids[name], image);
+  }
+  const covers = { BackdoorCover: ['#0b1f4d', '#2563eb', '#f59e0b'], DogLover: ['#022c22', '#059669', '#a7f3d0'] };
+  for (const [name, colors] of Object.entries(covers)) {
+    const image = cleanImage(demoCover(...colors), 'cover');
+    if (!image.error) savePhoto(store, dir, ids[name], image, 'cover');
   }
   const teams = teamsBySport(store).flatMap((g) => g.teams);
   const pick = (test) => teams.find(test);
@@ -477,18 +483,38 @@ function seedLooks(store, ids, dir) {
   store.run("UPDATE users SET theme = 'royal' WHERE id = ?", ids.FadeMe);
 }
 
+const rgb = (hex) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
+
 /** A 96×96 PNG: a head and shoulders in `fg` on a `bg` square. */
 function demoFace(bg, fg) {
-  const size = 96;
-  const [b, f] = [bg, fg].map((hex) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16)));
+  const [b, f] = [bg, fg].map(rgb);
+  return demoPng(96, 96, (x, y) => {
+    const head = (x - 48) ** 2 + (y - 38) ** 2 < 17 ** 2;
+    const body = (x - 48) ** 2 / 34 ** 2 + (y - 96) ** 2 / 34 ** 2 < 1;
+    return head || body ? f : b;
+  });
+}
+
+/** A 1200×400 PNG cover: a diagonal gradient from `from` to `to`, with stripes in `stripe`. */
+function demoCover(from, to, stripe) {
+  const [a, b, s] = [from, to, stripe].map(rgb);
+  return demoPng(1200, 400, (x, y) => {
+    const t = Math.min(1, Math.max(0, (x + y * 1.5) / 1800));
+    const base = a.map((c, i) => c + (b[i] - c) * t);
+    // Soft stripes leaning right, fading in from the left.
+    const d = (((x - y * 0.6) % 260) + 260) % 260;
+    const fade = Math.min(1, Math.max(0, (x - 300) / 500));
+    const on = d > 150 && d < 190 ? 0.35 * fade * Math.sin(((d - 150) / 40) * Math.PI) : 0;
+    return base.map((c, i) => Math.round(c + (s[i] - c) * on));
+  });
+}
+
+/** A PNG of `width`×`height`, each pixel's [r, g, b] from `pixel(x, y)`. */
+function demoPng(width, height, pixel) {
   const rows = [];
-  for (let y = 0; y < size; y++) {
-    const row = Buffer.alloc(1 + size * 3);
-    for (let x = 0; x < size; x++) {
-      const head = (x - 48) ** 2 + (y - 38) ** 2 < 17 ** 2;
-      const body = (x - 48) ** 2 / 34 ** 2 + (y - 96) ** 2 / 34 ** 2 < 1;
-      (head || body ? f : b).forEach((c, i) => (row[1 + x * 3 + i] = c));
-    }
+  for (let y = 0; y < height; y++) {
+    const row = Buffer.alloc(1 + width * 3);
+    for (let x = 0; x < width; x++) pixel(x, y).forEach((c, i) => (row[1 + x * 3 + i] = c));
     rows.push(row);
   }
   const chunk = (type, data) => {
@@ -500,8 +526,8 @@ function demoFace(bg, fg) {
     return Buffer.concat([len, body, crc]);
   };
   const ihdr = Buffer.alloc(13);
-  ihdr.writeUInt32BE(size, 0);
-  ihdr.writeUInt32BE(size, 4);
+  ihdr.writeUInt32BE(width, 0);
+  ihdr.writeUInt32BE(height, 4);
   ihdr.set([8, 2, 0, 0, 0], 8);
   return Buffer.concat([
     Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),

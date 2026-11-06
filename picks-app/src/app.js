@@ -15,7 +15,7 @@ import { allRooms, archiveRoom, createGroup, deleteGroup, findByCode, groupFor, 
 import { follow, followCounts, followingAmong, followingList, isFollowing, unfollow } from './follows.js';
 import { followFeed, groupFeed, ownPick, ownPicks, picksOnGames, publicPicks } from './history.js';
 import { THEMES } from './config.js';
-import { clearPhoto, cleanImage, deleteFile, dismissPhoto, MEDIA_NAME, MEDIA_TYPES, mediaDir, parseMultipart, PHOTO_BLOCK_DAYS, PHOTO_HIDE_AFTER, PHOTO_MAX, photosFor, removeReportedPhoto, reportedBy, reportedPhotos, reportPhoto, savePhoto, uploadBlockedUntil } from './photos.js';
+import { clearPhoto, cleanImage, deleteFile, dismissPhoto, filesOf, KINDS, kindOf, MEDIA_NAME, MEDIA_TYPES, mediaDir, mediaOwner, parseMultipart, PHOTO_BLOCK_DAYS, PHOTO_HIDE_AFTER, photosFor, removeReportedPhoto, reportedBy, reportedPhotos, reportPhoto, savePhoto, tooBigText, uploadBlockedUntil } from './photos.js';
 import { cleanHex, customTokens, parseSheet, styleOf, teamAccent, teamByKey, teamsBySport, themeCss } from './themes.js';
 import { CONTEST_MIN, results, standings, timeLeft, weekBounds, winnersWall } from './contest.js';
 import { LOGO_HOST } from './espn.js';
@@ -46,8 +46,8 @@ import * as tourneyViews from './views/tournaments.js';
 
 const PUBLIC_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'public');
 const MAX_BODY = 16 * 1024;
-// A photo upload: the photo (1 MB at most) plus room for the form around it.
-const MAX_UPLOAD = PHOTO_MAX + 16 * 1024;
+// A photo upload: the photo (1 MB at most, a cover 2 MB) plus room for the form around it.
+const UPLOAD_ROOM = 16 * 1024;
 // A body that's too big is still read to the end (and thrown away) up to
 // these sizes, so the browser hears why. Past them the connection just closes.
 const DRAIN_FORM = 1024 * 1024;
@@ -1051,7 +1051,7 @@ export function createApp({ store, games, config, mailer = createMailer({ log: {
   function profilePage(ctx, { name }) {
     const player = store.get(
       `SELECT id, screen_name, created_at, bio, link_url, link_label, first_name, last_name, official, name_changed_at, home_city,
-              theme, theme_team, theme_mode, theme_accent, theme_tint, photo, photo_hidden, name_color, name_icon
+              theme, theme_team, theme_mode, theme_accent, theme_tint, photo, photo_hidden, cover, cover_hidden, name_color, name_icon
          FROM users WHERE screen_name = ?`,
       name,
     );
@@ -1073,7 +1073,16 @@ export function createApp({ store, games, config, mailer = createMailer({ log: {
       blockedUntil: own ? uploadBlockedUntil(store, player.id, ctx.now) : null,
       // Your own, or the official account's for an admin.
       upload: own ? '/photo' : player.official && isAdmin(ctx) ? '/admin/official/photo' : null,
-      max: PHOTO_MAX,
+      max: KINDS.avatar.max,
+    };
+    // The banner's cover photo: the same rules as the photo.
+    const cover = {
+      file: player.cover_hidden ? null : player.cover,
+      hidden: Boolean(player.cover && player.cover_hidden),
+      reported: reportedBy(store, player.id, player.cover, ctx.user?.id),
+      blockedUntil: own ? uploadBlockedUntil(store, player.id, ctx.now, 'cover') : null,
+      upload: own ? '/cover' : player.official && isAdmin(ctx) ? '/admin/official/cover' : null,
+      max: KINDS.cover.max,
     };
     // How their name shows on the boards, checked the same way as on a board.
     const tag = nametagsFor(store, [player.id], catalog).get(player.id);
@@ -1082,6 +1091,7 @@ export function createApp({ store, games, config, mailer = createMailer({ log: {
       nametag: own && !player.official ? nametagChoices(player) : null,
       look,
       photo,
+      cover,
       teams: own ? teamsBySport(store) : null,
       record: record(store, player.id),
       bySport: recordBySport(store, player.id),
@@ -1308,16 +1318,17 @@ export function createApp({ store, games, config, mailer = createMailer({ log: {
     ctx.res.end(body);
   }
 
-  // ---- profile photos ---------------------------------------------------------
+  // ---- profile photos and covers ------------------------------------------------
 
   /**
-   * A profile photo, by its random name. A name that isn't exactly one of
-   * ours never touches the disk. A photo hidden by reports is for admins only.
+   * A profile photo or cover, by its random name. A name that isn't exactly
+   * one of ours never touches the disk, and only a file someone has right now
+   * is served. One hidden by reports is for admins only.
    */
   function mediaFile(ctx, { name }) {
     if (!MEDIA_NAME.test(name)) return notFound(ctx);
-    const owner = store.get('SELECT photo_hidden FROM users WHERE photo = ?', name);
-    if (!owner || (owner.photo_hidden && !isAdmin(ctx))) return notFound(ctx);
+    const owner = mediaOwner(store, name);
+    if (!owner || (owner.hidden && !isAdmin(ctx))) return notFound(ctx);
     let body;
     try {
       body = fs.readFileSync(path.join(media, name));
@@ -1329,52 +1340,58 @@ export function createApp({ store, games, config, mailer = createMailer({ log: {
       'Content-Type': MEDIA_TYPES[name.split('.').pop()],
       'Content-Length': body.length,
       // A new photo gets a new name, so a name never changes what it shows.
-      'Cache-Control': owner.photo_hidden ? 'private, no-store' : 'public, max-age=31536000, immutable',
+      'Cache-Control': owner.hidden ? 'private, no-store' : 'public, max-age=31536000, immutable',
     });
     ctx.res.end(body);
   }
 
-  /** Store an uploaded photo for `userId` and go back to `back`, saying what happened. */
-  function takePhoto(ctx, userId, back) {
+  // What the flash messages call each kind.
+  const SAID = { avatar: { name: 'Photo', last: 'photo' }, cover: { name: 'Cover photo', last: 'cover photo' } };
+
+  /** Store an uploaded photo (or cover) for `userId` and go back to `back`, saying what happened. */
+  function takePhoto(ctx, userId, back, kind = 'avatar') {
     if (ctx.tooBig) {
-      flash(ctx, 'error', 'That photo is over 1 MB. Pick a smaller one.');
+      flash(ctx, 'error', tooBigText(kind));
       return redirect(ctx, back);
     }
-    const until = uploadBlockedUntil(store, userId, ctx.now);
+    const until = uploadBlockedUntil(store, userId, ctx.now, kind);
     if (until) {
-      flash(ctx, 'error', `An admin removed your last photo. You can add a new one after ${dateLabel(until)}.`);
+      flash(ctx, 'error', `An admin removed your last ${SAID[kind].last}. You can add a new one after ${dateLabel(until)}.`);
       return redirect(ctx, back);
     }
-    const image = cleanImage(ctx.files?.get('photo')?.data);
+    const image = cleanImage(ctx.files?.get(KINDS[kind].field)?.data, kind);
     if (image.error) {
       flash(ctx, 'error', image.error);
     } else {
-      savePhoto(store, media, userId, image);
-      flash(ctx, 'ok', 'Photo saved.');
+      savePhoto(store, media, userId, image, kind);
+      flash(ctx, 'ok', `${SAID[kind].name} saved.`);
     }
     redirect(ctx, back);
   }
 
-  function photoPost(ctx) {
+  /** Your own photo or cover: upload, or remove. */
+  const ownUpload = (kind) => (ctx) => {
     if (!signedIn(ctx)) return;
-    takePhoto(ctx, ctx.user.id, `/u/${encodeURIComponent(ctx.user.screenName)}#photo`);
-  }
+    takePhoto(ctx, ctx.user.id, `/u/${encodeURIComponent(ctx.user.screenName)}#${KINDS[kind].anchor}`, kind);
+  };
 
-  function photoDelete(ctx) {
+  const ownRemove = (kind) => (ctx) => {
     if (!signedIn(ctx)) return;
-    clearPhoto(store, media, ctx.user.id);
-    flash(ctx, 'ok', 'Photo removed.');
-    redirect(ctx, `/u/${encodeURIComponent(ctx.user.screenName)}#photo`);
-  }
+    clearPhoto(store, media, ctx.user.id, kind);
+    flash(ctx, 'ok', `${SAID[kind].name} removed.`);
+    redirect(ctx, `/u/${encodeURIComponent(ctx.user.screenName)}#${KINDS[kind].anchor}`);
+  };
 
-  function photoReportPost(ctx, { name }) {
+  /** Anyone signed in reporting someone else's photo or cover, once. */
+  const reportPost = (kind) => (ctx, { name }) => {
     if (!signedIn(ctx)) return;
     const player = store.get('SELECT id, screen_name FROM users WHERE screen_name = ?', name);
     if (!player) return notFound(ctx);
-    const result = reportPhoto(store, { ownerId: player.id, reporterId: ctx.user.id, now: ctx.now });
-    flash(ctx, result.error ? 'error' : 'ok', result.error ?? `Thanks. An admin will look at it. ${PHOTO_HIDE_AFTER} reports hide a photo until then.`);
+    const result = reportPhoto(store, { ownerId: player.id, reporterId: ctx.user.id, now: ctx.now, kind });
+    const what = kind === 'cover' ? 'a cover' : 'a photo';
+    flash(ctx, result.error ? 'error' : 'ok', result.error ?? `Thanks. An admin will look at it. ${PHOTO_HIDE_AFTER} reports hide ${what} until then.`);
     redirect(ctx, `/u/${encodeURIComponent(player.screen_name)}`);
-  }
+  };
 
   /** The official account has no login, so only an admin can give it a photo. */
   function officialTarget(ctx) {
@@ -1383,30 +1400,33 @@ export function createApp({ store, games, config, mailer = createMailer({ log: {
     return id ? store.get('SELECT id, screen_name FROM users WHERE id = ?', id) : null;
   }
 
-  function adminOfficialPhoto(ctx) {
+  const officialUpload = (kind) => (ctx) => {
     const official = officialTarget(ctx);
     if (!official) return notFound(ctx);
-    takePhoto(ctx, official.id, `/u/${encodeURIComponent(official.screen_name)}#photo`);
-  }
+    takePhoto(ctx, official.id, `/u/${encodeURIComponent(official.screen_name)}#${KINDS[kind].anchor}`, kind);
+  };
 
-  function adminOfficialPhotoDelete(ctx) {
+  const officialRemove = (kind) => (ctx) => {
     const official = officialTarget(ctx);
     if (!official) return notFound(ctx);
-    clearPhoto(store, media, official.id);
-    flash(ctx, 'ok', 'Photo removed.');
-    redirect(ctx, `/u/${encodeURIComponent(official.screen_name)}#photo`);
-  }
+    clearPhoto(store, media, official.id, kind);
+    flash(ctx, 'ok', `${SAID[kind].name} removed.`);
+    redirect(ctx, `/u/${encodeURIComponent(official.screen_name)}#${KINDS[kind].anchor}`);
+  };
 
+  // The admin's buttons send the file name and its kind (a photo when not said).
   function adminPhotoRemove(ctx, { id }) {
     if (!isAdmin(ctx)) return notFound(ctx);
-    const result = removeReportedPhoto(store, media, { userId: Number(id), photo: ctx.form.get('photo') ?? '', now: ctx.now, notifier });
-    flash(ctx, result.error ? 'error' : 'ok', result.error ?? `Photo removed. They've been told, and can't add another for ${PHOTO_BLOCK_DAYS} days.`);
+    const kind = kindOf(ctx.form.get('kind'));
+    const result = removeReportedPhoto(store, media, { userId: Number(id), photo: ctx.form.get('photo') ?? '', now: ctx.now, notifier, kind });
+    flash(ctx, result.error ? 'error' : 'ok', result.error ?? `${SAID[kind].name} removed. They've been told, and can't add another for ${PHOTO_BLOCK_DAYS} days.`);
     redirect(ctx, '/admin/reports#photos');
   }
 
   function adminPhotoDismiss(ctx, { id }) {
     if (!isAdmin(ctx)) return notFound(ctx);
-    const result = dismissPhoto(store, { userId: Number(id), photo: ctx.form.get('photo') ?? '' });
+    const kind = kindOf(ctx.form.get('kind'));
+    const result = dismissPhoto(store, { userId: Number(id), photo: ctx.form.get('photo') ?? '', kind });
     flash(ctx, result.error ? 'error' : 'ok', result.error ?? 'Kept. Its reports are cleared.');
     redirect(ctx, '/admin/reports#photos');
   }
@@ -1436,9 +1456,9 @@ export function createApp({ store, games, config, mailer = createMailer({ log: {
     for (const g of store.all('SELECT id FROM friend_groups WHERE owner_id = ?', ctx.user.id)) {
       leaveGroup(store, { groupId: g.id, userId: ctx.user.id });
     }
-    const { photo } = store.get('SELECT photo FROM users WHERE id = ?', ctx.user.id);
+    const files = filesOf(store, ctx.user.id);
     store.run('DELETE FROM users WHERE id = ?', ctx.user.id);
-    deleteFile(media, photo);
+    for (const file of files) deleteFile(media, file);
     setCookie(ctx, 'sid', '', 0);
     flash(ctx, 'ok', 'Your account and your picks are deleted.');
     redirect(ctx, '/');
@@ -1555,8 +1575,10 @@ export function createApp({ store, games, config, mailer = createMailer({ log: {
     ['POST', '/nametag', nametagPost],
     ['POST', '/admin/photos/:id/remove', adminPhotoRemove],
     ['POST', '/admin/photos/:id/dismiss', adminPhotoDismiss],
-    ['POST', '/admin/official/photo', adminOfficialPhoto, { upload: true }],
-    ['POST', '/admin/official/photo/delete', adminOfficialPhotoDelete],
+    ['POST', '/admin/official/photo', officialUpload('avatar'), { upload: 'avatar' }],
+    ['POST', '/admin/official/photo/delete', officialRemove('avatar')],
+    ['POST', '/admin/official/cover', officialUpload('cover'), { upload: 'cover' }],
+    ['POST', '/admin/official/cover/delete', officialRemove('cover')],
     ['GET', '/groups', groupsPage],
     ['POST', '/groups', groupCreate],
     ['POST', '/groups/join', groupJoinByCode],
@@ -1569,7 +1591,8 @@ export function createApp({ store, games, config, mailer = createMailer({ log: {
     ['GET', '/u/:name', profilePage],
     ['POST', '/u/:name/follow', followPost],
     ['POST', '/u/:name/unfollow', unfollowPost],
-    ['POST', '/u/:name/photo/report', photoReportPost],
+    ['POST', '/u/:name/photo/report', reportPost('avatar')],
+    ['POST', '/u/:name/cover/report', reportPost('cover')],
     ['GET', '/following', followingPage],
     ['GET', '/hot', hotPage],
     ['GET', '/notifications', notificationsPage],
@@ -1581,8 +1604,10 @@ export function createApp({ store, games, config, mailer = createMailer({ log: {
     ['GET', '/install', (ctx) => send(ctx, 200, moreViews.install(ctx))],
     ['GET', '/live', livePage],
     ['POST', '/theme', themePost],
-    ['POST', '/photo', photoPost, { upload: true }],
-    ['POST', '/photo/delete', photoDelete],
+    ['POST', '/photo', ownUpload('avatar'), { upload: 'avatar' }],
+    ['POST', '/photo/delete', ownRemove('avatar')],
+    ['POST', '/cover', ownUpload('cover'), { upload: 'cover' }],
+    ['POST', '/cover/delete', ownRemove('cover')],
     ['POST', '/bio', bioPost],
     ['POST', '/link', linkPost],
     ['POST', '/name', namePost],
@@ -1592,7 +1617,7 @@ export function createApp({ store, games, config, mailer = createMailer({ log: {
     ['POST', '/verify/resend', verifyResend],
     ['GET', '/terms', (ctx) => send(ctx, 200, legal.terms(ctx, { contact }))],
     ['GET', '/privacy', (ctx) => send(ctx, 200, legal.privacy(ctx, { contact }))],
-  ].map(([method, pattern, handler, { upload = false } = {}]) => {
+  ].map(([method, pattern, handler, { upload = null } = {}]) => {
     const keys = [];
     const regex = new RegExp(`^${pattern.replace(/:(\w+)/g, (_, key) => (keys.push(key), '([^/]+)'))}$`);
     return { method, regex, keys, handler, upload };
@@ -1637,10 +1662,10 @@ export function createApp({ store, games, config, mailer = createMailer({ log: {
 
       if (req.method === 'POST') {
         if (!sameOrigin(req, config)) return send(ctx, 403, account.problem(ctx, { status: 403, text: 'That form came from another site.' }));
-        // Photo uploads may be bigger, and multipart. One that's too big is
+        // Photo and cover uploads may be bigger, and multipart. One that's too big is
         // read to the end (so the browser hears back) but not kept, and its
         // handler only says so: nothing changes, so there's no token to check.
-        const body = await readBody(req, route.upload ? MAX_UPLOAD : MAX_BODY, route.upload ? DRAIN_UPLOAD : DRAIN_FORM);
+        const body = await readBody(req, route.upload ? KINDS[route.upload].max + UPLOAD_ROOM : MAX_BODY, route.upload ? DRAIN_UPLOAD : DRAIN_FORM);
         if (body.tooBig && !route.upload) throw Object.assign(new Error('form too large'), { status: 413 });
         ctx.tooBig = Boolean(body.tooBig);
         const parsed = body.tooBig ? { fields: new URLSearchParams(), files: new Map() } : parseBody(body.data, req.headers['content-type'], route.upload);
