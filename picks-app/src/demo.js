@@ -20,7 +20,10 @@ import { SPORTS } from './sports.js';
 import { createTeamCatalog } from './teams.js';
 import { teamAccent, teamsBySport } from './themes.js';
 import { addDays, etDay, etToUtc, HOUR, mondayOf, weekday } from './time.js';
-import { AUTO, closeTournament, createCustom, ensureAutoTournaments, joinTournament } from './tournaments.js';
+import { createNotifier } from './notify.js';
+import {
+  AUTO, closeTournament, createCustom, createPlayerTournament, ensureAutoTournaments, joinTournament, reportTournament, sendMoveAlerts, standingsOf,
+} from './tournaments.js';
 
 export const DEMO_LOGIN = { email: 'demo@example.com', password: 'letmein123' };
 
@@ -74,6 +77,17 @@ export function createDemoEspn({ now = () => new Date(), anchor = now() } = {}) 
       });
     }
     bySport.set(sport.key, specs);
+  }
+  // A few games already under way when the demo starts, whatever the hour,
+  // so live scores and a live tournament's "As it stands" have something to
+  // show. Their own random numbers, so the rest of the schedule stays the same.
+  const liveRand = prng(5150);
+  const liveStart = new Date(Math.floor((anchor.getTime() - 75 * 60_000) / (5 * 60_000)) * 5 * 60_000);
+  for (const key of ['nba', 'ncaab', 'nhl']) {
+    const specs = bySport.get(key);
+    const busy = new Set(specs.filter((g) => etDay(g.start) === etDay(liveStart)).flatMap((g) => [g.home.abbr, g.away.abbr]));
+    const free = shuffle(TEAMS[key].filter((entry) => !busy.has(team(entry).abbr)), liveRand);
+    if (free.length >= 2) specs.push(game(key, String(nextId++), liveStart, free[0], free[1], liveRand));
   }
   return {
     async scoreboard(sport, from, to = from) {
@@ -423,6 +437,7 @@ export async function seedDemo({ store, games, espn, now = () => new Date(), med
     store.run('UPDATE users SET invited_by = ?, invite_counted_at = created_at WHERE id = ?', ids.SharpShooter, ids[name]);
   }
   await seedTournaments(store, ids, at);
+  seedPlayerTournaments(store, ids, at);
   checkAllBadges(store, at);
   seedNametags(store, ids);
   if (dir) seedLooks(store, ids, dir);
@@ -540,8 +555,9 @@ function demoPng(width, height, pixel) {
 /**
  * Tournaments: the timer's own (this week's Weekly Open, and whatever NFL
  * Sunday, College Saturday and Hoops Night fall in the next two days), a
- * custom one that's live with entrants (the demo player not in it yet, so
- * Join can be tried), and last week's auto ones finished and closed.
+ * custom one that's live with everyone in it (the demo player too, with bets
+ * on the games under way, so "As it stands" moves), and last week's auto ones
+ * finished and closed.
  */
 async function seedTournaments(store, ids, at) {
   const today = etDay(at);
@@ -584,13 +600,126 @@ async function seedTournaments(store, ids, at) {
     endDate: date(addDays(today, 3)), endTime: '23:59', minBets: 5, prize: 'Champion badge and the top spot on the winners wall',
     userId: admin, now: new Date(etToUtc(addDays(today, -4), 9)),
   });
-  enter(store.get('SELECT * FROM tournaments WHERE slug = ?', cup.slug), others, etToUtc(addDays(today, -4), 12).toISOString());
+  enter(store.get('SELECT * FROM tournaments WHERE slug = ?', cup.slug), Object.keys(ids), etToUtc(addDays(today, -4), 12).toISOString());
+  // Today's Hoops Night is live too (the games under way are hoops): everyone was in from two days back.
+  for (const t of store.all("SELECT * FROM tournaments WHERE kind = 'auto' AND starts_at <= ? AND ends_at > ?", at.toISOString(), at.toISOString())) {
+    enter(t, Object.keys(ids), new Date(at.getTime() - 2 * 86_400_000).toISOString());
+  }
 
   // Coming up: most players are in early; the demo player is in NFL Sunday.
   for (const t of store.all("SELECT * FROM tournaments WHERE kind = 'auto' AND starts_at > ?", at.toISOString())) {
     enter(t, others.slice(0, 2 + (t.id % 3)), at.toISOString());
     if (t.slug.startsWith('nfl-sunday')) joinTournament(store, t, admin, at);
   }
+}
+
+/**
+ * Player-made tournaments and the rest of round two: bets on the games under
+ * way (some winning, some losing, so the live standings move), chat in the
+ * live one, a public player-made one the demo player can join, a private one
+ * for the Los Angeles room (opened from its invite link), a reported one for
+ * the admin page, a finished one the demo player won (Share), and the
+ * "where you stand" notes the graded standings call for.
+ */
+function seedPlayerTournaments(store, ids, at) {
+  const notifier = createNotifier({ store });
+  const today = etDay(at);
+  const date = (day) => `${day.slice(0, 4)}-${day.slice(4, 6)}-${day.slice(6)}`;
+  const earlier = new Date(at.getTime() - 2 * HOUR);
+
+  // Bets on the games under way: the demo player and two others on the side
+  // that's ahead, two on the side that's behind.
+  const live = store.all("SELECT * FROM games WHERE state = 'in'");
+  const leaders = ['SharpShooter', 'DogLover', 'OverOverOver'];
+  const trailers = ['FadeMe', 'ChalkEater'];
+  for (const g of live) {
+    const lines = JSON.parse(g.lines);
+    const ahead = g.home_score >= g.away_score ? 'home' : 'away';
+    const behind = ahead === 'home' ? 'away' : 'home';
+    for (const [names, side, units] of [[leaders, ahead, 3], [trailers, behind, 2]]) {
+      for (const name of names) {
+        const p = price({ lines }, 'ml', side);
+        if (!p) continue;
+        store.run(
+          `INSERT OR IGNORE INTO picks (user_id, game_id, sport, market, side, line, odds, units, game_start, made_at)
+           VALUES (?, ?, ?, 'ml', ?, NULL, ?, ?, ?, ?)`,
+          ids[name], g.id, g.sport, side, p.odds, Math.min(units, maxUnits(p.odds)), g.start_time,
+          new Date(new Date(g.start_time).getTime() - 3 * HOUR).toISOString(),
+        );
+      }
+    }
+  }
+
+  // Chat in the live custom one.
+  const classic = store.get("SELECT * FROM tournaments WHERE name = 'Bullies Fall Classic'");
+  if (classic) {
+    let t = at.getTime() - 50 * 60_000;
+    for (const [name, text] of [
+      ['FadeMe', 'Down bad tonight. Somebody fade me harder.'],
+      ['DogLover', 'Dogs are barking. Watch the board move.'],
+      ['SharpShooter', 'Three days left. Sitting on the number.'],
+      ['ChalkEater', 'Chalk always comes home. Ask me Sunday.'],
+    ]) postMessage(store, { tournamentId: classic.id, userId: ids[name], text, now: new Date((t += 7 * 60_000)) });
+  }
+
+  // A public player-made one tomorrow night, with room for the demo player to join.
+  const tomorrow = date(addDays(today, 1));
+  const hoops = createPlayerTournament(store, {
+    name: 'Late Night Hoops', sports: ['nba', 'ncaab'], startDate: tomorrow, startTime: '19:00', endDate: tomorrow, endTime: '23:59',
+    minBets: 2, visibility: 'public', userId: ids.DogLover, now: earlier, limit: false,
+  });
+  const join = (slug, names, code = null) => {
+    const t = store.get('SELECT * FROM tournaments WHERE slug = ?', slug);
+    for (const n of names) joinTournament(store, t, ids[n], earlier, { code });
+    return t;
+  };
+  if (hoops.slug) join(hoops.slug, ['OverOverOver', 'ChalkEater', 'BackdoorCover']);
+
+  // A private one for the Los Angeles room, opened from its invite link. The demo player's in the room, not in this yet.
+  const la = store.get("SELECT id FROM friend_groups WHERE city_slug = 'los-angeles-ca'");
+  const sunday = date(addDays(today, 2));
+  const laCup = la && createPlayerTournament(store, {
+    name: 'LA Weekend Sweat', sports: ['nfl', 'nba'], startDate: sunday, startTime: '13:00', endDate: sunday, endTime: '23:59',
+    minBets: 3, visibility: 'private', groupId: la.id, userId: ids.ChalkEater, now: earlier, limit: false,
+  });
+  if (laCup?.slug) join(laCup.slug, ['DogLover', 'OverOverOver'], laCup.code);
+
+  // Reported: one hidden by three reports, one with a single report.
+  const fade = createPlayerTournament(store, {
+    name: 'Fade Me Freeroll', sports: ['nba'], startDate: tomorrow, startTime: '20:00', endDate: tomorrow, endTime: '23:59',
+    minBets: 1, visibility: 'public', userId: ids.FadeMe, now: earlier, limit: false,
+  });
+  if (fade.slug) {
+    const t = store.get('SELECT * FROM tournaments WHERE slug = ?', fade.slug);
+    for (const n of ['BackdoorCover', 'ChalkEater', 'OverOverOver']) reportTournament(store, t, ids[n], earlier);
+  }
+  const degens = createPlayerTournament(store, {
+    name: 'Sunday Degens', sports: ['nfl'], startDate: sunday, startTime: '13:00', endDate: sunday, endTime: '23:59',
+    minBets: 3, visibility: 'public', userId: ids.OverOverOver, now: earlier, limit: false,
+  });
+  if (degens.slug) reportTournament(store, store.get('SELECT * FROM tournaments WHERE slug = ?', degens.slug), ids.FadeMe, earlier);
+
+  // Finished: a player-made one on a past day the demo player won.
+  for (let d = 2; d <= 10; d++) {
+    const day = addDays(today, -d);
+    const made = createPlayerTournament(store, {
+      name: 'Midweek Madness', sports: SPORTS.map((s) => s.key), startDate: date(day), startTime: '00:00', endDate: date(day), endTime: '23:59',
+      minBets: 2, visibility: 'public', userId: ids.BackdoorCover, now: new Date(etToUtc(addDays(day, -2), 12)), limit: false,
+    });
+    const t = store.get('SELECT * FROM tournaments WHERE slug = ?', made.slug);
+    for (const n of Object.keys(ids)) {
+      store.run('INSERT OR REPLACE INTO tournament_entries (tournament_id, user_id, joined_at) VALUES (?, ?, ?)', t.id, ids[n], etToUtc(addDays(day, -2), 12).toISOString());
+    }
+    const top = standingsOf(store, t)[0];
+    if (top?.rank === 1 && top.id === ids.SharpShooter) {
+      closeTournament(store, t, at, notifier);
+      break;
+    }
+    store.run('DELETE FROM tournaments WHERE id = ?', t.id);
+  }
+
+  // "You moved into 1st in ...": from the graded standings, as after any grading.
+  sendMoveAlerts(store, at, notifier);
 }
 
 /**
