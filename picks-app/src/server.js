@@ -15,7 +15,7 @@ import { createPush } from './push.js';
 import { createReminders } from './reminders.js';
 import { createSummaries } from './summaries.js';
 import { createTeamCatalog } from './teams.js';
-import { closeDueTournaments, ensureAutoTournaments, sendStartReminders } from './tournaments.js';
+import { closeDueTournaments, ensureAutoTournaments, sendFinalHoursAlerts, sendMoveAlerts, sendStartReminders } from './tournaments.js';
 
 const GRADE_EVERY = 10 * 60_000;
 const IMPORT_EVERY = 15 * 60_000;
@@ -34,17 +34,23 @@ const espn = config.demo ? createDemoEspn({ anchor }) : createEspn();
 // Phone notifications sign as the contact address; demo mode never sends any.
 const push = createPush({ store, subject: `mailto:${config.contactEmail}`, enabled: !config.demo });
 const notifier = createNotifier({ store, push });
-// After grading: tell the bettors, then check them for new badges.
+// After grading: tell the bettors, check them for new badges, and tell
+// tournament entrants who moved into the top 3.
 const games = createGames({
   store,
   espn,
   onGraded: (ids, parlayIds) => {
     notifier.settled(ids, new Date(), parlayIds);
-    // A badge problem must never get in the way of grading.
+    // A badge or alert problem must never get in the way of grading.
     try {
       badgesAfterGrading(store, { pickIds: ids, parlayIds, now: new Date(), notifier });
     } catch (err) {
       console.error(`badges after grading: ${err.message}`);
+    }
+    try {
+      sendMoveAlerts(store, new Date(), notifier);
+    } catch (err) {
+      console.error(`tournament alerts after grading: ${err.message}`);
     }
   },
 });
@@ -95,8 +101,8 @@ const importTimer = importer ? setInterval(importOfficial, IMPORT_EVERY) : null;
 if (importer) importOfficial();
 
 // Close last week's contest once it's all graded (Tuesday 6 AM ET at the
-// latest), close finished tournaments, send "starts in 1 hour" notes, and the
-// morning and afternoon reminders. Each only acts when it's time, and never twice.
+// latest), close finished tournaments, send "starts in 1 hour" notes and the
+// "where you stand" alerts, and the morning and afternoon reminders. Each only acts when it's time, and never twice.
 const reminders = createReminders({ store, games, notifier });
 async function daily() {
   try {
@@ -108,6 +114,10 @@ async function daily() {
     }
     const starting = sendStartReminders(store, new Date(), notifier);
     if (starting) console.log(`sent ${starting} tournament start reminders`);
+    // "Where you stand": top-3 moves (also sent right after grading) and "2 hours left".
+    const moved = sendMoveAlerts(store, new Date(), notifier);
+    const final = sendFinalHoursAlerts(store, new Date(), notifier);
+    if (moved || final) console.log(`sent ${moved} tournament move and ${final} two-hours-left alerts`);
     const sent = await reminders.run();
     if (sent.lines || sent.streak) console.log(`sent ${sent.lines} lines-up and ${sent.streak} streak reminders`);
   } catch (err) {

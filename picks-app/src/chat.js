@@ -1,6 +1,7 @@
 // Chat: short plain-text messages signed by screen name, in a thread that's
-// either a game (public to everyone signed in) or a group (members only; the
-// app checks membership). People delete their own, a group's owner can delete
+// a game (public to everyone signed in), a group (members only) or a
+// tournament (entrants only; everyone in the Weekly Open). The app checks
+// who may see a thread. People delete their own, a group's owner can delete
 // any message in it, and three reports from different players hide a message
 // until someone looks at it.
 
@@ -19,24 +20,25 @@ export function cleanMessage(text) {
   return { body };
 }
 
-/** The thread's column and value: { gameId } or { groupId }. */
-function thread({ gameId = null, groupId = null }) {
-  if ((gameId == null) === (groupId == null)) throw new Error('a chat thread is a game or a group');
-  return gameId != null ? ['game_id', gameId] : ['group_id', groupId];
+/** The thread's column and value: { gameId }, { groupId } or { tournamentId }, exactly one. */
+function thread({ gameId = null, groupId = null, tournamentId = null }) {
+  const keys = [['game_id', gameId], ['group_id', groupId], ['tournament_id', tournamentId]].filter(([, v]) => v != null);
+  if (keys.length !== 1) throw new Error('a chat thread is a game, a group or a tournament');
+  return keys[0];
 }
 
-export function postMessage(store, { gameId = null, groupId = null, userId, text, now }) {
-  thread({ gameId, groupId });
+export function postMessage(store, { gameId = null, groupId = null, tournamentId = null, userId, text, now }) {
+  thread({ gameId, groupId, tournamentId });
   const clean = cleanMessage(text);
   if (clean.error) return clean;
   const { lastInsertRowid } = store.run(
-    'INSERT INTO chat_messages (game_id, group_id, user_id, body, created_at) VALUES (?, ?, ?, ?, ?)',
-    gameId, groupId, userId, clean.body, now.toISOString(),
+    'INSERT INTO chat_messages (game_id, group_id, tournament_id, user_id, body, created_at) VALUES (?, ?, ?, ?, ?, ?)',
+    gameId, groupId, tournamentId, userId, clean.body, now.toISOString(),
   );
   return { id: Number(lastInsertRowid) };
 }
 
-/** The newest `limit` messages in a thread ({ gameId } or { groupId }), oldest first. Reported ones come back with `hidden`. */
+/** The newest `limit` messages in a thread ({ gameId }, { groupId } or { tournamentId }), oldest first. Reported ones come back with `hidden`. */
 export function messages(store, where, limit = 150) {
   const [column, value] = thread(where);
   return store
@@ -64,18 +66,18 @@ export function deleteMessage(store, { id, userId, now }) {
 }
 
 export function reportMessage(store, { id, userId, now }) {
-  const msg = store.get('SELECT user_id, game_id, group_id FROM chat_messages WHERE id = ? AND deleted_at IS NULL', id);
+  const msg = store.get('SELECT user_id, game_id, group_id, tournament_id FROM chat_messages WHERE id = ? AND deleted_at IS NULL', id);
   if (!msg) return { error: 'That message is gone.' };
-  const where = { gameId: msg.game_id, groupId: msg.group_id };
+  const where = { gameId: msg.game_id, groupId: msg.group_id, tournamentId: msg.tournament_id };
   if (msg.user_id === userId) return { error: "You can delete your own message instead.", ...where };
   store.run('INSERT OR IGNORE INTO chat_reports (message_id, user_id, created_at) VALUES (?, ?, ?)', id, userId, now.toISOString());
   return where;
 }
 
-/** Which thread a message is in: { gameId, groupId } (one of them null), or null if there's no such message. */
+/** Which thread a message is in: { gameId, groupId, tournamentId } (all but one null), or null if there's no such message. */
 export function threadOfMessage(store, id) {
-  const row = store.get('SELECT game_id, group_id FROM chat_messages WHERE id = ?', id);
-  return row ? { gameId: row.game_id, groupId: row.group_id } : null;
+  const row = store.get('SELECT game_id, group_id, tournament_id FROM chat_messages WHERE id = ?', id);
+  return row ? { gameId: row.game_id, groupId: row.group_id, tournamentId: row.tournament_id } : null;
 }
 
 /** A member opened the group's chat: everything in it up to now is read. */
@@ -130,17 +132,19 @@ export function chatGames(store, now) {
   );
 }
 
-/** Every message someone has reported and nobody has deleted, in games and groups: hidden ones first, then the latest reported. For admins. */
+/** Every message someone has reported and nobody has deleted, in games, groups and tournaments: hidden ones first, then the latest reported. For admins. */
 export function reportedMessages(store, limit = 200) {
   return store
     .all(
-      `SELECT m.id, m.body, m.created_at, m.game_id, m.group_id, u.screen_name, g.sport, g.home_short, g.away_short,
-              fg.name AS group_name, fg.kind AS group_kind, COUNT(r.user_id) AS reports, MAX(r.created_at) AS last_report
+      `SELECT m.id, m.body, m.created_at, m.game_id, m.group_id, m.tournament_id, u.screen_name, g.sport, g.home_short, g.away_short,
+              fg.name AS group_name, fg.kind AS group_kind, t.name AS tournament_name,
+              COUNT(r.user_id) AS reports, MAX(r.created_at) AS last_report
          FROM chat_messages m
          JOIN chat_reports r ON r.message_id = m.id
          JOIN users u ON u.id = m.user_id
          LEFT JOIN games g ON g.id = m.game_id
          LEFT JOIN friend_groups fg ON fg.id = m.group_id
+         LEFT JOIN tournaments t ON t.id = m.tournament_id
         WHERE m.deleted_at IS NULL
         GROUP BY m.id
         ORDER BY COUNT(r.user_id) >= ? DESC, last_report DESC

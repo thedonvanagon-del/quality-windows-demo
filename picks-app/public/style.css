@@ -1440,3 +1440,45 @@ input[type="file"]::file-selector-button { font: inherit; font-weight: 700; padd
 .team-league .logo-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(48px, 1fr)); gap: 6px; padding: 0 10px 10px; }
 .logo-opt { min-height: 48px; background: var(--raised); }
 .logo-opt img { width: 30px; height: 30px; object-fit: contain; }
+
+/* ---- Tournaments, round two (2026-11-06): player-made, live standings, chat, share ---- */
+.pm-chip { display: inline-block; padding: 1px 8px; border-radius: 999px; background: var(--accent-soft); color: var(--accent); font-family: var(--cond); font-size: 0.8rem; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; white-space: nowrap; }
+.tn-chips { display: inline-flex; flex-wrap: wrap; justify-content: flex-end; gap: 4px; flex: none; }
+.tn-title .pm-chip { margin-left: 6px; }
+.tn-maker { color: var(--muted); }
+.tn-maker a { color: var(--ink); font-weight: 700; }
+.tn-title + .tn-line + .tn-maker { margin: -6px 0 12px; }
+.tn-card.player-made { border-top: 2px solid color-mix(in srgb, var(--accent) 45%, transparent); }
+.tn-make { margin: 0 0 6px; gap: 8px; }
+/* As it stands: a live standings table, with movement beside the rank. */
+.tn-standings h2 { margin-bottom: 6px; }
+.live-note { display: flex; align-items: flex-start; gap: 8px; margin: 0 0 10px; padding: 9px 12px; border-radius: 8px; background: var(--loss-soft); color: var(--ink); font-size: 0.86rem; font-weight: 600; }
+.live-note svg { width: 17px; height: 17px; flex: none; color: var(--loss); margin-top: 1px; }
+.tn-table td.rank { white-space: nowrap; }
+.move { display: inline-block; margin-left: 4px; font-size: 0.74rem; font-weight: 800; font-variant-numeric: tabular-nums; vertical-align: middle; }
+.move.up { color: var(--win); }
+.move.down { color: var(--loss); }
+.tn-who .live-count { justify-self: start; padding: 0 6px; border-radius: 4px; background: var(--loss-soft); color: var(--loss); font-size: 0.72rem; font-weight: 800; letter-spacing: 0.04em; text-transform: uppercase; }
+/* The maker's invite card, the canceled note, Report. */
+.tn-invite { margin: 0 0 14px; gap: 8px; }
+.tn-invite .copy { overflow-wrap: anywhere; }
+.tn-invite .row { gap: 8px; flex-wrap: wrap; }
+.tn-canceled { margin: 4px 0 14px; color: var(--ink); border-color: color-mix(in srgb, var(--loss) 45%, transparent); }
+.tn-report { margin: 18px 0 0; }
+.tn-report .link-btn { display: inline-flex; align-items: center; gap: 6px; }
+.tn-report svg { width: 15px; height: 15px; }
+/* The new-tournament form. */
+.tn-hint { margin: -4px 0 0; }
+.tn-vis { border: 0; padding: 0; margin: 0; display: grid; gap: 10px; }
+.tn-vis legend { font-weight: 700; font-size: 0.88rem; margin-bottom: 8px; padding: 0; }
+.tn-vis label.check span { display: grid; gap: 2px; }
+.tn-vis small { color: var(--muted); font-weight: 500; font-size: 0.82rem; }
+.tn-form select { font: inherit; padding: 12px 13px; border-radius: 8px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); width: 100%; min-width: 0; }
+.tn-form .tn-prize { margin: 0; }
+/* Share a finish: a card under the podium, and a row under your own podium line. */
+.win-card { display: flex; align-items: center; gap: 12px; margin: 8px 0 6px; padding: 12px 14px; border-color: var(--gold); }
+.win-card .wc-text { flex: 1; min-width: 0; }
+.win-card .wc-text small { display: block; color: var(--muted); font-size: 0.84rem; }
+.win-share { display: inline-flex; align-items: center; gap: 6px; flex: none; }
+.win-share svg { width: 16px; height: 16px; }
+.podium li.podium-share { display: flex; justify-content: flex-end; padding: 0; background: none; border: 0; margin-top: -2px; }

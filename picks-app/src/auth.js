@@ -32,6 +32,12 @@ function fold(name) {
 // Nobody else can pass for the official account.
 const LOOKALIKES = ['bookiebull', 'bookybull'].map(fold);
 
+/** Whether any text (a tournament's name, say) passes for the official account, spaces and punctuation ignored. */
+export function looksOfficial(text) {
+  const squeezed = fold(String(text ?? '').replace(/[^A-Za-z0-9]/g, ''));
+  return LOOKALIKES.some((l) => squeezed.includes(l));
+}
+
 export async function hashPassword(password) {
   const salt = crypto.randomBytes(16);
   const key = await scrypt(password.normalize('NFKC'), salt, KEYLEN, { N, r: R, p: P, maxmem: 64 * 1024 * 1024 });

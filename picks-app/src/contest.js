@@ -80,12 +80,37 @@ export function windowStandings(store, window, limit = 100) {
       ...params,
     ))
     .map(withRates);
-  const min = window.min ?? CONTEST_MIN;
+  return rankStandings(rows, window.min ?? CONTEST_MIN).slice(0, limit);
+}
+
+/**
+ * Put standings rows in order and number them: placed players (`min` graded
+ * bets) first, then units, ROI, and whose last counted bet started first.
+ * The live "As it stands" view ranks with this too, so both orders follow
+ * the same rules.
+ */
+export function rankStandings(rows, min) {
   const placed = (r) => r.graded >= min;
   rows.sort((a, b) =>
     placed(b) - placed(a) || b.units - a.units || (b.roi ?? -Infinity) - (a.roi ?? -Infinity)
     || (a.last_start ?? '').localeCompare(b.last_start ?? '') || a.id - b.id);
-  return rows.slice(0, limit).map(numbered(placed));
+  return rows.map(numbered(placed));
+}
+
+/**
+ * Bets that would count in a window but have no grade yet: { id, kind,
+ * user_id, units, game_start }, a kind of 'pick' or 'parlay'. Same rules as
+ * the standings (see counted). For the live view; nothing here is written.
+ */
+export function openBetsIn(store, window) {
+  const { sql, params } = counted(window);
+  return window.tournamentId != null
+    ? store.all(
+      `SELECT p.id, p.kind, p.user_id, p.units, p.game_start FROM tournament_entries e JOIN ${BETS} p ON p.user_id = e.user_id
+        WHERE e.tournament_id = ? AND p.result IS NULL AND ${sql}`,
+      window.tournamentId, ...params,
+    )
+    : store.all(`SELECT p.id, p.kind, p.user_id, p.units, p.game_start FROM ${BETS} p WHERE p.result IS NULL AND ${sql}`, ...params);
 }
 
 /** How many bets that would count in a window still wait on a grade. */
@@ -215,7 +240,7 @@ export function winnersWall(store) {
   const weeks = store.all('SELECT week FROM contest_weeks ORDER BY week DESC').map((r) => ({ week: r.week, label: weekLabel(r.week), podium: [] }));
   const byWeek = new Map(weeks.map((w) => [w.week, w]));
   for (const r of store.all(
-    `SELECT r.week, r.place, r.units, r.record, u.screen_name FROM contest_results r JOIN users u ON u.id = r.user_id
+    `SELECT r.week, r.place, r.units, r.record, u.id, u.screen_name FROM contest_results r JOIN users u ON u.id = r.user_id
       ORDER BY r.week DESC, r.place`,
   )) byWeek.get(r.week)?.podium.push(r);
   const champions = store.all(

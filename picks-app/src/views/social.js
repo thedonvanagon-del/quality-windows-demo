@@ -10,7 +10,9 @@ import { dateLabel, joined, when } from '../time.js';
 import { icons, trustMark } from './icons.js';
 import { csrfField, layout } from './layout.js';
 import { citySelect, cityPin, groupsSection } from './local.js';
-import { avatar, betItem, boardTable, chatBox, minus, nameIcon, officialTag, pickItem, periodTabs, pct, playerName, profileLink, rankCell, recordText, signedPct, sportTabs, tabs, teamLogo, units } from './parts.js';
+import { avatar, betItem, boardTable, chatBox, minus, nameIcon, officialTag, pickItem, periodTabs, pct, playerName, profileLink, rankCell, recordText, signedPct, sportTabs, tabs, teamLogo, units, winShare } from './parts.js';
+import { endLabel } from '../tournaments.js';
+import { card as tournamentCard } from './tournaments.js';
 
 /** Find a player by the start of their screen name. */
 function searchBox(q = '') {
@@ -99,7 +101,7 @@ export function groups(ctx, { list, rooms = [], unread = new Map(), error, name 
  * too, without the private-group parts (invite code, owner, delete): it says
  * "Local room" and its region instead, and admins can delete in its chat.
  */
-export function group(ctx, { group, rows, members, feed, inviteUrl, messages = [], city = null, home = false, admin = false }) {
+export function group(ctx, { group, rows, members, feed, inviteUrl, messages = [], city = null, home = false, admin = false, tournaments = [] }) {
   const isLocal = group.kind === 'local';
   const isOwner = !isLocal && group.owner_id === ctx.user.id;
   const mod = isOwner || (isLocal && admin);
@@ -135,6 +137,12 @@ export function group(ctx, { group, rows, members, feed, inviteUrl, messages = [
             : `Only members of ${group.name} see this. Trash talk is fine; harassment, hate and selling picks aren't. Three reports hide a message${isOwner ? ', and you can delete any message here' : ''}.`,
           canDelete: (m) => m.user_id === ctx.user.id || mod,
         })}
+
+      <h2 id="tournaments">Tournaments</h2>
+      ${tournaments.length
+        ? html`<div class="tn-list">${tournaments.map((t) => tournamentCard(ctx, t, `/groups/${group.id}#tournaments`))}</div>`
+        : html`<div class="card empty">None yet. Only members can join one made for ${isLocal ? 'this room' : 'this group'}.</div>`}
+      ${group.archived_at ? '' : html`<p><a class="btn ghost small" href="/tournaments/new?group=${group.id}">Make one for ${isLocal ? 'this room' : 'this group'}</a></p>`}
 
       <h2>Latest picks</h2>
       ${feed.length
@@ -697,18 +705,23 @@ export function profile(ctx, { player, nametag = null, record, bySport, split = 
   });
 }
 
-/** A week's top 3: place, player, record and units. */
-function podium(list) {
+/**
+ * A week's (or a tournament's) top 3: place, player, record and units. With
+ * `share`, the viewer's own row gets a Share button for their card.
+ */
+function podium(list, share = null) {
   return html`<ol class="podium">${list.map((r) => html`<li class="p${r.place}">
     <span class="place">#${r.place}</span>
     <span class="who-cell">${profileLink(r.screen_name)}</span>
     <span class="rec">${r.record}</span>
     <b>${units(r.units)}</b>
-  </li>`)}</ol>`;
+  </li>${share && r.id != null && r.id === share.ctx.user?.id
+    ? html`<li class="podium-share">${winShare(share.ctx, { place: r.place, title: share.title, units: r.units, record: r.record, players: share.players?.(), date: share.date, path: share.path })}</li>`
+    : ''}`)}</ol>`;
 }
 
 /** The free weekly contest: this week's standings, the clock, last week's top 3. */
-export function contest(ctx, { week, rows, badges, me, left, min, last }) {
+export function contest(ctx, { week, rows, badges, me, left, min, last, players = null }) {
   const playing = Boolean(ctx.user?.screenName);
   return layout(ctx, {
     title: "This week's contest",
@@ -737,7 +750,7 @@ export function contest(ctx, { week, rows, badges, me, left, min, last }) {
       <p class="muted small">${last.label}</p>
       ${last.podium
         ? last.podium.length
-          ? podium(last.podium)
+          ? podium(last.podium, { ctx, title: 'the weekly contest', date: `Week of ${last.label}`, path: '/winners', players: () => players?.(last.week) })
           : html`<div class="card empty">Nobody had ${min} graded bets last week.</div>`
         : html`<div class="card empty">Last week closes once every bet in it is graded, by Tuesday 6 AM ET.</div>`}
       <a class="btn ghost block winners-link" href="/winners">Winners wall</a>
@@ -749,14 +762,14 @@ export function contest(ctx, { week, rows, badges, me, left, min, last }) {
  * The winners wall, in two tabs: every closed week's top 3 (and who has won
  * the most weeks), and every closed tournament's.
  */
-export function winners(ctx, { weeks, champions, tab = 'weekly', tournaments = { list: [], champions: [] } }) {
+export function winners(ctx, { weeks, champions, tab = 'weekly', tournaments = { list: [], champions: [] }, players = null }) {
   const chips = (list) => html`<p class="chips-row">${list.map((c) => html`<a class="chip" href="/u/${encodeURIComponent(c.screen_name)}">${c.screen_name} · ${c.wins} ${c.wins === 1 ? 'win' : 'wins'}</a>`)}</p>`;
   const weekly = html`
       ${champions.length ? html`<h2>Most weekly wins</h2>${chips(champions)}` : ''}
       ${weeks.length
         ? weeks.map((w) => html`<section class="card week-card">
             <h3>${w.label}</h3>
-            ${w.podium.length ? podium(w.podium) : html`<p class="muted small">Nobody had enough graded bets to place.</p>`}
+            ${w.podium.length ? podium(w.podium, { ctx, title: 'the weekly contest', date: `Week of ${w.label}`, path: '/winners', players: () => players?.(w.week) }) : html`<p class="muted small">Nobody had enough graded bets to place.</p>`}
           </section>`)
         : html`<div class="card empty">No weeks closed yet. The first winners go up once this week ends. <a href="/contest">See this week's standings</a>.</div>`}`;
   const cups = html`
@@ -765,7 +778,7 @@ export function winners(ctx, { weeks, champions, tab = 'weekly', tournaments = {
         ? tournaments.list.map((t) => html`<section class="card week-card">
             <h3><a href="/tournaments/${t.slug}">${t.name}</a></h3>
             <p class="muted small">${t.window}</p>
-            ${t.podium.length ? podium(t.podium) : html`<p class="muted small">Nobody had enough graded bets to place.</p>`}
+            ${t.podium.length ? podium(t.podium, { ctx, title: t.name, date: endLabel(t), path: `/tournaments/${t.slug}`, players: () => t.players }) : html`<p class="muted small">Nobody had enough graded bets to place.</p>`}
           </section>`)
         : html`<div class="card empty">No tournaments finished yet. <a href="/tournaments">See what's on</a>.</div>`}`;
   return layout(ctx, {

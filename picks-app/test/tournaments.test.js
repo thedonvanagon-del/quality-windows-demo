@@ -440,7 +440,10 @@ describe('tournaments: admin', () => {
     await b.get('/admin/tournaments');
     assert.equal((await b.post(`/admin/tournaments/${t.slug}/cancel`)).status, 303);
     assert.equal(bySlug(app.store, t.slug), null);
-    assert.equal((await ann.get(`/tournaments/${t.slug}`)).status, 404);
+    // Off the lists; only those who were in it still see its page (its chat stays, read-only).
+    assert.equal((await app.browser().get(`/tournaments/${t.slug}`)).status, 404);
+    assert.match(visible((await ann.get(`/tournaments/${t.slug}`)).text), /This tournament was canceled/);
+    assert.doesNotMatch(visible((await ann.get('/tournaments')).text), /Bullies Hoops Cup/);
     assert.match(app.store.get("SELECT text FROM notifications WHERE kind = 'tournament'").text, /Bullies Hoops Cup was canceled before it started/);
 
     // Not once it's started.

@@ -8,7 +8,7 @@ import { adminTabs } from './local.js';
 import { at, avatar, minus, profileLink, teamLogo } from './parts.js';
 
 /** The menu behind the three dots. New sections get a row here. */
-export function more(ctx, { liveCount, admin = false, reported = 0 }) {
+export function more(ctx, { liveCount, admin = false, reported = 0, reportedCups = 0 }) {
   const row = (href, icon, title, sub, extra = '', cls = '') => html`<li class="${cls}"><a href="${href}">
     <span class="icon">${icon}</span>
     <span class="text">${title}<small>${sub}</small></span>
@@ -36,7 +36,7 @@ export function more(ctx, { liveCount, admin = false, reported = 0 }) {
         ${row('/local', icons.pin, 'Local rooms', 'A chat and a board for your city')}
         ${row('/invite', icons.invite, 'Invite friends', 'Your own link, and who joined')}
         ${admin ? row('/admin/reports', icons.flag, 'Admin', 'Reported chat and photos', reported ? html`<span class="count">${reported}</span>` : '') : ''}
-        ${admin ? row('/admin/tournaments', icons.bracket, 'Admin: tournaments', 'Make a tournament, or cancel one before it starts') : ''}
+        ${admin ? row('/admin/tournaments', icons.bracket, 'Admin: tournaments', 'Make a tournament, cancel one, or look at reported ones', reportedCups ? html`<span class="count">${reportedCups}</span>` : '') : ''}
       </ul>
       <h2>Account</h2>
       <ul class="menu">
@@ -121,6 +121,7 @@ export function notifications(ctx, { list, prefs, phones, pushKey }) {
         <label class="check"><input type="checkbox" name="lines" ${prefs.notify_lines ? 'checked' : ''}><span>Lines are up: today's games in my sports, about 11 AM ET</span></label>
         <label class="check"><input type="checkbox" name="streak" ${prefs.notify_streak ? 'checked' : ''}><span>Streak reminder: no Streak pick yet today, about 5 PM ET</span></label>
         <label class="check"><input type="checkbox" name="tournaments" ${prefs.notify_tournaments ? 'checked' : ''}><span>A tournament I joined starts in an hour</span></label>
+        <label class="check"><input type="checkbox" name="tournament_updates" ${prefs.notify_tournament_updates ? 'checked' : ''}><span>Tournament updates: I move into the top 3, and where I stand with 2 hours left</span></label>
         <button class="btn small">Save</button>
       </form>
 
@@ -210,7 +211,9 @@ export function adminReports(ctx, { list, hideAfter, photos = [], photoHideAfter
             <div class="report-head">
               <span>${profileLink(m.screen_name)} · ${m.group_id != null
                 ? m.group_kind === 'local' ? html`Local room: <a href="/groups/${m.group_id}#chat">${m.group_name}</a>` : html`Group: ${m.group_name}`
-                : html`<a href="/games/${encodeURIComponent(m.game_id)}#chat">${m.away_short} @ ${m.home_short}</a> · ${SPORT[m.sport]?.short ?? m.sport}`}</span>
+                : m.tournament_id != null
+                  ? html`Tournament: ${m.tournament_name}`
+                  : html`<a href="/games/${encodeURIComponent(m.game_id)}#chat">${m.away_short} @ ${m.home_short}</a> · ${SPORT[m.sport]?.short ?? m.sport}`}</span>
               <span class="report-count">${m.reports} ${m.reports === 1 ? 'report' : 'reports'}${m.hidden ? ' · Hidden' : ''}</span>
             </div>
             <p class="report-body">${m.body}</p>
