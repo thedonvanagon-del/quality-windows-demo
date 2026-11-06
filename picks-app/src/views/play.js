@@ -202,7 +202,7 @@ function cell(game, market, side, mine, leg = null) {
  * The pick slip. `streak` is set when the game's day has no Streak pick yet:
  * { today, day, checked }, and the slip offers to make this one it.
  */
-export function slip(ctx, { game, market, side, current, error, units, streak = null }) {
+export function slip(ctx, { game, market, side, current, error, units, streak = null, survivor = null }) {
   const most = maxUnits(current.odds);
   units ??= Math.min(1, most);
   const sport = SPORT[game.sport];
@@ -247,6 +247,7 @@ export function slip(ctx, { game, market, side, current, error, units, streak = 
               ${streak
                 ? html`<label class="check streak-check"><input type="checkbox" name="streak" ${streak.checked ? 'checked' : ''}><span>${icons.flame}Make this my Streak pick for ${streak.today ? 'today' : dayShort(streak.day)}</span></label>`
                 : ''}
+              ${survivor ? survivorCheck(survivor) : ''}
               <div class="slip-actions">
                 <button class="btn" data-busy="Locking it in…">Lock it in</button>
                 <button class="btn ghost" formaction="/parlay/legs" formnovalidate data-busy="Adding…">Add to parlay</button>
@@ -258,6 +259,21 @@ export function slip(ctx, { game, market, side, current, error, units, streak = 
       </div>
     `,
   });
+}
+
+/**
+ * The Survivor checkbox on an NFL slip: use this team as the week's Survivor
+ * pick (or switch to it), or, for a team used in an earlier week, the same
+ * line turned off. The Survivor pick only asks whether the team wins.
+ */
+function survivorCheck(s) {
+  if (s.usedIn) {
+    return html`<div class="check streak-check survivor-check used" aria-disabled="true"><input type="checkbox" disabled aria-label="${s.team}: used in Week ${s.usedIn}"><span>${icons.shield}${s.team}: used in Week ${s.usedIn}</span></div>`;
+  }
+  return html`<label class="check streak-check survivor-check"><input type="checkbox" name="survivor" ${s.checked ? 'checked' : ''}><span>${icons.shield}${s.now
+    ? `Switch my Survivor pick to ${s.team} (now: ${s.now})`
+    : `Use ${s.team} as my Survivor pick for Week ${s.week}`}</span></label>
+    <p class="muted small survivor-note">Survivor only counts whether the ${s.team} win outright, whatever this bet is.</p>`;
 }
 
 /**

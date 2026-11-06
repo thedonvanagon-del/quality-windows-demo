@@ -29,6 +29,9 @@ export const icons = {
   camera: svg('<path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/>'),
   // Tournaments: two lines meeting in a bracket, into the winner's box.
   bracket: svg('<path d="M3 5h5v12H3M8 11h6"/><rect x="14" y="8" width="7" height="6" rx="1.5"/>'),
+  // Survivor: a shield. Pick'em's Best Bet: a star.
+  shield: svg('<path d="M12 3l7 3v5c0 4.5-3 8.2-7 10-4-1.8-7-5.5-7-10V6z"/><path d="M9 12l2 2 4-4"/>'),
+  star: svg('<path d="M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8-5.2-2.7-5.2 2.7 1-5.8-4.3-4.1 5.9-.9z"/>'),
 };
 
 // The "Trust Your Bets" mark: a white check on a gold tile. Gold in every theme.

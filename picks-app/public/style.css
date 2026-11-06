@@ -1523,3 +1523,129 @@ input[type="file"]::file-selector-button { font: inherit; font-weight: 700; padd
 .locked-ticket .lt-site { margin-top: 4px; color: var(--muted); font-size: 0.82rem; font-weight: 600; text-decoration: underline; text-underline-offset: 2px; }
 .locked-ticket .lt-site:hover { color: var(--ink); }
 .card-foot:has(.bb-chip) { flex-wrap: wrap; }
+
+/* ---- Survivor, NFL Pick'em and the Bookie Bullies Cup ---------------------------- */
+/* The featured cards at the top of the tournaments hub. */
+.features { display: grid; gap: 10px; grid-template-columns: repeat(auto-fill, minmax(min(100%, 340px), 1fr)); margin: 0 0 12px; }
+.feature { display: grid; gap: 10px; padding: 14px; min-width: 0; align-content: start; }
+.survivor-feature { border-color: color-mix(in srgb, var(--accent) 55%, var(--line)); background: linear-gradient(160deg, var(--accent-soft), var(--card) 65%); }
+.ft-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.ft-kicker { display: inline-flex; align-items: center; gap: 6px; font-family: var(--cond); font-size: 0.86rem; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; color: var(--accent); min-width: 0; }
+.ft-kicker svg { width: 16px; height: 16px; flex: none; }
+.ft-name { font-family: var(--cond); font-size: 1.6rem; font-weight: 800; letter-spacing: 0.02em; text-transform: uppercase; line-height: 1.05; overflow-wrap: anywhere; }
+.ft-name:hover { color: var(--accent); }
+.ft-text { margin: 0; color: var(--muted); font-size: 0.9rem; }
+.ft-stats { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.ft-stat { display: grid; gap: 1px; padding: 8px 10px; border-radius: var(--r); background: var(--raised); min-width: 0; }
+.ft-stat b { font-family: var(--cond); font-size: 1.2rem; font-weight: 800; letter-spacing: 0.02em; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.ft-stat span { color: var(--faint); font-size: 0.72rem; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; }
+.ft-stat.alive b { color: var(--win); }
+.ft-stat.out b { color: var(--loss); }
+.ft-stat.won b { color: var(--gold); }
+.ft-pick, .ft-last, .pk-final { display: flex; align-items: center; gap: 8px; margin: 0; font-size: 0.9rem; }
+.ft-last, .pk-final { color: var(--muted); }
+.ft-last svg, .pk-final svg { width: 17px; height: 17px; flex: none; color: var(--accent); }
+.pk-final { margin: 0 0 12px; }
+.ft-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding-top: 10px; border-top: 1px solid var(--line); }
+.ft-deadline { color: var(--muted); font-size: 0.85rem; min-width: 0; }
+.cup-banner { border-left-color: var(--gold); }
+.cup-banner > svg { color: var(--gold); }
+
+/* Survivor */
+.sv-me { display: flex; align-items: center; gap: 12px; margin: 0 0 12px; padding: 12px 14px; }
+.sv-me.alive { border-color: color-mix(in srgb, var(--win) 55%, var(--line)); }
+.sv-me.out { border-color: color-mix(in srgb, var(--loss) 55%, var(--line)); }
+.sv-me.won { border-color: var(--gold); }
+.sv-icon svg { width: 26px; height: 26px; display: block; }
+.sv-me.alive .sv-icon { color: var(--win); }
+.sv-me.out .sv-icon { color: var(--loss); }
+.sv-me.won .sv-icon { color: var(--gold); }
+.sv-me-text { flex: 1; display: grid; min-width: 0; }
+.sv-me-text b { font-family: var(--cond); font-size: 1.25rem; letter-spacing: 0.02em; text-transform: uppercase; }
+.sv-me-text small { color: var(--muted); font-size: 0.85rem; }
+.sv-games, .pk-games { display: grid; gap: 8px; grid-template-columns: repeat(auto-fill, minmax(min(100%, 340px), 1fr)); }
+.sv-game, .pk-game { display: grid; gap: 8px; padding: 10px; background: var(--card); border: 1px solid var(--line); border-radius: var(--r); min-width: 0; }
+.sv-when, .pk-when { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; color: var(--muted); font-size: 0.82rem; font-weight: 700; }
+.sv-started { display: inline-flex; align-items: center; gap: 4px; color: var(--faint); font-size: 0.72rem; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; }
+.sv-started svg { width: 12px; height: 12px; }
+.sv-pair { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: stretch; gap: 6px; }
+.sv-at { align-self: center; color: var(--faint); font-size: 0.8rem; font-weight: 700; }
+.sv-team-form { display: grid; min-width: 0; }
+.sv-team { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 4px 8px; width: 100%; min-width: 0; padding: 8px 10px; border-radius: 8px; border: 1px solid transparent; background: var(--tile); color: var(--ink); font: inherit; text-align: left; }
+button.sv-team { cursor: pointer; }
+button.sv-team:hover { background: var(--tile-hover); }
+.sv-team.mine { border-color: var(--win); background: var(--win-soft); }
+.sv-team.used { opacity: 0.55; }
+.sv-team.locked:not(.mine) { opacity: 0.7; }
+.sv-tname { display: grid; min-width: 0; }
+.sv-tname b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sv-tname small { color: var(--muted); font-size: 0.74rem; font-variant-numeric: tabular-nums; }
+.sv-tag { grid-column: 1 / -1; display: inline-flex; align-items: center; gap: 4px; font-family: var(--cond); font-size: 0.8rem; font-weight: 800; letter-spacing: 0.05em; text-transform: uppercase; color: var(--faint); white-space: nowrap; }
+.sv-tag svg { width: 13px; height: 13px; flex: none; }
+.sv-tag.mine { color: var(--win); }
+.sv-tag.go { color: var(--accent); }
+.sv-history, .sv-players, .cup-history { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.sv-history li, .cup-history li { display: grid; grid-template-columns: 3.2em minmax(0, 1fr) auto; align-items: center; gap: 10px; padding: 8px 12px; background: var(--card); border: 1px solid var(--line); border-radius: var(--r); }
+.sv-history .status { align-self: center; }
+.sv-wk, .cup-history .place { font-family: var(--cond); font-weight: 800; color: var(--muted); }
+.sv-summary { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; margin: 0 0 10px; }
+.sv-summary .ft-stat { padding: 8px 14px; }
+.sv-outs { margin: 0; display: flex; flex-wrap: wrap; gap: 4px 10px; font-size: 0.88rem; }
+.sv-out { white-space: nowrap; }
+.sv-players > li { padding: 10px 12px; background: var(--card); border: 1px solid var(--line); border-radius: var(--r); min-width: 0; }
+.sv-players > li.me { border-color: var(--accent); background: var(--accent-soft); }
+.sv-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-width: 0; }
+.sv-row .player { min-width: 0; }
+.sv-state { font-family: var(--cond); font-size: 0.88rem; font-weight: 800; letter-spacing: 0.05em; text-transform: uppercase; white-space: nowrap; color: var(--muted); }
+.sv-state.alive { color: var(--win); }
+.sv-state.won { color: var(--gold); }
+.sv-chips { list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: 4px; }
+.sv-chip { display: inline-flex; align-items: center; gap: 4px; padding: 2px 6px; border-radius: 5px; background: var(--raised); color: var(--ink); font-family: var(--cond); font-size: 0.82rem; font-weight: 800; letter-spacing: 0.03em; }
+.sv-chip .wk { color: var(--faint); font-size: 0.7rem; }
+.sv-chip svg { width: 12px; height: 12px; color: var(--faint); }
+.sv-chip.win { background: var(--win-soft); color: var(--win); }
+.sv-chip.loss { background: var(--loss-soft); color: var(--loss); }
+.sv-chip.push { color: var(--push); text-decoration: line-through; }
+.sv-chip.open { box-shadow: inset 0 0 0 1px var(--line); background: transparent; }
+/* The Survivor line on an NFL pick slip, and the same line turned off for a used team. */
+.survivor-check svg { color: var(--accent); }
+.check.survivor-check.used { display: flex; gap: 10px; align-items: flex-start; margin: 10px 0 2px; padding: 10px 12px; border-radius: var(--r); background: var(--raised); font-weight: 600; font-size: 0.9rem; color: var(--muted); }
+.check.survivor-check.used span { display: inline-flex; align-items: center; gap: 6px; }
+.check.survivor-check.used svg { width: 16px; height: 16px; flex: none; }
+.check.survivor-check.used input { width: 18px; height: 18px; margin: 1px 0 0; flex: none; }
+.check.survivor-check.used svg { color: var(--faint); }
+.survivor-note { margin: 4px 0 0; }
+
+/* NFL Pick'em: radio buttons drawn as team buttons, so the form works without JavaScript. */
+.pk-game.best { border-color: var(--gold); }
+.pk-when .status { margin-left: auto; }
+.pk-pair { border: 0; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; min-width: 0; }
+.pk-team, .pk-best { position: relative; display: block; min-width: 0; cursor: pointer; }
+.pk-team input, .pk-best input { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: pointer; }
+.pk-face { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 8px; padding: 8px 10px; border-radius: 8px; border: 2px solid transparent; background: var(--tile); }
+.pk-tname { font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pk-line { font-family: var(--cond); font-size: 1.1rem; color: var(--accent); font-variant-numeric: tabular-nums; }
+.pk-team:hover input:enabled + .pk-face { background: var(--tile-hover); }
+.pk-team input:checked + .pk-face { border-color: var(--accent); background: var(--accent-soft); }
+.pk-team input:focus-visible + .pk-face, .pk-best input:focus-visible + span { outline: 2px solid var(--accent); outline-offset: 2px; }
+.pk-team input:disabled, .pk-best input:disabled { cursor: default; }
+.pk-team input:disabled:not(:checked) + .pk-face { opacity: 0.55; }
+.pk-best { justify-self: start; }
+.pk-best span { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 999px; border: 1px solid var(--line); color: var(--muted); font-size: 0.8rem; font-weight: 700; }
+.pk-best svg { width: 14px; height: 14px; }
+.pk-best input:checked + span { background: var(--gold); border-color: var(--gold); color: var(--gold-ink); }
+.pk-best input:disabled:not(:checked) + span { opacity: 0.5; }
+.pk-save { margin-top: 14px; }
+.pk-weeks { margin-bottom: 12px; }
+.pk-table .to-place { display: block; color: var(--faint); font-size: 0.78rem; font-weight: 600; }
+
+/* The Cup */
+.cup-how { margin-top: 16px; }
+.cup-how h2 { margin-top: 0; }
+.cup-points { list-style: none; margin: 0 0 12px; padding: 0; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; }
+.cup-points li { display: grid; justify-items: center; padding: 6px 4px; border-radius: 8px; background: var(--raised); }
+.cup-points span { color: var(--faint); font-size: 0.72rem; font-weight: 800; text-transform: uppercase; }
+.cup-points b { font-family: var(--cond); font-size: 1.2rem; font-variant-numeric: tabular-nums; }
+.cup-history .label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cup-history b { color: var(--win); font-variant-numeric: tabular-nums; }
+.cup-line { margin-top: 6px; }

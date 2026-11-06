@@ -18,6 +18,10 @@ import { SITE_URL, THEMES } from './config.js';
 import { clearPhoto, cleanImage, deleteFile, dismissPhoto, filesOf, KINDS, kindOf, MEDIA_NAME, MEDIA_TYPES, mediaDir, mediaOwner, parseMultipart, PHOTO_BLOCK_DAYS, PHOTO_HIDE_AFTER, photosFor, removeReportedPhoto, reportedBy, reportedPhotos, reportPhoto, savePhoto, tooBigText, uploadBlockedUntil } from './photos.js';
 import { cleanHex, customTokens, parseSheet, styleOf, teamAccent, teamByKey, teamsBySport, themeCss } from './themes.js';
 import { CONTEST_MIN, results, standings, timeLeft, weekBounds, winnersWall } from './contest.js';
+import { cupHistory, cupLine, cupStandings, cupWinners, cupYear, cupYears } from './cup.js';
+import { seasonWeeks } from './nflweeks.js';
+import * as pickem from './pickem.js';
+import * as survivor from './survivor.js';
 import { LOGO_HOST } from './espn.js';
 import { toGame } from './games.js';
 import { countInvite, findInviter, followInviter, inviteCodeOf, inviteStats } from './invites.js';
@@ -48,6 +52,7 @@ import * as moreViews from './views/more.js';
 import * as play from './views/play.js';
 import * as social from './views/social.js';
 import * as tourneyViews from './views/tournaments.js';
+import * as formats from './views/formats.js';
 
 const PUBLIC_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'public');
 const MAX_BODY = 16 * 1024;
@@ -515,7 +520,13 @@ export function createApp({ store, games, config, mailer = createMailer({ log: {
       flash(ctx, 'error', 'That line is off the board right now.');
       return redirect(ctx, back);
     }
-    send(ctx, 200, play.slip(ctx, { game, market, side, current, streak: streakChoice(ctx, game) }));
+    send(ctx, 200, play.slip(ctx, { game, market, side, current, streak: streakChoice(ctx, game), survivor: survivorChoice(ctx, game, market, side) }));
+  }
+
+  /** Whether the slip offers "Use Chiefs as my Survivor pick for Week 10" (src/survivor.js). */
+  function survivorChoice(ctx, game, market, side, checked = false) {
+    const choice = survivor.slipChoice(store, { userId: ctx.user.id, game, market, side, now: ctx.now });
+    return choice ? { ...choice, checked: checked && !choice.usedIn } : null;
   }
 
   /** Whether the slip offers "Make this my Streak pick": only if that game's day has none yet. */
@@ -532,26 +543,33 @@ export function createApp({ store, games, config, mailer = createMailer({ log: {
     const units = Number(String(ctx.form.get('units') ?? '').replace(/[u,\s]/gi, ''));
     const seen = { line: ctx.form.get('line') ? Number(ctx.form.get('line')) : null, odds: Number(ctx.form.get('odds')) };
     const wantsStreak = ctx.form.get('streak') === 'on';
+    const wantsSurvivor = ctx.form.get('survivor') === 'on';
     const { game, stale } = await games.current(ctx.form.get('game') ?? '');
     if (!game || !MARKETS[market]?.includes(side)) return notFound(ctx);
     const streak = streakChoice(ctx, game, wantsStreak);
+    const surv = survivorChoice(ctx, game, market, side, wantsSurvivor);
     // Back to the same game on the board, not the top of the page.
     const back = `/games?sport=${game.sport}#${play.cardId(game.id)}`;
     const current = price(game, market, side);
     if (!isLocked(game, ctx.now) && current && stale) {
-      return send(ctx, 503, play.slip(ctx, { game, market, side, current, units, streak, error: "Can't reach live lines right now, so picks are paused. Try again in a minute." }));
+      return send(ctx, 503, play.slip(ctx, { game, market, side, current, units, streak, survivor: surv, error: "Can't reach live lines right now, so picks are paused. Try again in a minute." }));
     }
     const result = makePick(store, { userId: ctx.user.id, game, market, side, units, seen, now: ctx.now, streak: wantsStreak });
-    if (result.moved) return send(ctx, 409, play.slip(ctx, { game, market, side, current: result.moved, units, streak, error: result.error }));
+    if (result.moved) return send(ctx, 409, play.slip(ctx, { game, market, side, current: result.moved, units, streak, survivor: surv, error: result.error }));
     if (result.error) {
       if (current && !isLocked(game, ctx.now) && !/already/.test(result.error)) {
-        return send(ctx, 400, play.slip(ctx, { game, market, side, current, units: Number.isFinite(units) ? units : undefined, streak, error: result.error }));
+        return send(ctx, 400, play.slip(ctx, { game, market, side, current, units: Number.isFinite(units) ? units : undefined, streak, survivor: surv, error: result.error }));
       }
       flash(ctx, 'error', result.error);
       return redirect(ctx, back);
     }
     notifier.pickMade({ player: ctx.user, game, now: ctx.now });
-    const note = result.streak ? '. Your Streak pick' : result.streakTaken ? ". You already had a Streak pick that day, so this one isn't" : '';
+    let note = result.streak ? '. Your Streak pick' : result.streakTaken ? ". You already had a Streak pick that day, so this one isn't" : '';
+    // The Survivor pick goes in with the bet: only whether the team wins counts for it.
+    if (wantsSurvivor && surv && !surv.usedIn) {
+      const picked = survivor.setSurvivorPick(store, { state: survivor.survivorState(store, ctx.now), userId: ctx.user.id, game, side, now: ctx.now });
+      note += picked.error ? `. Survivor pick not saved: ${picked.error.replace(/\.$/, '')}` : `. ${picked.name} is your Week ${picked.week} Survivor pick`;
+    }
     flash(ctx, 'locked', `${formatLine(market, side, current, game)}, ${formatUnits(result.units)} to win ${formatUnits(toWin(current.odds, result.units))}${note}`, ctx.now.toISOString());
     redirect(ctx, back);
   }
@@ -778,7 +796,7 @@ export function createApp({ store, games, config, mailer = createMailer({ log: {
     const sport = SPORT[ctx.query.get('sport')] ?? null;
     const period = periodOf(ctx.query);
     const rows = withLooks(leaderboard(store, { sport: sport?.key, period }, ctx.now));
-    send(ctx, 200, social.leaderboard(ctx, { sport, rows, badges: topBadges(store, rows.map((r) => r.id)) }));
+    send(ctx, 200, social.leaderboard(ctx, { sport, rows, badges: topBadges(store, rows.map((r) => r.id)), cup: cupSummary(ctx) }));
   }
 
   // ---- weekly contest, streaks, invites ---------------------------------------
@@ -805,13 +823,13 @@ export function createApp({ store, games, config, mailer = createMailer({ log: {
    * how many played: counted only for the weeks and tournaments they placed in.
    */
   function winnersPage(ctx) {
-    const tab = ctx.query.get('tab') === 'tournaments' ? 'tournaments' : 'weekly';
+    const tab = ['tournaments', 'cup'].includes(ctx.query.get('tab')) ? ctx.query.get('tab') : 'weekly';
     const tournaments = tournamentWinners(store);
     const userId = ctx.user?.screenName ? ctx.user.id : null;
     if (userId) {
       for (const t of tournaments.list) if (t.podium?.some((r) => r.id === userId)) t.players = standingsOf(store, t, 100_000).length;
     }
-    send(ctx, 200, social.winners(ctx, { ...winnersWall(store), tab, tournaments, players: (week) => standings(store, week, 100_000).length }));
+    send(ctx, 200, social.winners(ctx, { ...winnersWall(store), tab, tournaments, cupList: tab === 'cup' ? cupWinners(store) : [], players: (week) => standings(store, week, 100_000).length }));
   }
 
   // ---- tournaments ------------------------------------------------------------
@@ -819,7 +837,135 @@ export function createApp({ store, games, config, mailer = createMailer({ log: {
   /** The hub: live now, starting soon, finished. Public, like the contest. */
   function tournamentsPage(ctx) {
     const userId = ctx.user?.screenName ? ctx.user.id : null;
-    send(ctx, 200, tourneyViews.hub(ctx, { ...hub(store, ctx.now, userId), admin: isAdmin(ctx) }));
+    survivor.ensurePool(store, ctx.now);
+    send(ctx, 200, tourneyViews.hub(ctx, {
+      ...hub(store, ctx.now, userId),
+      admin: isAdmin(ctx),
+      survivor: survivor.featured(store, ctx.now, userId),
+      pickem: pickem.featured(store, ctx.now, userId),
+      cup: cupSummary(ctx),
+    }));
+  }
+
+  // ---- Survivor, NFL Pick'em and the Bookie Bullies Cup --------------------------
+
+  /** This year's Cup, and the viewer's place in it, for the hub banner and the leaderboard. */
+  function cupSummary(ctx) {
+    const year = cupYear(ctx.now);
+    return { year, mine: ctx.user?.screenName ? cupLine(store, ctx.user.id, year) : null };
+  }
+
+  /** The NFL board, freshened (rate-limited inside games). A page never fails on ESPN. */
+  async function freshNfl() {
+    try {
+      await games.upcoming('nfl');
+    } catch (err) {
+      log.warn(`nfl board: ${err.message}`);
+    }
+  }
+
+  /** Survivor: your status, this week's games to pick from, your picks, the standings. Public, like the hub. */
+  async function survivorPage(ctx) {
+    await freshNfl();
+    survivor.ensurePool(store, ctx.now);
+    const state = survivor.survivorState(store, ctx.now);
+    const userId = ctx.user?.screenName ? ctx.user.id : null;
+    const table = survivor.standings(store, state.pool, userId, ctx.now);
+    withLooks(table.players);
+    send(ctx, 200, formats.survivorPage(ctx, {
+      state,
+      entry: survivor.entryOf(store, state.pool, userId),
+      board: survivor.weekBoard(store, state, userId, ctx.now),
+      history: survivor.historyOf(store, state.pool, userId),
+      table,
+      canJoin: survivor.canJoin(state, ctx.now),
+      last: survivor.lastWinners(store),
+      next: survivor.nextKickoff(state.current, ctx.now),
+    }));
+  }
+
+  function survivorJoin(ctx) {
+    if (!signedIn(ctx)) return;
+    const state = survivor.survivorState(store, ctx.now);
+    const result = survivor.joinSurvivor(store, state, ctx.user.id, ctx.now);
+    flash(ctx, result.error ? 'error' : 'ok', result.error ?? (result.joined ? `You're in ${state.pool.name}, alive from Week ${result.week}. Make your pick.` : "You're already in."));
+    redirect(ctx, result.error ? '/survivor' : '/survivor#week');
+  }
+
+  /** Pick a team on the Survivor page, or switch to it. */
+  async function survivorPick(ctx) {
+    if (!signedIn(ctx)) return;
+    const { game } = await games.current(ctx.form.get('game') ?? '', { wait: false });
+    if (!game) return notFound(ctx);
+    const state = survivor.survivorState(store, ctx.now);
+    const result = survivor.setSurvivorPick(store, { state, userId: ctx.user.id, game, side: ctx.form.get('side'), now: ctx.now });
+    flash(ctx, result.error ? 'error' : 'ok', result.error ?? (result.switched
+      ? `Switched your Week ${result.week} pick to ${result.name} (was ${result.prev}).`
+      : result.same ? `${result.name} is already your Week ${result.week} pick.` : `${result.name} is your Week ${result.week} Survivor pick.`));
+    redirect(ctx, '/survivor#week');
+  }
+
+  /** The week to show on the Pick'em page: ?week= for an earlier one this season, else the current week. */
+  function pickemView(ctx) {
+    const current = pickem.pickemWeek(store, ctx.now);
+    if (!current) return { week: null, weeks: [] };
+    const weeks = seasonWeeks(store, current.season);
+    const played = new Set(store.all('SELECT DISTINCT week FROM pickem_picks WHERE season = ?', current.season).map((r) => r.week));
+    const tabsList = [...new Set([...weeks.filter((w) => played.has(w.week)).map((w) => w.week), current.week])].sort((a, b) => a - b);
+    // Between weeks, before the next week's games are up, the last week played shows by default.
+    const fallback = !current.games.length ? weeks.filter((w) => played.has(w.week)).at(-1)?.week : null;
+    const asked = ctx.query?.has('week') ? Number(ctx.query.get('week')) : fallback;
+    const other = asked !== current.week ? weeks.find((w) => w.week === asked && played.has(asked)) : null;
+    return { week: other ? { season: current.season, ...other } : current, weeks: tabsList };
+  }
+
+  async function pickemPage(ctx, notes = [], status = 200) {
+    await freshNfl();
+    const { week, weeks } = pickemView(ctx);
+    const userId = ctx.user?.screenName ? ctx.user.id : null;
+    const rows = week ? withLooks(pickem.weekStandings(store, week.season, week.week)) : [];
+    const season = week ? withLooks(pickem.seasonStandings(store, week.season)) : [];
+    send(ctx, status, formats.pickemPage(ctx, {
+      week,
+      weeks,
+      viewing: week?.week ?? null,
+      board: week ? pickem.weekBoard(store, week, userId, ctx.now) : [],
+      rows,
+      season,
+      results: week ? pickem.weekResults(store, week.season, week.week) : null,
+      notes,
+    }));
+  }
+
+  /** Save the week's Pick'em picks: one form, so it works without JavaScript. */
+  async function pickemPost(ctx) {
+    if (!signedIn(ctx)) return;
+    // The latest lines first: a pick takes the spread on the board when it's saved.
+    try {
+      await games.upcoming('nfl');
+    } catch (err) {
+      log.warn(`nfl board: ${err.message}`);
+    }
+    const week = pickem.pickemWeek(store, ctx.now);
+    if (!week) return notFound(ctx);
+    const picks = [];
+    for (const [key, value] of ctx.form) if (key.startsWith('pick_')) picks.push({ game: key.slice(5), side: value });
+    const result = pickem.savePickem(store, { userId: ctx.user.id, week, picks, best: ctx.form.get('best') || null, now: ctx.now });
+    if (result.notes.length) return pickemPage(ctx, result.notes, 400);
+    flash(ctx, 'ok', result.saved ? `Saved. Week ${week.week} picks lock at each game's kickoff.` : 'Nothing changed.');
+    redirect(ctx, '/pickem/nfl#games');
+  }
+
+  /** The Bookie Bullies Cup: a year's standings (this year unless ?year=), how points work, your finishes. */
+  function cupPage(ctx) {
+    const current = cupYear(ctx.now);
+    const years = [...new Set([current, ...cupYears(store)])].sort((a, b) => b - a);
+    const asked = Number(ctx.query.get('year'));
+    const year = years.includes(asked) ? asked : current;
+    const rows = withLooks(cupStandings(store, year));
+    const userId = ctx.user?.screenName ? ctx.user.id : null;
+    const mine = userId != null ? cupStandings(store, year, 100_000).find((r) => r.id === userId) ?? null : null;
+    send(ctx, 200, formats.cupPage(ctx, { year, years, rows, mine, history: userId != null ? cupHistory(store, userId, year) : [] }));
   }
 
   /** One tournament: rules, the clock, Join or Leave, standings (as it stands while live), chat, the podium once closed. */
@@ -1303,6 +1449,7 @@ export function createApp({ store, games, config, mailer = createMailer({ log: {
       nextChange: ctx.user?.id === player.id ? nextNameChange(player.name_changed_at, ctx.now) : null,
       badges: player.official ? [] : badgesOf(store, player.id),
       streak: player.official ? null : streakOf(store, player.id),
+      cup: player.official ? null : cupLine(store, player.id, cupYear(ctx.now)),
       clv: clvSummary(store, player.id),
       home: homeOf(player.home_city),
       cities: ctx.user?.id === player.id ? cityGroups() : null,
@@ -1751,6 +1898,15 @@ export function createApp({ store, games, config, mailer = createMailer({ log: {
     ['GET', '/winners', winnersPage],
     ['GET', '/tournaments', tournamentsPage],
     ['GET', '/tournaments/new', (ctx) => tournamentNewForm(ctx)],
+    ['GET', '/tournaments/survivor', (ctx) => redirect(ctx, '/survivor', 302)],
+    ['GET', '/tournaments/pickem', (ctx) => redirect(ctx, '/pickem/nfl', 302)],
+    ['GET', '/tournaments/cup', (ctx) => redirect(ctx, '/cup', 302)],
+    ['GET', '/survivor', survivorPage],
+    ['POST', '/survivor/join', survivorJoin],
+    ['POST', '/survivor/pick', survivorPick],
+    ['GET', '/pickem/nfl', (ctx) => pickemPage(ctx)],
+    ['POST', '/pickem/nfl', pickemPost],
+    ['GET', '/cup', cupPage],
     ['POST', '/tournaments/new', tournamentCreate],
     ['GET', '/tournaments/:slug', tournamentPage],
     ['GET', '/t/:code', tournamentInvite],
