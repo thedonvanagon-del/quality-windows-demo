@@ -303,21 +303,41 @@ async function drawCard(d) {
   c.fillStyle = v('--ink');
   c.font = `800 64px ${cond}`;
   c.fillText('BOOKIE BULLIES', 224, 150);
-  c.fillStyle = '#ffd257';
+  c.fillStyle = v('--gold') || '#ffd257';
   c.font = `800 34px ${cond}`;
   c.fillText('✓ TRUST YOUR BETS', 226, 196);
 
+  // The player's photo in a ring beside their name, when they have one.
+  const face = d.photo ? await loadImage(d.photo).catch(() => null) : null;
+  const nameX = face ? 240 : 80;
+  if (face) {
+    c.save();
+    c.beginPath();
+    c.arc(146, 316, 66, 0, Math.PI * 2);
+    c.clip();
+    c.drawImage(face, 80, 250, 132, 132);
+    c.restore();
+    c.strokeStyle = v('--accent');
+    c.lineWidth = 6;
+    c.beginPath();
+    c.arc(146, 316, 66, 0, Math.PI * 2);
+    c.stroke();
+  }
   c.fillStyle = v('--ink');
-  c.font = `800 96px ${cond}`;
-  c.fillText(d.name, 80, 360);
+  let nameSize = 96;
+  do {
+    c.font = `800 ${nameSize}px ${cond}`;
+    nameSize -= 6;
+  } while (nameSize > 48 && c.measureText(d.name).width > W - nameX - 80);
+  c.fillText(d.name, nameX, 360);
   if (d.rank) {
     c.font = `800 40px ${cond}`;
     const label = `${d.rank} OVERALL`;
     const w = c.measureText(label).width + 32;
     c.fillStyle = v('--accent');
-    c.fillRect(80, 392, w, 56);
+    c.fillRect(nameX, 392, w, 56);
     c.fillStyle = v('--accent-ink');
-    c.fillText(label, 96, 434);
+    c.fillText(label, nameX + 16, 434);
   }
 
   const units = Number(d.units);
@@ -486,4 +506,162 @@ for (const img of document.querySelectorAll('.logo img')) {
   const shown = () => img.parentElement.classList.add('loaded');
   if (img.complete && img.naturalWidth) shown();
   else img.addEventListener('load', shown);
+}
+
+function loadImage(src) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = reject;
+    img.src = src;
+  });
+}
+
+// The look picker's sample card shows a look before it's saved: a preset on
+// hover or focus, a team or custom colors as they're picked. Team and custom
+// samples load the server's own stylesheet for those colors, so the sample
+// is exactly what saving gives, readability guard and all.
+const picker = document.querySelector('[data-picker]');
+if (picker) {
+  const sample = picker.querySelector('[data-preview]');
+  const saved = sample.dataset.theme;
+  let sheet = null;
+  const showSheet = (href) => {
+    if (!sheet) {
+      sheet = document.createElement('link');
+      sheet.rel = 'stylesheet';
+      document.head.append(sheet);
+    }
+    if (sheet.getAttribute('href') !== href) sheet.href = href;
+    sample.dataset.theme = 'preview';
+  };
+  for (const button of picker.querySelectorAll('[data-sample]')) {
+    const show = () => {
+      sample.dataset.theme = button.dataset.sample;
+    };
+    const back = () => {
+      sample.dataset.theme = saved;
+    };
+    button.addEventListener('mouseenter', show);
+    button.addEventListener('focus', show);
+    button.addEventListener('mouseleave', back);
+    button.addEventListener('blur', back);
+  }
+  const modeOf = (form) => (form.querySelector('input[name="mode"]:checked')?.value === 'light' ? 'light' : 'dark');
+
+  // Match my team: the sport first, then its teams.
+  const teamForm = picker.querySelector('[data-team-form]');
+  if (teamForm) {
+    const sportPick = teamForm.querySelector('[data-sport-pick]');
+    const sportSelect = teamForm.querySelector('[data-team-sport]');
+    const teamSelect = teamForm.querySelector('[data-team-select]');
+    const blank = teamSelect.querySelector('option[value=""]');
+    const bySport = new Map([...teamSelect.querySelectorAll('optgroup')].map((g) => [g.dataset.sport, [...g.querySelectorAll('option')]]));
+    const fill = () => {
+      const keep = teamSelect.value;
+      const options = bySport.get(sportSelect.value) ?? [];
+      teamSelect.replaceChildren(blank, ...options);
+      teamSelect.value = options.some((o) => o.value === keep) ? keep : '';
+    };
+    const previewTeam = () => {
+      const option = teamSelect.selectedOptions[0];
+      if (option?.value) showSheet(option.dataset[modeOf(teamForm)]);
+    };
+    fill();
+    sportPick.hidden = false;
+    sportSelect.addEventListener('change', fill);
+    teamSelect.addEventListener('change', previewTeam);
+    for (const radio of teamForm.querySelectorAll('input[name="mode"]')) radio.addEventListener('change', previewTeam);
+  }
+
+  // Custom: two colors and a background, previewed as they change.
+  const customForm = picker.querySelector('[data-custom-form]');
+  if (customForm) {
+    let timer = null;
+    const previewCustom = () => {
+      const accent = customForm.elements.accent.value.toLowerCase();
+      const tint = customForm.elements.tint.value.toLowerCase();
+      if (!/^#[0-9a-f]{6}$/.test(accent) || !/^#[0-9a-f]{6}$/.test(tint)) return;
+      showSheet(`/theme/t1-${modeOf(customForm) === 'light' ? 'l' : 'd'}-${accent.slice(1)}-${tint.slice(1)}-preview.css`);
+    };
+    customForm.addEventListener('input', () => {
+      clearTimeout(timer);
+      timer = setTimeout(previewCustom, 150);
+    });
+    customForm.addEventListener('change', previewCustom);
+  }
+}
+
+// Profile photo: cut the chosen picture to a square from the middle, shrink
+// it to 400×400 and send it as a JPEG. Drawing it on a canvas also leaves its
+// EXIF (and any GPS) behind. Without this, the form sends the file as it is,
+// and the server checks it either way.
+const photoForm = document.querySelector('[data-photo-form]');
+const photoCanvas = document.querySelector('[data-photo-canvas]');
+if (photoForm && photoCanvas && HTMLCanvasElement.prototype.toBlob) {
+  const input = photoForm.querySelector('[data-photo-input]');
+  const status = photoForm.querySelector('[data-photo-status]');
+  const save = photoForm.querySelector('[data-photo-save]');
+  const current = photoCanvas.parentElement.querySelector('.avatar:not(canvas)');
+  let ready = false;
+  // The page allows data: images but not blob: ones, so older browsers read the file as data.
+  const decode = async (file) => {
+    if (window.createImageBitmap) {
+      try {
+        return await createImageBitmap(file);
+      } catch {
+        // Fall through to an <img>.
+      }
+    }
+    const url = await new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result);
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+    return loadImage(url);
+  };
+  input.addEventListener('change', async () => {
+    ready = false;
+    const file = input.files?.[0];
+    status.textContent = '';
+    if (!file) return;
+    try {
+      const pic = await decode(file);
+      const w = pic.naturalWidth || pic.width;
+      const h = pic.naturalHeight || pic.height;
+      const side = Math.min(w, h);
+      const c = photoCanvas.getContext('2d');
+      // A see-through PNG gets white behind it, not black, as a JPEG.
+      c.fillStyle = '#ffffff';
+      c.fillRect(0, 0, 400, 400);
+      c.imageSmoothingQuality = 'high';
+      c.drawImage(pic, (w - side) / 2, (h - side) / 2, side, side, 0, 0, 400, 400);
+      photoCanvas.hidden = false;
+      if (current) current.hidden = true;
+      ready = true;
+      status.textContent = 'Looks good? Save it.';
+    } catch {
+      status.textContent = "That file didn't open as a picture. Try another.";
+    }
+  });
+  photoForm.addEventListener('submit', async (event) => {
+    if (!ready) return;
+    event.preventDefault();
+    save.disabled = true;
+    status.textContent = 'Saving…';
+    try {
+      const blob = await new Promise((resolve, reject) => photoCanvas.toBlob((b) => (b ? resolve(b) : reject(new Error('no image'))), 'image/jpeg', 0.85));
+      const body = new FormData();
+      body.append('_csrf', photoForm.querySelector('input[name="_csrf"]')?.value ?? '');
+      body.append('photo', blob, 'photo.jpg');
+      // The answer is a redirect that carries the result; the profile shows it.
+      const res = await fetch(photoForm.action, { method: 'POST', body, credentials: 'same-origin', redirect: 'manual' });
+      if (res.type !== 'opaqueredirect' && !res.ok) throw new Error(`answered ${res.status}`);
+      window.location.assign(window.location.pathname);
+    } catch {
+      status.textContent = "That didn't save. Reload the page and try again.";
+      save.disabled = false;
+    }
+  });
 }

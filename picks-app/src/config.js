@@ -1,6 +1,12 @@
-// The first is the default. Each player can switch on their profile.
-// scoreboard: navy and amber. market: black and green. ember: the first look, orange.
-export const THEMES = ['scoreboard', 'market', 'ember'];
+import os from 'node:os';
+import path from 'node:path';
+
+// The preset looks. The first is the default. Each player can switch on their
+// profile, or build their own from a team's colors (see themes.js).
+// scoreboard: navy and amber. market: black and green. ember: the first look,
+// orange. ice: navy and sky blue. royal: purple and gold. crimson: deep red.
+// forest: green and cream. light: white and charcoal with amber.
+export const THEMES = ['scoreboard', 'market', 'ember', 'ice', 'royal', 'crimson', 'forest', 'light'];
 
 export const OFFICIAL_PICKS_URL = 'https://www.bookiebullies.com/picks_log.jsonl';
 
@@ -9,8 +15,11 @@ export function loadConfig(env = process.env) {
     port: Number(env.PORT) || 3000,
     host: env.HOST || '0.0.0.0',
     databasePath: env.DATABASE_PATH || 'data/bookiebullies.db',
+    // Profile photos. Keep it on the same disk as the database and in the
+    // same backups. The demo uses a scratch folder of its own.
+    mediaDir: env.MEDIA_DIR || (truthy(env.DEMO) ? path.join(os.tmpdir(), 'bookie-bullies-demo-media') : 'data/media'),
     appName: env.APP_NAME || 'Bookie Bullies',
-    // The look for visitors and new players: scoreboard, market or ember.
+    // The look for visitors and new players: one of THEMES.
     theme: THEMES.includes(env.THEME) ? env.THEME : THEMES[0],
     // Fake games and players, so the app can be clicked through with no
     // network. Never set this in production.

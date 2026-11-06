@@ -4,6 +4,8 @@
 import crypto from 'node:crypto';
 import { promisify } from 'node:util';
 
+import { styleOf } from './themes.js';
+
 const scrypt = promisify(crypto.scrypt);
 
 // One of OWASP's scrypt settings: as much work as N=2^17, p=1, in 16 MB of
@@ -85,7 +87,7 @@ export function readSession(store, token, now) {
   if (!token) return null;
   const row = store.get(
     `SELECT s.token_hash, s.csrf, s.expires_at, u.id, u.email, u.screen_name, u.created_at, u.theme, u.email_verified_at,
-            u.fav_sports, u.official, u.setup_done
+            u.fav_sports, u.official, u.setup_done, u.theme_team, u.theme_mode, u.theme_accent, u.theme_tint, u.photo, u.photo_hidden
        FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.token_hash = ?`,
     sha256(token),
   );
@@ -100,6 +102,11 @@ export function readSession(store, token, now) {
     user: {
       id: row.id, email: row.email, screenName: row.screen_name, createdAt: row.created_at, theme: row.theme, verified: Boolean(row.email_verified_at),
       favSports: (row.fav_sports ?? '').split(',').filter(Boolean), official: Boolean(row.official), setupDone: Boolean(row.setup_done),
+      // A team or custom look's colors, when that's the look (null otherwise).
+      style: styleOf(row),
+      themeTeam: row.theme === 'custom' ? row.theme_team ?? null : null,
+      // Their photo, unless reports have hidden it.
+      photo: row.photo && !row.photo_hidden ? row.photo : null,
     },
   };
 }

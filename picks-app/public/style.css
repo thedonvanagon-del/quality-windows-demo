@@ -1,7 +1,10 @@
 /* A broadcast scoreboard: tall condensed type for names and numbers, team
-   colors down the side of every game. Three looks, picked per player:
+   colors down the side of every game. Eight preset looks, picked per player:
    scoreboard (navy and amber, the default), market (black and green, like a
-   trading app) and ember (the first look: slate and orange). */
+   trading app), ember (the first look: slate and orange), ice (navy and sky
+   blue), royal (purple and gold), crimson (deep red), forest (green and
+   cream) and light (white and charcoal with amber). Players can also match
+   their team's colors or pick their own; those come from /theme/<colors>.css. */
 
 @font-face { font-family: "Barlow Condensed"; font-weight: 600; font-display: swap; src: url("/static/barlow-condensed-latin-600-normal.woff2") format("woff2"); }
 @font-face { font-family: "Barlow Condensed"; font-weight: 700; font-display: swap; src: url("/static/barlow-condensed-latin-700-normal.woff2") format("woff2"); }
@@ -11,6 +14,14 @@
 @font-face { font-family: "Barlow"; font-weight: 700; font-display: swap; src: url("/static/barlow-latin-700-normal.woff2") format("woff2"); }
 
 :root {
+  --r: 8px;
+  --cond: "Barlow Condensed", "Arial Narrow", system-ui, sans-serif;
+}
+
+/* Every look is a complete set of tokens, on :root for the page and on any
+   element with data-theme for the picker's sample card. "Match my team" and
+   "Custom" looks come from /theme/<colors>.css, built by src/themes.js. */
+:root, [data-theme="scoreboard"] {
   --bg: #0a1228;
   --bar: #0e1a3a;
   --card: #111d40;
@@ -30,12 +41,12 @@
   --loss-soft: rgba(251, 113, 133, 0.14);
   --push: #a3b2d6;
   --live: #e63946;
-  --r: 8px;
-  --cond: "Barlow Condensed", "Arial Narrow", system-ui, sans-serif;
+  --gold: #ffd257;
+  --gold-ink: #1a1000;
   color-scheme: dark;
 }
 
-:root[data-theme="market"] {
+[data-theme="market"] {
   --bg: #070908;
   --bar: #0c100e;
   --card: #111614;
@@ -43,6 +54,7 @@
   --tile: #1a231f;
   --tile-hover: #24302a;
   --line: #202a25;
+  --ink: #ffffff;
   --muted: #9aa8a1;
   --faint: #6e7d75;
   --accent: #22c55e;
@@ -50,10 +62,16 @@
   --accent-soft: rgba(34, 197, 94, 0.14);
   --win: #22c55e;
   --win-soft: rgba(34, 197, 94, 0.14);
+  --loss: #fb7185;
+  --loss-soft: rgba(251, 113, 133, 0.14);
   --push: #9aa8a1;
+  --live: #e63946;
+  --gold: #ffd257;
+  --gold-ink: #1a1000;
+  color-scheme: dark;
 }
 
-:root[data-theme="ember"] {
+[data-theme="ember"] {
   --bg: #0b0f15;
   --bar: #0f141b;
   --card: #141b24;
@@ -61,12 +79,146 @@
   --tile: #1d2633;
   --tile-hover: #263243;
   --line: #222c39;
+  --ink: #ffffff;
   --muted: #8d9aab;
   --faint: #6b7787;
   --accent: #ff8f45;
   --accent-ink: #1e0c00;
   --accent-soft: rgba(255, 143, 69, 0.14);
+  --win: #34d399;
+  --win-soft: rgba(52, 211, 153, 0.14);
+  --loss: #fb7185;
+  --loss-soft: rgba(251, 113, 133, 0.14);
   --push: #a3aec0;
+  --live: #e63946;
+  --gold: #ffd257;
+  --gold-ink: #1a1000;
+  color-scheme: dark;
+}
+
+[data-theme="ice"] {
+  --bg: #07111f;
+  --bar: #0b1a2e;
+  --card: #0e2038;
+  --raised: #132844;
+  --tile: #15304f;
+  --tile-hover: #1c3b60;
+  --line: #1b3150;
+  --ink: #ffffff;
+  --muted: #a5bcd8;
+  --faint: #7890b0;
+  --accent: #38bdf8;
+  --accent-ink: #03131d;
+  --accent-soft: rgba(56, 189, 248, 0.14);
+  --win: #34d399;
+  --win-soft: rgba(52, 211, 153, 0.14);
+  --loss: #fb7185;
+  --loss-soft: rgba(251, 113, 133, 0.14);
+  --push: #a5bcd8;
+  --live: #e63946;
+  --gold: #ffd257;
+  --gold-ink: #1a1000;
+  color-scheme: dark;
+}
+
+[data-theme="royal"] {
+  --bg: #120a24;
+  --bar: #1a0f33;
+  --card: #1e1340;
+  --raised: #27194f;
+  --tile: #2a1b57;
+  --tile-hover: #35236b;
+  --line: #31235a;
+  --ink: #ffffff;
+  --muted: #b9addb;
+  --faint: #8d80b5;
+  --accent: #fbbf24;
+  --accent-ink: #1a1000;
+  --accent-soft: rgba(251, 191, 36, 0.14);
+  --win: #34d399;
+  --win-soft: rgba(52, 211, 153, 0.14);
+  --loss: #fb7185;
+  --loss-soft: rgba(251, 113, 133, 0.14);
+  --push: #b9addb;
+  --live: #e63946;
+  --gold: #ffd257;
+  --gold-ink: #1a1000;
+  color-scheme: dark;
+}
+
+[data-theme="crimson"] {
+  --bg: #14070a;
+  --bar: #210a0f;
+  --card: #260c12;
+  --raised: #321019;
+  --tile: #36121b;
+  --tile-hover: #451824;
+  --line: #3f1620;
+  --ink: #ffffff;
+  --muted: #d8b4ba;
+  --faint: #a8848a;
+  --accent: #e11d48;
+  --accent-ink: #ffffff;
+  --accent-soft: rgba(225, 29, 72, 0.18);
+  --win: #4ade80;
+  --win-soft: rgba(74, 222, 128, 0.14);
+  --loss: #fda4af;
+  --loss-soft: rgba(253, 164, 175, 0.14);
+  --push: #d8b4ba;
+  --live: #e63946;
+  --gold: #ffd257;
+  --gold-ink: #1a1000;
+  color-scheme: dark;
+}
+
+[data-theme="forest"] {
+  --bg: #08120c;
+  --bar: #0f1b14;
+  --card: #12221a;
+  --raised: #182c22;
+  --tile: #1a3025;
+  --tile-hover: #233c2f;
+  --line: #21352a;
+  --ink: #f6f1e3;
+  --muted: #b8c2ab;
+  --faint: #8a957d;
+  --accent: #ecd28c;
+  --accent-ink: #1a1400;
+  --accent-soft: rgba(236, 210, 140, 0.14);
+  --win: #4ade80;
+  --win-soft: rgba(74, 222, 128, 0.14);
+  --loss: #fb7185;
+  --loss-soft: rgba(251, 113, 133, 0.14);
+  --push: #b8c2ab;
+  --live: #e63946;
+  --gold: #ffd257;
+  --gold-ink: #1a1000;
+  color-scheme: dark;
+}
+
+[data-theme="light"] {
+  --bg: #f3f4f6;
+  --bar: #ffffff;
+  --card: #ffffff;
+  --raised: #eef0f3;
+  --tile: #eaedf1;
+  --tile-hover: #dfe3e9;
+  --line: #d5dae1;
+  --ink: #13161b;
+  --muted: #4b5462;
+  --faint: #5f6875;
+  --accent: #b45309;
+  --accent-ink: #ffffff;
+  --accent-soft: rgba(180, 83, 9, 0.12);
+  --win: #15803d;
+  --win-soft: rgba(21, 128, 61, 0.12);
+  --loss: #be123c;
+  --loss-soft: rgba(190, 18, 60, 0.1);
+  --push: #4b5462;
+  --live: #d62839;
+  --gold: #8a5a00;
+  --gold-ink: #ffffff;
+  color-scheme: light;
 }
 
 * { box-sizing: border-box; }
@@ -294,7 +446,7 @@ input:focus, select:focus { outline: none; border-color: var(--accent); box-shad
   text-transform: uppercase;
 }
 .eyebrow svg { width: 14px; height: 14px; }
-.trust { display: inline-flex; align-items: center; gap: 10px; font-weight: 800; font-size: 1.05rem; letter-spacing: 0.01em; color: #ffd257; }
+.trust { display: inline-flex; align-items: center; gap: 10px; font-weight: 800; font-size: 1.05rem; letter-spacing: 0.01em; color: var(--gold); }
 .trust-mark { width: 32px; height: 32px; flex: none; filter: drop-shadow(0 2px 8px rgba(245, 179, 1, 0.35)); }
 .hero h1 { font-size: clamp(2.1rem, 7vw, 3.3rem); margin: 16px 0 12px; max-width: 12em; }
 .hero p { font-size: 1.08rem; color: var(--muted); max-width: 32em; margin: 0 0 24px; }
@@ -458,7 +610,8 @@ tr.me td { background: var(--accent-soft); }
   .hide-sm { display: none; }
   table { font-size: 0.88rem; }
   th, td { padding: 10px 6px; }
-  .player .avatar { display: none; }
+  .player span.avatar { display: none; }
+  .player img.avatar { width: 22px; height: 22px; }
 }
 
 .code { font: 800 1.35rem ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: 0.14em; color: var(--accent); }
@@ -575,6 +728,11 @@ label.check a, footer a { color: var(--accent); }
 .swatch.scoreboard span { background: linear-gradient(135deg, #0e1a3a 50%, #ffb020 50%); }
 .swatch.market span { background: linear-gradient(135deg, #070908 50%, #22c55e 50%); }
 .swatch.ember span { background: linear-gradient(135deg, #141b24 50%, #ff8f45 50%); }
+.swatch.ice span { background: linear-gradient(135deg, #0b1a2e 50%, #38bdf8 50%); }
+.swatch.royal span { background: linear-gradient(135deg, #1a0f33 50%, #fbbf24 50%); }
+.swatch.crimson span { background: linear-gradient(135deg, #210a0f 50%, #e11d48 50%); }
+.swatch.forest span { background: linear-gradient(135deg, #0f1b14 50%, #ecd28c 50%); }
+.swatch.light span { background: linear-gradient(135deg, #ffffff 50%, #b45309 50%); box-shadow: inset 0 0 0 1px #d5dae1; }
 .swatch.on { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
 
 /* ---- Footer ------------------------------------------------------------- */
@@ -639,7 +797,7 @@ svg.stripe { background: none; }
   margin: 4px 0 8px;
 }
 .rc-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
-.trust-small { display: inline-flex; align-items: center; gap: 8px; font-family: var(--cond); font-weight: 800; font-size: 1rem; letter-spacing: 0.04em; text-transform: uppercase; color: #ffd257; }
+.trust-small { display: inline-flex; align-items: center; gap: 8px; font-family: var(--cond); font-weight: 800; font-size: 1rem; letter-spacing: 0.04em; text-transform: uppercase; color: var(--gold); }
 .trust-small .trust-mark { width: 22px; height: 22px; }
 .rank-badge { font-family: var(--cond); font-weight: 800; font-size: 0.95rem; letter-spacing: 0.04em; text-transform: uppercase; background: var(--accent); color: var(--accent-ink); border-radius: 4px; padding: 2px 8px; }
 .rank-badge.muted { background: var(--raised); color: var(--muted); }
@@ -708,7 +866,7 @@ dialog.sheet .slip { border-radius: 14px 14px 0 0; border-bottom: 0; padding-bot
   padding: 14px 16px;
   border-radius: var(--r);
   background: var(--card);
-  border: 1px dashed color-mix(in srgb, #ffd257 60%, transparent);
+  border: 1px dashed color-mix(in srgb, var(--gold) 60%, transparent);
 }
 .locked-ticket .stamp {
   flex: none;
@@ -717,8 +875,8 @@ dialog.sheet .slip { border-radius: 14px 14px 0 0; border-bottom: 0; padding-bot
   font-size: 1.35rem;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: #ffd257;
-  border: 3px solid #ffd257;
+  color: var(--gold);
+  border: 3px solid var(--gold);
   border-radius: 6px;
   padding: 2px 10px;
   transform: rotate(-6deg);
@@ -856,8 +1014,8 @@ a.chip { display: inline-block; text-decoration: none; }
 /* ---- Official account, search, setup, admin ------------------------------ */
 
 .official-tag, .lock-tag { display: inline-block; vertical-align: 0.12em; margin-left: 6px; padding: 1px 6px; border-radius: 5px; font-family: var(--cond); font-size: 0.72rem; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; line-height: 1.4; white-space: nowrap; }
-.official-tag { color: #ffd257; box-shadow: inset 0 0 0 1px rgba(255, 210, 87, 0.55); }
-.lock-tag { background: #ffd257; color: #1a1000; margin: 0 6px 0 0; }
+.official-tag { color: var(--gold); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--gold) 55%, transparent); }
+.lock-tag { background: var(--gold); color: var(--gold-ink); margin: 0 6px 0 0; }
 .team .official-tag { font-size: 0.85rem; margin-left: 10px; }
 
 .search { display: flex; gap: 8px; margin: 0 0 14px; max-width: 420px; }
@@ -1029,3 +1187,65 @@ label.check.streak-check { margin: 10px 0 2px; padding: 10px 12px; border-radius
 .form-chip b { display: inline-grid; place-items: center; width: 20px; height: 20px; border-radius: 4px; font-family: var(--cond); font-size: 0.85rem; background: var(--line); color: var(--ink); }
 .form-chip.w b { background: var(--win-soft); color: var(--win); }
 .form-chip.l b { background: var(--loss-soft); color: var(--loss); }
+
+/* ---- Looks, photos and profile banners (2026-11-06) ------------------------ */
+
+/* A photo sits where the initials circle would, the same size, cropped to fill. */
+img.avatar { object-fit: cover; background: var(--raised); }
+.avatar.xs { width: 20px; height: 20px; font-size: 0.62rem; }
+.avatar.huge { width: 76px; height: 76px; font-size: 1.8rem; }
+.ticket .sel .avatar.xs { display: inline-grid; vertical-align: -4px; margin-right: 6px; }
+.msg-head .avatar.xs { margin-right: -4px; }
+.face-chip { display: inline-flex; align-items: center; gap: 6px; padding-left: 6px; }
+.inbox .icon.face { background: none; }
+.inbox .icon.face .avatar { width: 34px; height: 34px; font-size: 0.9rem; }
+.profile-actions form { margin: 0; }
+
+/* Profile header: a band in the player's colors, with their face over its edge. */
+.profile-head { position: relative; margin: -24px -16px 0; padding: 66px 16px 0; }
+.profile-head.has-photo { padding-top: 50px; }
+.profile-head .banner { position: absolute; top: 0; left: 0; width: 100%; height: 88px; display: block; }
+.banner-shade { fill: var(--bg); opacity: 0.16; }
+.profile-face { position: relative; display: flex; }
+/* The band shows through nothing: the circle keeps the look it has on the page. */
+.profile-face .avatar { box-shadow: 0 0 0 3px var(--bg); background: linear-gradient(var(--accent-soft), var(--accent-soft)), var(--bg); }
+.profile-face img.avatar { background: var(--raised); }
+.profile-head .team { position: relative; margin-top: 10px; flex-wrap: wrap; }
+.team-badge { display: inline-flex; }
+.team-badge .logo { width: 30px; height: 30px; margin-left: 4px; }
+@media (min-width: 761px) {
+  .profile-head { margin: 0; }
+  .profile-head .banner { border-radius: var(--r); }
+}
+
+/* The look picker: a sample card, preset swatches, Match my team, Custom. */
+.picker { display: grid; gap: 14px; max-width: 560px; }
+.theme-preview { background: var(--bg); color: var(--ink); border: 1px solid var(--line); border-radius: 12px; padding: 12px; display: grid; gap: 10px; }
+.theme-preview .event { margin: 0; }
+.tp-foot { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.tp-foot .btn { pointer-events: none; }
+.tp-foot .status { justify-self: auto; align-self: center; }
+.look-form { background: var(--card); border: 1px solid var(--line); border-radius: var(--r); padding: 14px; gap: 12px; }
+.look-form.on { border-color: var(--accent); }
+.look-form h3 { margin: 0; font-family: var(--cond); font-size: 1.2rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.03em; }
+.look-form p { margin: -6px 0 0; }
+.look-form .btn { justify-self: start; }
+.mode-pick { border: 0; padding: 0; margin: 0; }
+.mode-pick legend { padding: 0; margin-bottom: 6px; font-weight: 700; font-size: 0.88rem; }
+.mode-pick label.check { display: inline-flex; margin-right: 18px; }
+input[type="color"] { width: 100%; height: 44px; padding: 4px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); cursor: pointer; }
+
+/* Your photo: what's there now (or the crop about to go up), and the form. */
+.photo-edit { display: flex; gap: 16px; align-items: flex-start; flex-wrap: wrap; max-width: 560px; }
+.photo-now { flex: none; }
+canvas.photo-crop { display: block; }
+.photo-side { flex: 1; min-width: 220px; display: grid; gap: 10px; }
+.photo-side p, .photo-side form { margin: 0; }
+input[type="file"] { font: inherit; font-weight: 500; color: var(--muted); max-width: 100%; }
+input[type="file"]::file-selector-button { font: inherit; font-weight: 700; padding: 8px 12px; margin-right: 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--raised); color: var(--ink); cursor: pointer; }
+
+/* Reported photos on the admin page. */
+.photo-report { display: flex; gap: 14px; align-items: flex-start; }
+.report-photo { width: 96px; height: 96px; border-radius: 10px; object-fit: cover; flex: none; background: var(--raised); }
+.report-main { flex: 1; min-width: 0; display: grid; gap: 8px; }
+.report-main p { margin: 0; }

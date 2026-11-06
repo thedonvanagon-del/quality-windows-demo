@@ -3,6 +3,8 @@
 // ESPN's own JSON and read through the real parser, so the demo exercises the
 // same code as production. Log in as demo@example.com / letmein123.
 
+import zlib from 'node:zlib';
+
 import { hashPassword } from './auth.js';
 import { checkAllBadges } from './badges.js';
 import { closeWeek } from './contest.js';
@@ -10,8 +12,10 @@ import { parseScoreboard, parseSummary } from './espn.js';
 import { createGroup, joinGroup } from './groups.js';
 import { inviteCodeOf } from './invites.js';
 import { createOfficialImporter, ensureOfficial } from './official.js';
+import { cleanImage, mediaDir, savePhoto } from './photos.js';
 import { grade, gradeFinished, MARKETS, maxUnits, parlayMaxUnits, parlayPrice, price } from './picks.js';
 import { SPORTS } from './sports.js';
+import { teamAccent, teamsBySport } from './themes.js';
 import { addDays, etDay, etToUtc, HOUR, mondayOf } from './time.js';
 
 export const DEMO_LOGIN = { email: 'demo@example.com', password: 'letmein123' };
@@ -164,7 +168,12 @@ function game(sport, id, start, homeTeam, awayTeam, rand) {
 
 /** The game as ESPN's scoreboard would show it at `at`. */
 // Made-up team colors, records and channels, so demo cards look like the real ones.
-const DEMO_COLORS = ['c8102e', '00338d', '004c54', '241773', '0076b6', 'aa0000', '041e42', '203731', 'fb4f14', '008e97', '125740', '003594'];
+// Each is [color, alternateColor], the way ESPN sends them; a few are light, a few too dark to read on the page.
+const DEMO_COLORS = [
+  ['c8102e', 'ffffff'], ['00338d', 'c60c30'], ['004c54', 'a5acaf'], ['241773', '9e7c0c'], ['0076b6', 'b0b7bc'], ['aa0000', 'b3995d'],
+  ['041e42', 'a5acaf'], ['203731', 'ffb612'], ['fb4f14', '000000'], ['008e97', 'fc4c02'], ['125740', 'ffffff'], ['ffb612', '101820'],
+  ['fdb927', '552583'], ['f2f2f2', '13274f'],
+];
 const DEMO_TV = { nfl: ['CBS', 'FOX', 'NBC', 'ESPN', 'Prime Video'], ncaaf: ['ESPN', 'ABC', 'FOX', 'CBS'], nba: ['ESPN', 'TNT', 'NBA TV'], ncaab: ['ESPN2', 'FS1', 'CBS'], mlb: ['FOX', 'TBS', 'ESPN'], nhl: ['ESPN+', 'TNT', 'NHL Net'] };
 const seed = (text) => [...String(text)].reduce((n, c) => (n * 31 + c.charCodeAt(0)) % 9973, 7);
 
@@ -182,7 +191,8 @@ function espnEvent(g, at) {
       displayName: g[side].name,
       shortDisplayName: g[side].short,
       logo: pro ? `https://a.espncdn.com/i/teamlogos/${g.sport}/500/${g[side].abbr.toLowerCase()}.png` : undefined,
-      color: DEMO_COLORS[seed(g[side].abbr) % DEMO_COLORS.length],
+      color: DEMO_COLORS[seed(g[side].abbr) % DEMO_COLORS.length][0],
+      alternateColor: DEMO_COLORS[seed(g[side].abbr) % DEMO_COLORS.length][1],
     },
     records: [{ type: 'total', summary: `${3 + (seed(g[side].abbr) % 6)}-${1 + (seed(g[side].abbr + 'l') % 5)}` }],
   });
@@ -245,7 +255,7 @@ const PLAYERS = [
 ];
 
 /** Fill an empty database with players, picks and groups. */
-export async function seedDemo({ store, games, espn, now = () => new Date() }) {
+export async function seedDemo({ store, games, espn, now = () => new Date(), mediaDir: dir = null }) {
   const at = now();
   const today = etDay(at);
   // Load games as they stood a day before each one, so past games carry
@@ -408,6 +418,68 @@ export async function seedDemo({ store, games, espn, now = () => new Date() }) {
     store.run('UPDATE users SET invited_by = ?, invite_counted_at = created_at WHERE id = ?', ids.SharpShooter, ids[name]);
   }
   checkAllBadges(store, at);
+  if (dir) seedLooks(store, ids, dir);
+}
+
+/**
+ * A few players get photos (made here: a figure on a colored square) and
+ * team looks: one on a team too dark for the page, one on a light team with
+ * the light background, so both sides of the readability guard show.
+ */
+function seedLooks(store, ids, dir) {
+  const faces = { BackdoorCover: ['#1d4ed8', '#fde68a'], ChalkEater: ['#b91c1c', '#fecaca'], DogLover: ['#047857', '#a7f3d0'], FadeMe: ['#6d28d9', '#ddd6fe'] };
+  mediaDir(dir);
+  for (const [name, [bg, fg]] of Object.entries(faces)) {
+    const image = cleanImage(demoFace(bg, fg));
+    if (!image.error) savePhoto(store, dir, ids[name], image);
+  }
+  const teams = teamsBySport(store).flatMap((g) => g.teams);
+  const pick = (test) => teams.find(test);
+  const looks = [
+    ['BackdoorCover', pick((t) => t.color === '#041e42'), 'dark'],
+    ['ChalkEater', pick((t) => t.color === '#ffb612'), 'light'],
+    ['DogLover', pick((t) => t.color === '#004c54'), 'dark'],
+  ];
+  for (const [name, team, mode] of looks) {
+    if (!team) continue;
+    const { accent } = teamAccent({ primary: team.color, alternate: team.alt }, mode);
+    store.run("UPDATE users SET theme = 'custom', theme_team = ?, theme_mode = ?, theme_accent = ?, theme_tint = ? WHERE id = ?", team.key, mode, accent, team.color, ids[name]);
+  }
+  store.run("UPDATE users SET theme = 'royal' WHERE id = ?", ids.FadeMe);
+}
+
+/** A 96×96 PNG: a head and shoulders in `fg` on a `bg` square. */
+function demoFace(bg, fg) {
+  const size = 96;
+  const [b, f] = [bg, fg].map((hex) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16)));
+  const rows = [];
+  for (let y = 0; y < size; y++) {
+    const row = Buffer.alloc(1 + size * 3);
+    for (let x = 0; x < size; x++) {
+      const head = (x - 48) ** 2 + (y - 38) ** 2 < 17 ** 2;
+      const body = (x - 48) ** 2 / 34 ** 2 + (y - 96) ** 2 / 34 ** 2 < 1;
+      (head || body ? f : b).forEach((c, i) => (row[1 + x * 3 + i] = c));
+    }
+    rows.push(row);
+  }
+  const chunk = (type, data) => {
+    const len = Buffer.alloc(4);
+    len.writeUInt32BE(data.length);
+    const body = Buffer.concat([Buffer.from(type, 'latin1'), data]);
+    const crc = Buffer.alloc(4);
+    crc.writeUInt32BE(zlib.crc32(body));
+    return Buffer.concat([len, body, crc]);
+  };
+  const ihdr = Buffer.alloc(13);
+  ihdr.writeUInt32BE(size, 0);
+  ihdr.writeUInt32BE(size, 4);
+  ihdr.set([8, 2, 0, 0, 0], 8);
+  return Buffer.concat([
+    Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+    chunk('IHDR', ihdr),
+    chunk('IDAT', zlib.deflateSync(Buffer.concat(rows))),
+    chunk('IEND', Buffer.alloc(0)),
+  ]);
 }
 
 /**

@@ -42,7 +42,7 @@ const games = createGames({
     }
   },
 });
-if (config.demo && !store.get('SELECT 1 FROM users LIMIT 1')) await seedDemo({ store, games, espn });
+if (config.demo && !store.get('SELECT 1 FROM users LIMIT 1')) await seedDemo({ store, games, espn, mediaDir: config.mediaDir });
 
 const mailer = createMailer(config.smtp);
 if (mailer.configured && !config.appUrl) {

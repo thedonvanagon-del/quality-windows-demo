@@ -1,12 +1,14 @@
+import { THEMES } from '../config.js';
 import { html } from '../html.js';
 import { CHANGE_EVERY_DAYS, HOLD_DAYS } from '../names.js';
 import { formatUnits } from '../picks.js';
 import { SPORT, SPORTS } from '../sports.js';
 import { MIN_RANKED } from '../stats.js';
+import { bannerColors, PRESETS, sheetPath, teamAccent } from '../themes.js';
 import { dateLabel, joined, when } from '../time.js';
 import { icons, trustMark } from './icons.js';
 import { csrfField, layout } from './layout.js';
-import { betItem, boardTable, chatBox, minus, officialTag, pickItem, periodTabs, pct, profileLink, rankCell, recordText, signedPct, sportTabs, units } from './parts.js';
+import { avatar, betItem, boardTable, chatBox, minus, officialTag, pickItem, periodTabs, pct, profileLink, rankCell, recordText, signedPct, sportTabs, teamLogo, units } from './parts.js';
 
 /** Find a player by the start of their screen name. */
 function searchBox(q = '') {
@@ -124,7 +126,7 @@ export function group(ctx, { group, rows, members, feed, inviteUrl, messages = [
 
       <h2>Members</h2>
       <div class="card"><ul class="members">
-        ${members.map((m) => html`<li><span class="player"><span class="avatar">${m.screen_name[0]}</span>${profileLink(m.screen_name)}</span><span class="muted small">${m.id === group.owner_id ? 'Owner' : ''}</span></li>`)}
+        ${members.map((m) => html`<li><span class="player">${avatar(m)}${profileLink(m.screen_name)}</span><span class="muted small">${m.id === group.owner_id ? 'Owner' : ''}</span></li>`)}
       </ul></div>
 
       <div class="row actions">
@@ -274,7 +276,7 @@ export function hot(ctx, { rows, followed }) {
             <thead><tr><th>#</th><th>Player</th><th class="n">Last 10</th><th class="n">Units</th><th class="n">Streak</th>${me ? html`<th class="n"><span class="sr-only">Follow</span></th>` : ''}</tr></thead>
             <tbody>${rows.map((r) => html`<tr class="${r.id === me ? 'me' : ''}">
               <td class="rank">${rankCell(r)}</td>
-              <td>${profileLink(r.screen_name, { official: r.official })}</td>
+              <td><span class="player">${avatar(r)}${profileLink(r.screen_name, { official: r.official })}</span></td>
               <td class="n">${recordText(r)}</td>
               <td class="n"><b>${units(r.units)}</b></td>
               <td class="n"><span class="streak ${r.streak.startsWith('W') ? 'hot' : ''}">${r.streak}</span></td>
@@ -296,7 +298,7 @@ export function following(ctx, { feed, people }) {
       <h1>Following</h1>
       <p class="lede">Picks from the players you follow, as each game starts. Open picks stay hidden until then, same as everywhere.</p>
       ${people.length
-        ? html`<p class="chips-row">${people.map((p) => html`<a class="chip" href="/u/${encodeURIComponent(p.screen_name)}">${p.screen_name}</a>`)}</p>`
+        ? html`<p class="chips-row">${people.map((p) => html`<a class="chip face-chip" href="/u/${encodeURIComponent(p.screen_name)}">${avatar(p, 'xs')}${p.screen_name}</a>`)}</p>`
         : html`<div class="card empty">You're not following anyone yet. Find players on the <a href="/hot">Hot streaks</a> page or the <a href="/leaderboard">leaderboard</a>, then press Follow on their profile.</div>`}
       ${feed.length ? html`<ul class="tickets">${feed.map((p) => betItem(p, { who: true }))}</ul>` : people.length ? html`<div class="card empty">No started picks from them yet.</div>` : ''}
     `,
@@ -314,7 +316,8 @@ function recordCard(ctx, { player, record, series, last10, rank }) {
   return html`<section class="record-card" aria-label="Record"
       data-name="${player.screen_name}" data-record="${recordText(record)}" data-units="${record.units}"
       data-win="${pct(record.winPct)}" data-roi="${signedPct(record.roi)}" data-last10="${last}"
-      data-rank="${rank ? `#${rank}` : ''}" data-series="${series.join(',')}" data-url="${url.replace(/^https?:\/\//, '')}">
+      data-rank="${rank ? `#${rank}` : ''}" data-series="${series.join(',')}" data-url="${url.replace(/^https?:\/\//, '')}"
+      data-photo="${player.photo ? `/media/${player.photo}` : ''}">
     <div class="rc-top">
       <span class="trust-small">${trustMark}<span>Trust Your Bets</span></span>
       ${rank
@@ -356,16 +359,122 @@ function sparkline(series) {
   </svg>`;
 }
 
-const COLORS = { scoreboard: 'Scoreboard', market: 'Bull Market', ember: 'Ember' };
+/** A sample game card, drawn in whatever look its box carries, so the picker shows a choice before it's saved. */
+function samplePreview(theme) {
+  const row = (name, abbr, color, cells) => html`
+    <span class="team"><svg class="stripe" viewBox="0 0 4 10" preserveAspectRatio="none" aria-hidden="true"><rect width="4" height="10" fill="${color}"></rect></svg><span class="logo">${abbr}</span><span class="tname"><span class="tn">${name}</span></span></span>
+    ${cells}`;
+  return html`<div class="theme-preview" data-theme="${theme}" data-preview aria-hidden="true">
+    <div class="event">
+      <div class="board">
+        <span class="when">Sun 1:00 PM</span><span class="colhead">Spread</span><span class="colhead">Total</span><span class="colhead">Money</span>
+        ${row('Bills', 'BUF', '#00338d', html`<span class="cell">+3.5<small>−110</small></span><span class="cell">O 47.5<small>−110</small></span><span class="cell price">+150</span>`)}
+        ${row('Chiefs', 'KC', '#e31837', html`<span class="cell mine">−3.5<small>−110</small></span><span class="cell">U 47.5<small>−110</small></span><span class="cell price">−170</span>`)}
+      </div>
+    </div>
+    <div class="tp-foot"><span class="btn small">Lock it in</span><span class="status win">Won +1.82u</span><span class="status loss">Lost −1u</span></div>
+  </div>`;
+}
 
-/** Three swatches; the player's pick colors the app on every device they use. */
-function colorPicker(ctx) {
-  const current = ctx.user.theme ?? ctx.app.theme;
-  return html`<h2>App color</h2>
-    <form class="swatches" method="post" action="/theme">
-      ${csrfField(ctx)}
-      ${Object.entries(COLORS).map(([key, label]) => html`<button name="theme" value="${key}" class="swatch ${key} ${key === current ? 'on' : ''}" ${key === current ? html`aria-pressed="true"` : html`aria-pressed="false"`}><span></span>${label}</button>`)}
-    </form>`;
+/** Dark or light background, for a team or custom look. */
+function modePick(mode) {
+  return html`<fieldset class="mode-pick"><legend>Background</legend>
+    <label class="check"><input type="radio" name="mode" value="dark" ${mode !== 'light' ? 'checked' : ''}><span>Dark</span></label>
+    <label class="check"><input type="radio" name="mode" value="light" ${mode === 'light' ? 'checked' : ''}><span>Light</span></label>
+  </fieldset>`;
+}
+
+/**
+ * The look picker: preset swatches, "Match my team" (sport, then team) and
+ * "Custom" (two colors), each on a dark or light background, with a sample
+ * card. app.js recolors the sample before anything is saved; without it the
+ * sample shows the look in use.
+ */
+function colorPicker(ctx, { teams, look }) {
+  const style = ctx.user.style;
+  const current = style ? 'custom' : THEMES.includes(ctx.user.theme) ? ctx.user.theme : ctx.app.theme;
+  const teamKey = look.team?.key ?? null;
+  // Each team carries its sample stylesheet for both backgrounds, already through the readability guard.
+  const sample = (t, mode) => sheetPath({ mode, accent: teamAccent({ primary: t.color, alternate: t.alt }, mode).accent, tint: t.color }, { preview: true });
+  return html`<h2 id="color">App color</h2>
+    <div class="picker" data-picker>
+      ${samplePreview(current)}
+      <form class="swatches" method="post" action="/theme">
+        ${csrfField(ctx)}
+        ${Object.entries(PRESETS).map(([key, p]) => html`<button name="theme" value="${key}" class="swatch ${key} ${key === current ? 'on' : ''}" aria-pressed="${key === current ? 'true' : 'false'}" data-sample="${key}"><span></span>${p.label}</button>`)}
+      </form>
+      ${teams?.length
+        ? html`<form class="form look-form ${teamKey ? 'on' : ''}" method="post" action="/theme" data-team-form>
+            ${csrfField(ctx)}
+            <input type="hidden" name="theme" value="team">
+            <h3>Match my team</h3>
+            <p class="muted small">Your team's color on buttons and odds, and a hint of it in the background.</p>
+            <div class="pair">
+              <label data-sport-pick hidden>Sport
+                <select data-team-sport>${teams.map((g) => html`<option value="${g.sport.key}" ${look.team?.sport === g.sport.key ? 'selected' : ''}>${g.sport.name}</option>`)}</select></label>
+              <label>Team
+                <select name="team" required data-team-select>
+                  <option value="">Pick a team</option>
+                  ${teams.map((g) => html`<optgroup label="${g.sport.name}" data-sport="${g.sport.key}">${g.teams.map((t) => html`<option value="${t.key}" data-dark="${sample(t, 'dark')}" data-light="${sample(t, 'light')}" ${t.key === teamKey ? 'selected' : ''}>${t.name}</option>`)}</optgroup>`)}
+                </select></label>
+            </div>
+            ${modePick(teamKey ? style?.mode : 'dark')}
+            <button class="btn small">Use my team's colors</button>
+          </form>`
+        : ''}
+      <form class="form look-form ${style && !teamKey ? 'on' : ''}" method="post" action="/theme" data-custom-form>
+        ${csrfField(ctx)}
+        <input type="hidden" name="theme" value="custom">
+        <h3>Custom</h3>
+        <p class="muted small">Pick an accent and a background tint. A color that's hard to read gets a shade lighter or darker.</p>
+        <div class="pair colors">
+          <label>Accent<input type="color" name="accent" value="${style && !teamKey ? style.accent : '#ff8f45'}" data-color="accent"></label>
+          <label>Background tint<input type="color" name="tint" value="${style && !teamKey ? style.tint : '#1d3b8a'}" data-color="tint"></label>
+        </div>
+        ${modePick(style && !teamKey ? style.mode : 'dark')}
+        <button class="btn small">Use these colors</button>
+      </form>
+    </div>`;
+}
+
+/**
+ * The band behind a profile's header: the player's team colors if they
+ * matched one, else their look's accent. An SVG, since inline styles are blocked.
+ */
+function banner(look) {
+  const [a, b] = bannerColors(look);
+  return html`<svg class="banner" viewBox="0 0 400 100" preserveAspectRatio="none" aria-hidden="true">
+    <rect width="400" height="100" fill="${b}"></rect>
+    <polygon points="0,0 236,0 176,100 0,100" fill="${a}"></polygon>
+    <polygon points="250,0 280,0 220,100 190,100" fill="${a}" opacity="0.6"></polygon>
+    <polygon points="294,0 308,0 248,100 234,100" fill="${a}" opacity="0.35"></polygon>
+    <rect width="400" height="100" class="banner-shade"></rect>
+  </svg>`;
+}
+
+/** Your photo (or, for an admin, the official account's): choose, crop in the browser, save, or remove. */
+function photoForm(ctx, player, photo) {
+  const official = photo.upload !== '/photo';
+  const remove = official ? '/admin/official/photo/delete' : '/photo/delete';
+  return html`<h2 id="photo">${official ? 'Official account photo' : 'Profile photo'}</h2>
+    <div class="photo-edit">
+      <div class="photo-now">${avatar(player, 'huge')}<canvas class="avatar huge photo-crop" width="400" height="400" hidden data-photo-canvas></canvas></div>
+      <div class="photo-side">
+        ${photo.hidden && !official ? html`<p class="muted small">Your photo is hidden after reports until an admin looks at it.</p>` : ''}
+        ${photo.blockedUntil
+          ? html`<p class="muted small">An admin removed your last photo. You can add a new one after ${dateLabel(photo.blockedUntil)}.</p>`
+          : html`<form class="form photo-form" method="post" action="${photo.upload}" enctype="multipart/form-data" data-photo-form>
+              ${csrfField(ctx)}
+              <label>Choose a photo <span class="hint">JPEG, PNG or WebP, up to 1 MB. It's cut to a square from the middle.</span>
+                <input type="file" name="photo" accept="image/jpeg,image/png,image/webp" required data-photo-input></label>
+              <div class="row"><button class="btn small" data-photo-save>Save photo</button><span class="muted small" data-photo-status role="status"></span></div>
+            </form>`}
+        ${player.photo || photo.hidden
+          ? html`<form method="post" action="${remove}" data-confirm="Remove this photo?">${csrfField(ctx)}<button class="btn ghost small">Remove photo</button></form>`
+          : ''}
+        <p class="muted small">Everyone can see it. No nudity, hate or other people's photos; reported photos get looked at.</p>
+      </div>
+    </div>`;
 }
 
 /** A player's badges as chips; the title says when each was earned. */
@@ -389,14 +498,28 @@ function clvLine(clv) {
   </div>`;
 }
 
-export function profile(ctx, { player, record, bySport, split = null, series = [], last10 = null, rank = null, follows = { followers: 0, following: 0 }, following = false, picks, hidden, nextChange = null, badges = [], streak = null, clv = null }) {
+export function profile(ctx, { player, record, bySport, split = null, series = [], last10 = null, rank = null, follows = { followers: 0, following: 0 }, following = false, picks, hidden, nextChange = null, badges = [], streak = null, clv = null, look = { preset: null }, photo = {}, teams = null }) {
+  const own = ctx.user?.id === player.id;
+  const team = look.team ?? null;
+  // Anyone signed in can report someone else's photo, once.
+  const report = ctx.user?.screenName && !own && player.photo
+    ? photo.reported
+      ? html`<span class="muted small">Photo reported</span>`
+      : html`<form method="post" action="/u/${encodeURIComponent(player.screen_name)}/photo/report" data-confirm="Report ${player.screen_name}'s photo to the admins?">${csrfField(ctx)}<button class="link-btn">Report photo</button></form>`
+    : '';
   return layout(ctx, {
     title: player.screen_name,
     active: ctx.user?.id === player.id ? 'me' : null,
     description: `${player.screen_name}: ${recordText(record)}, ${record.units > 0 ? '+' : ''}${record.units} units. Every pick locked before the game and graded off the final.`,
     share: shareCard(player, record),
     body: html`
-      <div class="team"><span class="avatar big">${player.screen_name[0]}</span><h1>${player.screen_name}</h1>${player.official ? officialTag : ''}</div>
+      <header class="profile-head ${player.photo ? 'has-photo' : ''}">
+        ${banner(look)}
+        <div class="profile-face">${avatar(player, player.photo ? 'huge' : 'big')}</div>
+        <div class="team"><h1>${player.screen_name}</h1>${player.official ? officialTag : ''}${team
+          ? html`<span class="team-badge" title="${team.name} fan">${teamLogo(team)}<span class="sr-only">${team.name} fan</span></span>`
+          : ''}</div>
+      </header>
       ${player.official ? html`<p class="muted small">The official account. Listed on the boards, never ranked. <span class="lock-tag">Lock</span>marks the site's locks.</p>` : ''}
       ${player.first_name || player.last_name ? html`<p class="real-name">${[player.first_name, player.last_name].filter(Boolean).join(' ')}</p>` : ''}
       ${player.bio ? html`<p class="bio">${player.bio}</p>` : ''}
@@ -406,13 +529,15 @@ export function profile(ctx, { player, record, bySport, split = null, series = [
         ${player.link_url ? html`<a class="btn small" href="${player.link_url}" target="_blank" rel="nofollow noopener noreferrer ugc">${player.link_label} ↗</a>` : ''}
         <button class="btn ghost small" type="button" data-share="${ctx.origin}/u/${encodeURIComponent(player.screen_name)}" data-share-text="${shareCard(player, record).title}" hidden>Share profile</button>
         ${ctx.user?.id === player.id ? html`<a class="btn ghost small" href="/invite">Invite friends</a>` : ''}
+        ${report}
       </div>
       <p class="lede">On the record since ${joined(player.created_at)}. ${record.graded} graded ${record.graded === 1 ? 'pick' : 'picks'}, every one locked before its game.</p>
       ${recordCard(ctx, { player, record, series, last10, rank })}
       ${clvLine(clv)}
       ${streak?.played ? html`<p class="streak-line"><a href="/streak">${icons.flame}<span>Streak: <b>${streak.current}</b> · Best: <b>${streak.best}</b></span></a></p>` : ''}
       ${badgeChips(badges)}
-      ${ctx.user?.id === player.id ? html`${screenNameForm(ctx, player, nextChange)}${nameForm(ctx, player)}${bioForm(ctx, player)}${linkForm(ctx, player)}${colorPicker(ctx)}` : ''}
+      ${own ? html`${photoForm(ctx, player, photo)}${screenNameForm(ctx, player, nextChange)}${nameForm(ctx, player)}${bioForm(ctx, player)}${linkForm(ctx, player)}${colorPicker(ctx, { teams, look })}` : ''}
+      ${!own && photo.upload ? photoForm(ctx, player, photo) : ''}
       ${bySport.length
         ? html`<h2>By sport</h2>
           <div class="table"><table>

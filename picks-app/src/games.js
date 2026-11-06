@@ -63,8 +63,9 @@ export function createGames({ store, espn, now = () => new Date(), log = console
           `INSERT INTO games (id, sport, start_time, state, status, detail, completed,
                               home_name, home_short, home_abbr, home_score, home_logo,
                               away_name, away_short, away_abbr, away_score, away_logo, lines, updated_at,
-                              tv, home_record, away_record, home_color, away_color, closing_lines, closing_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                              tv, home_record, away_record, home_color, away_color, closing_lines, closing_at,
+                              home_alt_color, away_alt_color)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
            ON CONFLICT (id) DO UPDATE SET
              start_time = excluded.start_time, state = excluded.state, status = excluded.status,
              detail = excluded.detail, completed = excluded.completed,
@@ -76,6 +77,8 @@ export function createGames({ store, espn, now = () => new Date(), log = console
              away_record = COALESCE(excluded.away_record, games.away_record),
              home_color = COALESCE(excluded.home_color, games.home_color),
              away_color = COALESCE(excluded.away_color, games.away_color),
+             home_alt_color = COALESCE(excluded.home_alt_color, games.home_alt_color),
+             away_alt_color = COALESCE(excluded.away_alt_color, games.away_alt_color),
              -- ESPN drops the odds once a game starts; keep the last ones seen
              -- for display.
              lines = CASE WHEN ? THEN excluded.lines ELSE games.lines END,
@@ -87,7 +90,7 @@ export function createGames({ store, espn, now = () => new Date(), log = console
           g.home.name, g.home.short, g.home.abbr, g.home.score, g.home.logo ?? null,
           g.away.name, g.away.short, g.away.abbr, g.away.score, g.away.logo ?? null, lines, at,
           g.tv ?? null, g.home.record ?? null, g.away.record ?? null, g.home.color ?? null, g.away.color ?? null,
-          closing.lines, closing.at, replaceLines ? 1 : 0,
+          closing.lines, closing.at, g.home.alt ?? null, g.away.alt ?? null, replaceLines ? 1 : 0,
         );
       }
       // Closing line value for the picks on games that just started.
@@ -233,8 +236,8 @@ export function toGame(row) {
     detail: row.detail,
     completed: Boolean(row.completed),
     tv: row.tv ?? null,
-    home: { name: row.home_name, short: row.home_short, abbr: row.home_abbr, score: row.home_score, logo: row.home_logo, record: row.home_record ?? null, color: row.home_color ?? null },
-    away: { name: row.away_name, short: row.away_short, abbr: row.away_abbr, score: row.away_score, logo: row.away_logo, record: row.away_record ?? null, color: row.away_color ?? null },
+    home: { name: row.home_name, short: row.home_short, abbr: row.home_abbr, score: row.home_score, logo: row.home_logo, record: row.home_record ?? null, color: row.home_color ?? null, alt: row.home_alt_color ?? null },
+    away: { name: row.away_name, short: row.away_short, abbr: row.away_abbr, score: row.away_score, logo: row.away_logo, record: row.away_record ?? null, color: row.away_color ?? null, alt: row.away_alt_color ?? null },
     lines: JSON.parse(row.lines),
     updatedAt: row.updated_at,
   };
