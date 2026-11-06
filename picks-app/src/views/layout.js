@@ -16,6 +16,8 @@ export function layout(ctx, { title, active, body, description, share }) {
   // color that has since been retired get the default.
   const style = user?.style ?? null;
   const theme = style ? 'custom' : THEMES.includes(user?.theme) ? user.theme : app.theme;
+  // Dark or light page, whatever the look: name colors swap to their light-page shades on light.
+  const mode = (style ? style.mode : theme) === 'light' ? 'light' : 'dark';
   const playing = Boolean(user?.screenName);
   const profile = playing ? `/u/${encodeURIComponent(user.screenName)}` : null;
   const nav = playing
@@ -38,7 +40,7 @@ export function layout(ctx, { title, active, body, description, share }) {
     html`<a href="${href}" class="${key === active ? 'on' : ''}" ${key === active ? html`aria-current="page"` : ''}><span class="ic">${icon}</span><span>${label}</span></a>`;
 
   return html`<!doctype html>
-<html lang="en" data-theme="${theme}">
+<html lang="en" data-theme="${theme}" data-mode="${mode}">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">

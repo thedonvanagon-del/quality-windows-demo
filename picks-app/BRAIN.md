@@ -36,6 +36,63 @@ not dollars, and nothing is paid out.
   bookie-bullies repo) for the header, the browser tab and the phone icons.
 
 ### Look
+- **2026-11-06: Name colors and scoreboard icons** (owner's ask: "be able to
+  change your name color for the scoreboard and your icon for the scoreboard").
+  On your own profile, under App color, a **Your name on the boards** card: a
+  sample board row (your face, icon, colored name, record and units), color
+  swatches and an icon grid, all plain radio buttons saved by `POST /nametag`
+  (form token), so it works without JavaScript; `app.js` only updates the
+  sample row and filters team logos.
+  - **12 colors**: Default (no color), Gold, Red, Orange, Lime, Green, Teal,
+    Sky, Blue, Purple, Pink, Silver. Each is a class (`.name-c-gold`) reading
+    a variable with a **dark-page and a light-page shade**, since other
+    players see your name on their own look. The light shades apply under
+    `data-mode="light"`, now on `<html>` for the Light preset and for team and
+    custom looks on a light background. A test reads `style.css` and checks
+    every shade at **4.5:1** on every preset's cards, raised rows, tiles, page
+    and the lit-up "me" row, and on team and custom looks across a grid of
+    tints and accents, dark and light. The dark shades are pastel because of
+    that (a white-tinted custom look with a white accent is the hardest case).
+  - **Icons**: 25 emoji anyone can use, plus four **earned** ones: 👑 Crown
+    (Weekly winner), 🏆 Trophy (Tournament champion), 🔥🔥 Double fire
+    (Streak 10), 💎 Diamond (100 bets). Locked ones show greyed out with
+    "Earn it: win a weekly contest" and the like, and the server turns them
+    away. Emoji have a screen-reader name (`role="img"`, `aria-label`).
+  - **Team logos**, any team, as the icon (added the same day): NFL, NBA,
+    MLB, NHL, and about 50 major college programs (`COLLEGE_PROGRAMS` in
+    `src/teams.js`, matched to ESPN by exact school name so Miami (OH) isn't
+    Miami). The list comes from ESPN's team lists
+    (`site.api.espn.com/.../{sport}/teams`, `?limit=1000` for college),
+    fetched **once a day in the background** and kept in `team_catalog`, so a
+    restart has it at once; an empty or broken answer never replaces a good
+    list. **Pages never wait on it**: until a league has loaded, the picker
+    and the boards use the teams the games table has already seen. Logos must
+    be https on `a.espncdn.com` (checked when stored and again when drawn),
+    the one outside host the page's security policy already allows. Shown as
+    an 18px `<img>` with the team's name as its alt text. The picker groups
+    them by league in `<details>`; with JavaScript, a league menu and a name
+    search narrow them.
+  - **Stored as keys**, never text: `users.name_color` and `users.name_icon`
+    (an emoji key like `bull`, or `team:nfl:KC` / `team:ncaa:333`). Checked
+    again every time a name is drawn: a key no longer on a list, an earned
+    icon whose badge is gone, or a team that left the catalog draws nothing.
+  - **Where**: everywhere a name sits in a list: leaderboard, contest and
+    search, the home page board, group and local room boards and members,
+    tournament standings, Hot, the streak boards, chat (game, group, room),
+    Following (people and feed), group feeds, and the profile header. One
+    helper does it (`playerName(row)` / `profileLink(name, { color, icon })`
+    in `views/parts.js`); `withLooks(rows)` in `app.js` (was `withPhotos`)
+    fills `photo`, `nameColor` and `nameIcon` in one go. Not on podiums,
+    the winners wall or admin pages.
+  - The **official account** can't set either and never shows one: it keeps
+    its gold Official tag.
+  - Name and icon stay together on one line (`.pname`); on a phone a long
+    row drops its badge chip below the name instead of widening the table.
+  - **Decided differently from the brief:** college logos use one key per
+    school, `team:ncaa:<ESPN id>`, instead of `team:ncaab:`/`team:ncaaf:`,
+    since a school's logo is the same in both and the picker shows "College"
+    as one list. The streak-10 icon is two flames (🔥🔥) rather than a new
+    symbol.
 - **2026-11-06: More looks, team colors and custom colors** (owner's ask).
   - **Eight presets**: Scoreboard, Bull Market, Ember, plus **Ice** (navy and
     sky blue), **Royal** (purple and gold), **Crimson** (deep red, white
@@ -630,6 +687,8 @@ Launch log:
 - Eight preset looks (one light), team colors and custom colors with a
   readability guard; profile photos with reports and an admin review; a
   banner in the player's colors on every profile
+- Name colors and scoreboard icons (emoji, four earned by badges, and any
+  team's logo from ESPN's daily team lists) on every board, standings and chat
 - Demo mode: `npm run demo`, log in as demo@example.com / letmein123
 - Server setup in `aws/stacks/bookie-bullies-app` and a deploy-on-merge
   workflow (`.github/workflows/picks-app-deploy.yml`)
@@ -669,6 +728,13 @@ Beta launch checklist (2026-10-27). The app code is merged; these get it online.
    per sport (NFL, college football, NBA, college hoops, MLB, NHL) and check
    that the sections fill in. If ESPN's shape differs, the sections just stay
    hidden; nothing breaks.
+10. **Check team logos against live ESPN** (2026-11-06). The session that built
+   team icons couldn't reach ESPN either, so `parseTeams` in `src/teams.js`
+   was tested on made-up lists in ESPN's documented shape. On the server,
+   `sqlite3 /var/lib/bookie-bullies-app/bookiebullies.db "SELECT source,
+   COUNT(*) FROM team_catalog GROUP BY source"` should show about 32 NFL, 30
+   NBA, 30 MLB, 32 NHL and about 50 college a day after deploying. If a
+   league is missing, the picker keeps using the teams on the board.
 
 ## Ideas, not built yet
 

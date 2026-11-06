@@ -1,5 +1,6 @@
 import { html } from '../html.js';
 import { clvLabel, clvValue } from '../clv.js';
+import { resolveColor } from '../nametags.js';
 import { formatOdds, formatUnits, parlayPrice, parlayToWin, selection, toWin } from '../picks.js';
 import { SPORT, SPORTS } from '../sports.js';
 import { MIN_RANKED, PERIODS } from '../stats.js';
@@ -29,8 +30,31 @@ export function badgeMark(badge) {
 /** A gold tag on official picks the site called a lock. */
 export const lockTag = html`<span class="lock-tag" title="A lock on bookiebullies.com">Lock</span>`;
 
-export function profileLink(name, { official = false } = {}) {
-  return html`<a class="who" href="/u/${encodeURIComponent(name)}">${name}</a>${official ? officialTag : ''}`;
+/**
+ * A player's name as a link to their profile. `color` (a name color key) and
+ * `icon` (from nametagsFor) are how they chose to show on the boards; the
+ * official account gets its Official tag instead.
+ */
+export function profileLink(name, { official = false, color = null, icon = null } = {}) {
+  const c = official ? null : resolveColor(color);
+  const link = html`<a class="${c ? `who name-c-${c}` : 'who'}" href="/u/${encodeURIComponent(name)}">${name}</a>`;
+  if (official) return html`${link}${officialTag}`;
+  // The icon stays on the name's line when a row wraps.
+  return icon ? html`<span class="pname">${link}${nameIcon(icon)}</span>` : link;
+}
+
+/** A player's scoreboard icon: an emoji with its name for screen readers, or a team's logo. */
+export function nameIcon(icon) {
+  if (!icon) return '';
+  if (icon.kind === 'team') {
+    return html`<img class="name-logo" src="${icon.logo}" alt="${icon.name}" title="${icon.name}" width="18" height="18" loading="lazy" decoding="async" referrerpolicy="no-referrer">`;
+  }
+  return html`<span class="name-icon" role="img" aria-label="${icon.label}" title="${icon.label}">${icon.emoji}</span>`;
+}
+
+/** profileLink for a row: its screen name, Official flag and name color and icon (filled by withLooks in app.js). */
+export function playerName(r) {
+  return profileLink(r.screen_name ?? r.screenName, { official: Boolean(r.official), color: r.nameColor, icon: r.nameIcon });
 }
 
 /** Where a row sits on a board: its number, or a dash for the unranked and the official account. */
@@ -109,7 +133,7 @@ export function boardTable(rows, { me, ranks = true, badges = null, empty = 'No 
     <tbody>
       ${rows.map((r) => html`<tr class="${r.id === me ? 'me' : ''}">
         ${ranks ? html`<td class="rank">${rankCell(r)}</td>` : ''}
-        <td><span class="player">${avatar(r)}${profileLink(r.screen_name, { official: r.official })}${badges ? badgeMark(badges.get(r.id)) : ''}</span></td>
+        <td><span class="player">${avatar(r)}${playerName(r)}${badges ? badgeMark(badges.get(r.id)) : ''}</span></td>
         <td class="n">${recordText(r)}</td>
         <td class="n hide-sm">${pct(r.winPct)}</td>
         <td class="n"><b>${units(r.units)}</b></td>
@@ -143,7 +167,7 @@ export function pickItem(p, { who = false, actions = null, mine = false, now = n
   const pl = won ? html` <span class="pl">${minus(won)}</span>` : '';
   const stake = mine ? `${formatUnits(p.units)}${p.result ? '' : ` to win ${formatUnits(toWin(p.odds, p.units))}`}` : formatUnits(p.units);
   return html`<li class="ticket">
-    <div class="sel">${who ? html`${avatar({ screen_name: p.screenName, photo: p.photo }, 'xs')}${profileLink(p.screenName, { official: p.official })} · ` : ''}${p.lock ? lockTag : ''}${p.streakDay ? streakTag : ''}${selection(p.market, p.side, p.line, g)}<span class="odds">${minus(formatOdds(p.odds))}</span>${mine ? '' : html`<span class="units">${stake}</span>`}</div>
+    <div class="sel">${who ? html`${avatar({ screen_name: p.screenName, photo: p.photo }, 'xs')}${playerName(p)} · ` : ''}${p.lock ? lockTag : ''}${p.streakDay ? streakTag : ''}${selection(p.market, p.side, p.line, g)}<span class="odds">${minus(formatOdds(p.odds))}</span>${mine ? '' : html`<span class="units">${stake}</span>`}</div>
     <div class="status ${kind}">${label}${pl}</div>
     ${mine || actions ? html`<div class="stake">${mine ? stake : ''}</div>` : ''}
     ${actions ? html`<div class="act">${actions}</div>` : ''}
@@ -188,7 +212,7 @@ export function parlayItem(p, { who = false, actions = null, mine = false, now =
   const toWinNow = parlayToWin(parlayPrice(p.legs).decimal, p.units);
   const stake = mine ? `${formatUnits(p.units)}${p.result ? '' : ` to win ${formatUnits(toWinNow)}`}` : formatUnits(p.units);
   return html`<li class="ticket parlay">
-    <div class="sel">${who ? html`${avatar({ screen_name: p.screenName, photo: p.photo }, 'xs')}${profileLink(p.screenName, { official: p.official })} · ` : ''}<span class="parlay-tag">Parlay</span>${p.legs.length} legs<span class="odds">${minus(formatOdds(p.odds))}</span>${mine ? '' : html`<span class="units">${stake}</span>`}</div>
+    <div class="sel">${who ? html`${avatar({ screen_name: p.screenName, photo: p.photo }, 'xs')}${playerName(p)} · ` : ''}<span class="parlay-tag">Parlay</span>${p.legs.length} legs<span class="odds">${minus(formatOdds(p.odds))}</span>${mine ? '' : html`<span class="units">${stake}</span>`}</div>
     <div class="status ${kind}">${label}${pl}</div>
     ${mine || actions ? html`<div class="stake">${mine ? stake : ''}</div>` : ''}
     ${actions ? html`<div class="act">${actions}</div>` : ''}
@@ -240,7 +264,7 @@ function chatMessage(ctx, m, tags, canDelete) {
   const report = html`<form method="post" action="/chat/${m.id}/report" data-confirm="Report this message?">${csrfField(ctx)}<button class="link-btn">Report</button></form>`;
   return html`<li class="msg ${own ? 'own' : ''}" data-id="${m.id}${m.hidden ? 'h' : ''}">
     <div class="msg-head">
-      ${avatar(m, 'xs')}<a class="who" href="/u/${encodeURIComponent(m.screen_name)}">${m.screen_name}</a>
+      ${avatar(m, 'xs')}${playerName(m)}
       ${tags}
       <time datetime="${m.created_at}" data-local="long">${when(m.created_at)}</time>
       <span class="msg-act">${own ? remove : html`${canDelete ? remove : ''}${report}`}</span>

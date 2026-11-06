@@ -12,6 +12,7 @@ import { createNotifier } from '../src/notify.js';
 import { createPush } from '../src/push.js';
 import { SPORTS } from '../src/sports.js';
 import { createSummaries } from '../src/summaries.js';
+import { createTeamCatalog } from '../src/teams.js';
 import { etDay } from '../src/time.js';
 
 export const quiet = { warn() {}, error() {}, log() {} };
@@ -114,7 +115,12 @@ export function setStatus(e, state, name) {
   e.competitions[0].status.type = { state, completed: false, name, shortDetail: name };
 }
 
-export async function startApp({ time, espn = fakeEspn(), config = {} }) {
+/**
+ * The whole app on a free port, with fakes for ESPN, mail and push.
+ * `teamFetch`, when given, is the fetch the team-logo catalog uses (ESPN's
+ * team lists); without it the catalog never fetches.
+ */
+export async function startApp({ time, espn = fakeEspn(), config = {}, teamFetch = null }) {
   const store = openStore(':memory:');
   // Pushes go to a fake push service that only records them.
   const pushed = [];
@@ -134,8 +140,9 @@ export async function startApp({ time, espn = fakeEspn(), config = {} }) {
   const summaries = createSummaries({ espn, now: time.now, log: { ...quiet, warn: (text) => logged.push(text) } });
   // Profile photos go in a folder of their own per test, cleared at the end.
   const media = fs.mkdtempSync(path.join(os.tmpdir(), 'bb-media-'));
+  const teams = createTeamCatalog({ store, fetch: teamFetch, now: time.now, log: quiet });
   const handler = createApp({
-    store, games, mailer, notifier, push, summaries, now: time.now, log: quiet,
+    store, games, mailer, notifier, push, summaries, teams, now: time.now, log: quiet,
     config: { appName: 'Bookie Bullies', trustProxy: false, appUrl: 'https://app.example.test', mediaDir: media, ...config },
   });
   const server = http.createServer(handler);
@@ -150,6 +157,7 @@ export async function startApp({ time, espn = fakeEspn(), config = {} }) {
     outbox,
     pushed,
     summaries,
+    teams,
     logged,
     media,
     browser: () => new Browser(base, outbox),

@@ -665,3 +665,60 @@ if (photoForm && photoCanvas && HTMLCanvasElement.prototype.toBlob) {
     }
   });
 }
+
+// "Your name on the boards": the sample row follows the color and icon as
+// they're picked, before saving. The team logos can be narrowed to one league
+// or found by name. Without this the form still saves; the sample shows what's saved.
+const nametag = document.querySelector('[data-nametag]');
+if (nametag) {
+  const form = nametag.querySelector('[data-nametag-form]');
+  const name = nametag.querySelector('[data-nt-name]');
+  const slot = nametag.querySelector('[data-nt-icon]');
+  const paint = () => {
+    const color = form.querySelector('input[name="color"]:checked')?.value ?? 'default';
+    name.className = color === 'default' ? 'who' : `who name-c-${color}`;
+    const picked = form.querySelector('input[name="icon"]:checked');
+    const glyph = picked?.parentElement.querySelector('[data-glyph]');
+    if (!glyph) return slot.replaceChildren();
+    if (glyph.tagName === 'IMG') {
+      const img = document.createElement('img');
+      img.className = 'name-logo';
+      img.src = glyph.src;
+      img.alt = glyph.dataset.name ?? '';
+      img.width = 18;
+      img.height = 18;
+      img.referrerPolicy = 'no-referrer';
+      slot.replaceChildren(img);
+    } else {
+      const span = document.createElement('span');
+      span.className = 'name-icon';
+      span.setAttribute('role', 'img');
+      span.setAttribute('aria-label', picked.parentElement.title);
+      span.textContent = glyph.textContent;
+      slot.replaceChildren(span);
+    }
+  };
+  form.addEventListener('change', paint);
+
+  const filter = form.querySelector('[data-team-filter]');
+  if (filter) {
+    const league = filter.querySelector('[data-team-league]');
+    const find = filter.querySelector('[data-team-find]');
+    const sections = [...form.querySelectorAll('.team-league')];
+    const narrow = () => {
+      const q = find.value.trim().toLowerCase();
+      for (const section of sections) {
+        let shown = 0;
+        for (const opt of section.querySelectorAll('[data-team-name]')) {
+          opt.hidden = Boolean(q) && !opt.dataset.teamName.includes(q);
+          if (!opt.hidden) shown += 1;
+        }
+        section.hidden = (league.value && section.dataset.league !== league.value) || (q && !shown);
+        if (!section.hidden && (league.value || q)) section.open = true;
+      }
+    };
+    filter.hidden = false;
+    league.addEventListener('change', narrow);
+    find.addEventListener('input', narrow);
+  }
+}

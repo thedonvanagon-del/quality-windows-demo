@@ -4,7 +4,7 @@ import { CLOSE_AFTER_HOURS, MIN_BETS_MAX, NAME_MAX, PRIZE_MAX } from '../tournam
 import { icons } from './icons.js';
 import { csrfField, layout } from './layout.js';
 import { adminTabs } from './local.js';
-import { avatar, badgeMark, profileLink, rankCell, recordText, signedPct, units } from './parts.js';
+import { avatar, badgeMark, playerName, profileLink, rankCell, recordText, signedPct, units } from './parts.js';
 
 const free = html`<span class="free-chip">Free</span>`;
 
@@ -89,7 +89,7 @@ function standingsTable(rows, { me, min, badges }) {
     <thead><tr><th>#</th><th>Player</th><th class="n">Record</th><th class="n">Units</th><th class="n hide-sm">ROI</th></tr></thead>
     <tbody>${rows.map((r) => html`<tr class="${r.id === me ? 'me' : ''}">
       <td class="rank">${rankCell(r)}</td>
-      <td><span class="player">${avatar(r)}<span class="tn-who">${profileLink(r.screen_name, { official: r.official })}${badges ? badgeMark(badges.get(r.id)) : ''}${!r.official && r.graded < min ? html`<small class="to-place">${placeWord(min - r.graded)}</small>` : ''}</span></span></td>
+      <td><span class="player">${avatar(r)}<span class="tn-who">${playerName(r)}${badges ? badgeMark(badges.get(r.id)) : ''}${!r.official && r.graded < min ? html`<small class="to-place">${placeWord(min - r.graded)}</small>` : ''}</span></span></td>
       <td class="n">${recordText(r)}</td>
       <td class="n"><b>${units(r.units)}</b></td>
       <td class="n hide-sm">${signedPct(r.roi)}</td>

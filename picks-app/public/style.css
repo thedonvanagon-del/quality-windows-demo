@@ -948,6 +948,8 @@ a.chip { display: inline-block; text-decoration: none; }
   /* The Official tag drops under the name instead of pushing the table wider than the phone. */
   .hot .player { flex-wrap: wrap; gap: 2px 8px; }
   .hot .official-tag { margin-left: 0; }
+  /* So does a name icon, when the name is long. */
+  .hot .pname { flex-wrap: wrap; white-space: normal; }
 }
 
 /* ---- Get the app --------------------------------------------------------- */
@@ -1315,3 +1317,96 @@ input[type="file"]::file-selector-button { font: inherit; font-weight: 700; padd
 .report-photo { width: 96px; height: 96px; border-radius: 10px; object-fit: cover; flex: none; background: var(--raised); }
 .report-main { flex: 1; min-width: 0; display: grid; gap: 8px; }
 .report-main p { margin: 0; }
+
+/* Name colors and icons (src/nametags.js). Other players see your name on
+   their own look, so each color has a dark-page and a light-page shade, both
+   at 4.5:1 or better on every look's cards, rows, tiles and "me" row (a test
+   checks). The light shades apply under data-mode="light": the Light preset
+   and team or custom looks on a light background. Keep in step with NAME_COLORS. */
+:root {
+  --nc-gold: #fcd34d;
+  --nc-red: #fdb4b4;
+  --nc-orange: #fdbd7a;
+  --nc-lime: #bef264;
+  --nc-green: #86efac;
+  --nc-teal: #5eead4;
+  --nc-sky: #7dd3fc;
+  --nc-blue: #b3c5fd;
+  --nc-purple: #ddbffe;
+  --nc-pink: #fbb2da;
+  --nc-silver: #e2e8f0;
+}
+[data-mode="light"] {
+  --nc-gold: #854d0e;
+  --nc-red: #b91c1c;
+  --nc-orange: #9a3412;
+  --nc-lime: #3f6212;
+  --nc-green: #166534;
+  --nc-teal: #115e59;
+  --nc-sky: #075985;
+  --nc-blue: #1d4ed8;
+  --nc-purple: #7e22ce;
+  --nc-pink: #a3154f;
+  --nc-silver: #475569;
+}
+/* Two classes, after .who, .msg-head .who and .who:hover, so the chosen color wins everywhere. */
+.name-c-gold, .who.name-c-gold { color: var(--nc-gold); }
+.name-c-red, .who.name-c-red { color: var(--nc-red); }
+.name-c-orange, .who.name-c-orange { color: var(--nc-orange); }
+.name-c-lime, .who.name-c-lime { color: var(--nc-lime); }
+.name-c-green, .who.name-c-green { color: var(--nc-green); }
+.name-c-teal, .who.name-c-teal { color: var(--nc-teal); }
+.name-c-sky, .who.name-c-sky { color: var(--nc-sky); }
+.name-c-blue, .who.name-c-blue { color: var(--nc-blue); }
+.name-c-purple, .who.name-c-purple { color: var(--nc-purple); }
+.name-c-pink, .who.name-c-pink { color: var(--nc-pink); }
+.name-c-silver, .who.name-c-silver { color: var(--nc-silver); }
+.who[class*="name-c-"]:hover { text-decoration: underline; }
+
+/* The icon right after a name: an emoji, or a team's logo. */
+.name-icon { display: inline-block; margin-left: 5px; font-size: 1rem; line-height: 1; vertical-align: -1px; white-space: nowrap; font-family: "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif; }
+.name-logo { display: inline-block; width: 18px; height: 18px; margin-left: 5px; vertical-align: -3px; object-fit: contain; }
+.pname { display: inline-flex; align-items: center; white-space: nowrap; min-width: 0; }
+/* On a phone a long name, its icon and a badge can outgrow the column: the badge drops below. */
+@media (max-width: 760px) {
+  .table .player { flex-wrap: wrap; row-gap: 2px; }
+  .table .player .badge-mark { margin-left: 0; }
+}
+.face-chip .name-icon, .face-chip .name-logo { margin-left: 4px; }
+.profile-head .team .name-icon { font-size: 1.6rem; margin-left: 0; }
+.profile-head .team .name-logo { width: 30px; height: 30px; margin-left: 0; }
+
+/* "Your name on the boards": a sample row, color swatches, icons, team logos. */
+.nametag-card { display: grid; gap: 14px; max-width: 560px; }
+.nametag-card > p { margin: 0; }
+.nt-preview { margin: 0; }
+.nt-preview .player .avatar { display: inline-grid; }
+.nt-preview .nt-icon { display: inline-flex; }
+.nt-preview .nt-icon:empty { display: none; }
+.nametag-form { display: grid; gap: 16px; }
+.nametag-form fieldset { border: 0; padding: 0; margin: 0; min-width: 0; }
+.nametag-form legend { padding: 0; margin-bottom: 8px; font-weight: 700; font-size: 0.88rem; }
+.nametag-form .btn { justify-self: start; }
+.nametag-form input[type="radio"] { position: absolute; opacity: 0; width: 1px; height: 1px; margin: 0; }
+.nc-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(92px, 1fr)); gap: 6px; }
+.nc-swatch { display: flex; align-items: center; justify-content: center; min-height: 40px; padding: 6px 8px; border-radius: 8px; border: 1px solid var(--line); background: var(--card); font-family: var(--cond); font-size: 1.05rem; font-weight: 800; cursor: pointer; position: relative; }
+.icon-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(44px, 1fr)); gap: 6px; }
+.earned-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 230px), 1fr)); gap: 6px; }
+.nametag-form .muted.small { margin: 10px 0 6px; }
+.icon-opt { display: grid; place-items: center; min-height: 44px; border-radius: 8px; border: 1px solid var(--line); background: var(--card); cursor: pointer; position: relative; }
+.icon-opt .glyph { font-size: 1.4rem; line-height: 1; font-family: "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif; }
+.icon-none { font-size: 0.8rem; font-weight: 700; color: var(--muted); }
+.icon-opt.earned { grid-template-columns: auto 1fr; justify-items: start; gap: 10px; padding: 6px 10px; }
+.earned-text { display: grid; line-height: 1.25; }
+.earned-text b { font-size: 0.9rem; }
+.earned-text small { font-size: 0.78rem; color: var(--muted); }
+.icon-opt.locked { cursor: not-allowed; background: var(--bg); border-style: dashed; }
+.icon-opt.locked .glyph { filter: grayscale(1); opacity: 0.45; }
+.nc-swatch:has(input:checked), .icon-opt:has(input:checked) { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); background: var(--accent-soft); }
+.nc-swatch:has(input:focus-visible), .icon-opt:has(input:focus-visible) { outline: 2px solid var(--accent); outline-offset: 2px; }
+.team-filter { margin-bottom: 8px; }
+.team-league { border: 1px solid var(--line); border-radius: 8px; margin-bottom: 6px; background: var(--card); }
+.team-league summary { cursor: pointer; padding: 10px 12px; font-weight: 700; }
+.team-league .logo-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(48px, 1fr)); gap: 6px; padding: 0 10px 10px; }
+.logo-opt { min-height: 48px; background: var(--raised); }
+.logo-opt img { width: 30px; height: 30px; object-fit: contain; }

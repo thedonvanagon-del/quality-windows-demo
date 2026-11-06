@@ -482,6 +482,28 @@ export const MIGRATIONS = [
     PRIMARY KEY (user_id, photo, reporter_id)
   );
   `,
+  `
+  -- How a name shows on the boards: a color and an icon, both keys from the
+  -- lists in src/nametags.js (null is the default), never free text. An icon
+  -- is an emoji's key ("bull") or a team's ("team:nfl:KC", "team:ncaa:333").
+  ALTER TABLE users ADD COLUMN name_color TEXT;
+  ALTER TABLE users ADD COLUMN name_icon TEXT;
+
+  -- Every team logo a player can pick as their icon, from ESPN's team lists,
+  -- refreshed once a day (src/teams.js). Kept here so a restart doesn't wait
+  -- on ESPN. source is the list it came from; college football and
+  -- basketball both give "team:ncaa:<ESPN id>" keys, one per school.
+  CREATE TABLE team_catalog (
+    source TEXT NOT NULL,
+    key TEXT NOT NULL,
+    name TEXT NOT NULL,
+    abbr TEXT NOT NULL,
+    logo TEXT NOT NULL,
+    color TEXT,
+    fetched_at TEXT NOT NULL,
+    PRIMARY KEY (source, key)
+  );
+  `,
 ];
 
 export function openStore(file) {

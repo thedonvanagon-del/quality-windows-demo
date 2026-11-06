@@ -23,6 +23,7 @@ import { toGame } from './games.js';
 import { countInvite, findInviter, followInviter, inviteCodeOf, inviteStats } from './invites.js';
 import { cleanLink } from './links.js';
 import { createMailer } from './mail.js';
+import { earnedOf, ICONS, NAME_COLORS, nametagsFor, resolveColor, resolveIcon, saveNametag } from './nametags.js';
 import { changeScreenName, nameProblem, nextNameChange, renamedTo } from './names.js';
 import { createNotifier } from './notify.js';
 import { ensureOfficial } from './official.js';
@@ -31,6 +32,7 @@ import { validSubscription } from './push.js';
 import { deletePick, formatLine, formatOdds, formatUnits, isLocked, makePick, MARKETS, price, toWin } from './picks.js';
 import { SPORT, SPORTS } from './sports.js';
 import { setStreak, streakBoards, streakOf, streakPickOn } from './streak.js';
+import { createTeamCatalog } from './teams.js';
 import { adminList, bySlug, cancelTournament, cardOf, createCustom, entrantCount, entryOf, hub, joinTournament, leaveTournament, standingsOf, tournamentWinners } from './tournaments.js';
 import { addDays, dateLabel, etDay, mondayOf, weekLabel } from './time.js';
 import { breakdown, hotStreaks, lastTen, leaderboard, PERIODS, rankOf, record, recordBySport, searchPlayers, splits, unitsSeries } from './stats.js';
@@ -62,8 +64,11 @@ const SECURITY_HEADERS = {
   'Permissions-Policy': 'camera=(), microphone=(), geolocation=()',
 };
 
-export function createApp({ store, games, config, mailer = createMailer({ log: { log() {} } }), notifier = createNotifier({ store }), push = null, summaries = null, now = () => new Date(), log = console }) {
+export function createApp({ store, games, config, mailer = createMailer({ log: { log() {} } }), notifier = createNotifier({ store }), push = null, summaries = null, teams = null, now = () => new Date(), log = console }) {
   const assets = loadAssets();
+  // Team logos for scoreboard icons. Without one passed in (tests, the demo)
+  // it never fetches: it uses what's stored, else the teams in the games table.
+  const catalog = teams ?? createTeamCatalog({ store, log });
   const media = mediaDir(config.mediaDir ?? 'data/media');
   const app = {
     name: config.appName,
@@ -147,10 +152,21 @@ export function createApp({ store, games, config, mailer = createMailer({ log: {
 
   const notFound = (ctx) => send(ctx, 404, account.notFound(ctx));
 
-  /** Put each row's photo on it as `photo` (null if none or hidden), by the player id in `key`. */
-  function withPhotos(rows, key = 'id') {
-    const map = photosFor(store, rows.map((r) => r[key]));
-    for (const r of rows) r.photo = map.get(r[key]) ?? null;
+  /**
+   * Put each row's look on it, by the player id in `key`: `photo` (null if
+   * none or hidden), and `nameColor` and `nameIcon` (null unless they chose
+   * one that still checks out).
+   */
+  function withLooks(rows, key = 'id') {
+    const ids = rows.map((r) => r[key]);
+    const photos = photosFor(store, ids);
+    const tags = nametagsFor(store, ids, catalog);
+    for (const r of rows) {
+      const tag = tags.get(r[key]);
+      r.photo = photos.get(r[key]) ?? null;
+      r.nameColor = tag?.color ?? null;
+      r.nameIcon = tag?.icon ?? null;
+    }
     return rows;
   }
 
@@ -172,7 +188,7 @@ export function createApp({ store, games, config, mailer = createMailer({ log: {
 
   function home(ctx) {
     if (ctx.user) return redirect(ctx, ctx.user.screenName ? '/games' : '/welcome');
-    send(ctx, 200, account.home(ctx, { top: leaderboard(store, { period: '30' }, ctx.now, 10) }));
+    send(ctx, 200, account.home(ctx, { top: withLooks(leaderboard(store, { period: '30' }, ctx.now, 10)) }));
   }
 
   function health(ctx) {
@@ -593,7 +609,7 @@ export function createApp({ store, games, config, mailer = createMailer({ log: {
     const game = games.get(id);
     if (!game) return notFound(ctx);
     const started = isLocked(game, ctx.now);
-    const list = withPhotos(messages(store, { gameId: game.id }), 'user_id');
+    const list = withLooks(messages(store, { gameId: game.id }), 'user_id');
     // Picks show beside names only once the game starts, like everywhere else.
     const picksBy = new Map();
     if (started && list.length) {
@@ -701,7 +717,7 @@ export function createApp({ store, games, config, mailer = createMailer({ log: {
   function leaderboardPage(ctx) {
     const sport = SPORT[ctx.query.get('sport')] ?? null;
     const period = periodOf(ctx.query);
-    const rows = withPhotos(leaderboard(store, { sport: sport?.key, period }, ctx.now));
+    const rows = withLooks(leaderboard(store, { sport: sport?.key, period }, ctx.now));
     send(ctx, 200, social.leaderboard(ctx, { sport, rows, badges: topBadges(store, rows.map((r) => r.id)) }));
   }
 
@@ -710,7 +726,7 @@ export function createApp({ store, games, config, mailer = createMailer({ log: {
   /** This week's free contest: standings, the clock, and last week's top 3. */
   function contestPage(ctx) {
     const week = mondayOf(ctx.now);
-    const rows = withPhotos(standings(store, week));
+    const rows = withLooks(standings(store, week));
     const lastWeek = addDays(week, -7);
     send(ctx, 200, social.contest(ctx, {
       week: weekLabel(week),
@@ -742,7 +758,7 @@ export function createApp({ store, games, config, mailer = createMailer({ log: {
     if (!row) return notFound(ctx);
     const userId = ctx.user?.screenName ? ctx.user.id : null;
     const t = cardOf(store, row, userId, ctx.now);
-    const rows = withPhotos(standingsOf(store, row));
+    const rows = withLooks(standingsOf(store, row));
     send(ctx, 200, tourneyViews.detail(ctx, {
       t,
       rows,
@@ -810,7 +826,7 @@ export function createApp({ store, games, config, mailer = createMailer({ log: {
     const today = etDay(ctx.now);
     const pick = streakPickOn(store, ctx.user.id, today);
     const todays = pick ? ownPick(store, ctx.user.id, pick.id) : null;
-    send(ctx, 200, social.streak(ctx, { mine: streakOf(store, ctx.user.id), todays, boards: streakBoards(store) }));
+    send(ctx, 200, social.streak(ctx, { mine: streakOf(store, ctx.user.id), todays, boards: Object.fromEntries(Object.entries(streakBoards(store)).map(([k, rows]) => [k, withLooks(rows)])) }));
   }
 
   function invitePage(ctx) {
@@ -822,7 +838,7 @@ export function createApp({ store, games, config, mailer = createMailer({ log: {
   /** Players by the start of their screen name. */
   function searchPage(ctx) {
     const q = String(ctx.query.get('q') ?? '').trim().slice(0, 40);
-    send(ctx, 200, social.search(ctx, { q, rows: withPhotos(searchPlayers(store, q)) }));
+    send(ctx, 200, social.search(ctx, { q, rows: withLooks(searchPlayers(store, q)) }));
   }
 
   // ---- admin ----------------------------------------------------------------
@@ -884,15 +900,15 @@ export function createApp({ store, games, config, mailer = createMailer({ log: {
       const members = store.get('SELECT COUNT(*) AS n FROM group_members WHERE group_id = ?', room.id).n;
       return send(ctx, 200, local.roomPreview(ctx, { room: { ...room, city: CITY[room.city_slug] ?? null }, members }));
     }
-    const rows = withPhotos(leaderboard(store, { groupId: group.id, sport: group.sport, period: periodOf(ctx.query) }, ctx.now));
-    const chat = withPhotos(messages(store, { groupId: group.id }), 'user_id');
+    const rows = withLooks(leaderboard(store, { groupId: group.id, sport: group.sport, period: periodOf(ctx.query) }, ctx.now));
+    const chat = withLooks(messages(store, { groupId: group.id }), 'user_id');
     // Opening the group (or its chat refreshing) reads everything in it.
     markGroupRead(store, { groupId: group.id, userId: ctx.user.id, now: ctx.now });
     send(ctx, 200, social.group(ctx, {
       group,
       rows,
-      members: withPhotos(membersOf(store, group.id)),
-      feed: withPhotos(groupFeed(store, group, ctx.now), 'userId'),
+      members: withLooks(membersOf(store, group.id)),
+      feed: withLooks(groupFeed(store, group, ctx.now), 'userId'),
       inviteUrl: group.invite_code ? `${origin(ctx)}/join/${group.invite_code}` : null,
       messages: chat,
       city: group.kind === 'local' ? CITY[group.city_slug] ?? null : null,
@@ -1035,7 +1051,7 @@ export function createApp({ store, games, config, mailer = createMailer({ log: {
   function profilePage(ctx, { name }) {
     const player = store.get(
       `SELECT id, screen_name, created_at, bio, link_url, link_label, first_name, last_name, official, name_changed_at, home_city,
-              theme, theme_team, theme_mode, theme_accent, theme_tint, photo, photo_hidden
+              theme, theme_team, theme_mode, theme_accent, theme_tint, photo, photo_hidden, name_color, name_icon
          FROM users WHERE screen_name = ?`,
       name,
     );
@@ -1059,8 +1075,11 @@ export function createApp({ store, games, config, mailer = createMailer({ log: {
       upload: own ? '/photo' : player.official && isAdmin(ctx) ? '/admin/official/photo' : null,
       max: PHOTO_MAX,
     };
+    // How their name shows on the boards, checked the same way as on a board.
+    const tag = nametagsFor(store, [player.id], catalog).get(player.id);
     send(ctx, 200, social.profile(ctx, {
-      player: { ...player, photo: player.photo_hidden ? null : player.photo },
+      player: { ...player, photo: player.photo_hidden ? null : player.photo, nameColor: tag?.color ?? null, nameIcon: tag?.icon ?? null },
+      nametag: own && !player.official ? nametagChoices(player) : null,
       look,
       photo,
       teams: own ? teamsBySport(store) : null,
@@ -1081,6 +1100,33 @@ export function createApp({ store, games, config, mailer = createMailer({ log: {
       home: homeOf(player.home_city),
       cities: ctx.user?.id === player.id ? cityGroups() : null,
     }));
+  }
+
+  /**
+   * Everything the "Your name on the boards" picker needs: what's saved (an
+   * earned icon whose badge is gone shows as none), the badges that unlock
+   * icons, and every team logo. Starts a catalog refresh if one is due; never waits for it.
+   */
+  function nametagChoices(player) {
+    catalog.refreshIfDue();
+    const earned = earnedOf(store, player.id);
+    const icon = resolveIcon(player.name_icon, { badges: earned, teams: catalog }) ? player.name_icon : null;
+    return {
+      color: resolveColor(player.name_color) ?? 'default',
+      icon: icon ?? 'none',
+      colors: NAME_COLORS,
+      icons: ICONS.map((i) => ({ ...i, locked: Boolean(i.badge && !earned.has(i.badge)) })),
+      leagues: catalog.leagues(),
+    };
+  }
+
+  /** Save how your name shows on the boards: a color and an icon, each checked against its list. */
+  function nametagPost(ctx) {
+    if (!signedIn(ctx)) return;
+    const back = `/u/${encodeURIComponent(ctx.user.screenName)}#nametag`;
+    const result = saveNametag(store, { userId: ctx.user.id, color: ctx.form.get('color'), icon: ctx.form.get('icon'), teams: catalog });
+    flash(ctx, result.error ? 'error' : 'ok', result.error ?? 'Saved. That\'s your name on the boards now.');
+    redirect(ctx, back);
   }
 
   /** A player's city for their profile, with its room when that's open. */
@@ -1122,7 +1168,7 @@ export function createApp({ store, games, config, mailer = createMailer({ log: {
 
   /** Who's on a heater: the best last ten over the past 30 days. */
   function hotPage(ctx) {
-    const rows = withPhotos(hotStreaks(store, ctx.now));
+    const rows = withLooks(hotStreaks(store, ctx.now));
     const followed = followingAmong(store, ctx.user?.id, rows.map((r) => r.id));
     send(ctx, 200, social.hot(ctx, { rows, followed }));
   }
@@ -1130,7 +1176,7 @@ export function createApp({ store, games, config, mailer = createMailer({ log: {
   /** Picks from everyone the player follows, once each game starts. */
   function followingPage(ctx) {
     if (!signedIn(ctx)) return;
-    send(ctx, 200, social.following(ctx, { feed: withPhotos(followFeed(store, ctx.user.id, ctx.now), 'userId'), people: withPhotos(followingList(store, ctx.user.id)) }));
+    send(ctx, 200, social.following(ctx, { feed: withLooks(followFeed(store, ctx.user.id, ctx.now), 'userId'), people: withLooks(followingList(store, ctx.user.id)) }));
   }
 
   // ---- notifications ------------------------------------------------------
@@ -1506,6 +1552,7 @@ export function createApp({ store, games, config, mailer = createMailer({ log: {
     ['GET', '/local/:slug', localCity],
     ['POST', '/groups/:id/join', roomJoin],
     ['POST', '/home-city', homeCityPost],
+    ['POST', '/nametag', nametagPost],
     ['POST', '/admin/photos/:id/remove', adminPhotoRemove],
     ['POST', '/admin/photos/:id/dismiss', adminPhotoDismiss],
     ['POST', '/admin/official/photo', adminOfficialPhoto, { upload: true }],

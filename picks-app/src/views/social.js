@@ -10,7 +10,7 @@ import { dateLabel, joined, when } from '../time.js';
 import { icons, trustMark } from './icons.js';
 import { csrfField, layout } from './layout.js';
 import { citySelect, cityPin, groupsSection } from './local.js';
-import { avatar, betItem, boardTable, chatBox, minus, officialTag, pickItem, periodTabs, pct, profileLink, rankCell, recordText, signedPct, sportTabs, tabs, teamLogo, units } from './parts.js';
+import { avatar, betItem, boardTable, chatBox, minus, nameIcon, officialTag, pickItem, periodTabs, pct, playerName, profileLink, rankCell, recordText, signedPct, sportTabs, tabs, teamLogo, units } from './parts.js';
 
 /** Find a player by the start of their screen name. */
 function searchBox(q = '') {
@@ -125,7 +125,7 @@ export function group(ctx, { group, rows, members, feed, inviteUrl, messages = [
 
       <h2 id="chat">Chat</h2>
       ${group.archived_at
-        ? html`<div class="chat"><ol class="chat-list">${messages.map((m) => html`<li class="msg"><div class="msg-head"><a class="who" href="/u/${encodeURIComponent(m.screen_name)}">${m.screen_name}</a></div><p class="msg-body">${m.hidden ? 'Hidden after reports.' : m.body}</p></li>`)}</ol></div>`
+        ? html`<div class="chat"><ol class="chat-list">${messages.map((m) => html`<li class="msg"><div class="msg-head">${playerName(m)}</div><p class="msg-body">${m.hidden ? 'Hidden after reports.' : m.body}</p></li>`)}</ol></div>`
         : chatBox(ctx, {
           messages,
           action: `/groups/${group.id}/chat`,
@@ -152,7 +152,7 @@ export function group(ctx, { group, rows, members, feed, inviteUrl, messages = [
 
       <h2>Members</h2>
       <div class="card"><ul class="members">
-        ${shown.map((m) => html`<li><span class="player">${avatar(m)}${profileLink(m.screen_name)}</span><span class="muted small">${!isLocal && m.id === group.owner_id ? 'Owner' : ''}</span></li>`)}
+        ${shown.map((m) => html`<li><span class="player">${avatar(m)}${playerName(m)}</span><span class="muted small">${!isLocal && m.id === group.owner_id ? 'Owner' : ''}</span></li>`)}
       </ul>${members.length > shown.length ? html`<p class="muted small">And ${members.length - shown.length} more.</p>` : ''}</div>
 
       <div class="row actions">
@@ -302,7 +302,7 @@ export function hot(ctx, { rows, followed }) {
             <thead><tr><th>#</th><th>Player</th><th class="n">Last 10</th><th class="n">Units</th><th class="n">Streak</th>${me ? html`<th class="n"><span class="sr-only">Follow</span></th>` : ''}</tr></thead>
             <tbody>${rows.map((r) => html`<tr class="${r.id === me ? 'me' : ''}">
               <td class="rank">${rankCell(r)}</td>
-              <td><span class="player">${avatar(r)}${profileLink(r.screen_name, { official: r.official })}</span></td>
+              <td><span class="player">${avatar(r)}${playerName(r)}</span></td>
               <td class="n">${recordText(r)}</td>
               <td class="n"><b>${units(r.units)}</b></td>
               <td class="n"><span class="streak ${r.streak.startsWith('W') ? 'hot' : ''}">${r.streak}</span></td>
@@ -324,7 +324,7 @@ export function following(ctx, { feed, people }) {
       <h1>Following</h1>
       <p class="lede">Picks from the players you follow, as each game starts. Open picks stay hidden until then, same as everywhere.</p>
       ${people.length
-        ? html`<p class="chips-row">${people.map((p) => html`<a class="chip face-chip" href="/u/${encodeURIComponent(p.screen_name)}">${avatar(p, 'xs')}${p.screen_name}</a>`)}</p>`
+        ? html`<p class="chips-row">${people.map((p) => html`<a class="chip face-chip" href="/u/${encodeURIComponent(p.screen_name)}">${avatar(p, 'xs')}<span class="${p.nameColor ? `name-c-${p.nameColor}` : ''}">${p.screen_name}</span>${nameIcon(p.nameIcon)}</a>`)}</p>`
         : html`<div class="card empty">You're not following anyone yet. Find players on the <a href="/hot">Hot streaks</a> page or the <a href="/leaderboard">leaderboard</a>, then press Follow on their profile.</div>`}
       ${feed.length ? html`<ul class="tickets">${feed.map((p) => betItem(p, { who: true }))}</ul>` : people.length ? html`<div class="card empty">No started picks from them yet.</div>` : ''}
     `,
@@ -464,6 +464,61 @@ function colorPicker(ctx, { teams, look }) {
 }
 
 /**
+ * "Your name on the boards": a color and an icon, with a board row that
+ * shows them. Plain radio buttons, so it works without JavaScript; app.js
+ * only updates the sample row and filters the team logos. Earned icons
+ * show locked, with what earns them, until the player has the badge.
+ */
+function nametagPicker(ctx, { player, record, nametag }) {
+  const { color, icon, colors, icons: choices, leagues } = nametag;
+  const free = choices.filter((i) => !i.badge);
+  const earned = choices.filter((i) => i.badge);
+  const current = choices.find((i) => i.key === icon && !i.locked) ?? null;
+  const team = icon.startsWith('team:') ? leagues.flatMap((l) => l.teams).find((t) => t.key === icon) ?? null : null;
+  const shown = current ? { kind: 'emoji', emoji: current.emoji, label: current.label } : team ? { kind: 'team', name: team.name, logo: team.logo } : null;
+  const radio = (value, extra = '') => html`<input type="radio" name="icon" value="${value}" ${value === icon ? 'checked' : ''} ${extra}>`;
+  return html`<h2 id="nametag">Your name on the boards</h2>
+    <div class="card nametag-card" data-nametag>
+      <p class="muted small">Everyone sees these by your name: boards, standings, chat and feeds.</p>
+      <div class="table nt-preview"><table><tbody><tr>
+        <td class="rank"><span class="rk r1">1</span></td>
+        <td><span class="player">${avatar(player)}<span class="pname"><span class="${color !== 'default' ? `who name-c-${color}` : 'who'}" data-nt-name>${player.screen_name}</span><span class="nt-icon" data-nt-icon>${nameIcon(shown)}</span></span></span></td>
+        <td class="n">${recordText(record)}</td>
+        <td class="n"><b>${units(record.units)}</b></td>
+      </tr></tbody></table></div>
+      <form class="form nametag-form" method="post" action="/nametag" data-nametag-form>
+        ${csrfField(ctx)}
+        <fieldset class="nc-pick"><legend>Name color</legend>
+          <div class="nc-grid">${colors.map((c) => html`<label class="nc-swatch"><input type="radio" name="color" value="${c.key}" ${c.key === color ? 'checked' : ''}><span class="${c.key === 'default' ? '' : `name-c-${c.key}`}">${c.label}</span></label>`)}</div>
+        </fieldset>
+        <fieldset class="icon-pick"><legend>Icon</legend>
+          <div class="icon-grid">
+            <label class="icon-opt" title="No icon">${radio('none')}<span class="icon-none">None</span></label>
+            ${free.map((i) => html`<label class="icon-opt" title="${i.label}">${radio(i.key)}<span class="glyph" aria-hidden="true" data-glyph>${i.emoji}</span><span class="sr-only">${i.label}</span></label>`)}
+          </div>
+          <p class="muted small">Earned icons</p>
+          <div class="earned-grid">
+            ${earned.map((i) => html`<label class="icon-opt earned ${i.locked ? 'locked' : ''}" title="${i.locked ? i.hint : i.label}">${radio(i.key, i.locked ? 'disabled' : '')}<span class="glyph" aria-hidden="true" data-glyph>${i.emoji}</span><span class="earned-text"><b>${i.label}</b><small>${i.locked ? i.hint : 'Unlocked'}</small></span></label>`)}
+          </div>
+        </fieldset>
+        ${leagues.length
+          ? html`<fieldset class="team-pick"><legend>Team logo</legend>
+              <div class="pair team-filter" data-team-filter hidden>
+                <label>League<select data-team-league><option value="">All leagues</option>${leagues.map((l) => html`<option value="${l.key}">${l.name}</option>`)}</select></label>
+                <label>Find a team<input type="search" data-team-find placeholder="Team name" autocomplete="off"></label>
+              </div>
+              ${leagues.map((l) => html`<details class="team-league" data-league="${l.key}" ${team?.league === l.key ? 'open' : ''}>
+                <summary>${l.name} <span class="muted small">${l.teams.length} ${l.teams.length === 1 ? 'team' : 'teams'}</span></summary>
+                <div class="logo-grid">${l.teams.map((t) => html`<label class="icon-opt logo-opt" title="${t.name}" data-team-name="${t.name.toLowerCase()}">${radio(t.key)}<img src="${t.logo}" alt="" width="30" height="30" loading="lazy" decoding="async" referrerpolicy="no-referrer" data-glyph data-name="${t.name}"><span class="sr-only">${t.name}</span></label>`)}</div>
+              </details>`)}
+            </fieldset>`
+          : ''}
+        <button class="btn small">Save</button>
+      </form>
+    </div>`;
+}
+
+/**
  * The band behind a profile's header: the player's team colors if they
  * matched one, else their look's accent. An SVG, since inline styles are blocked.
  */
@@ -535,7 +590,7 @@ function homeCityForm(ctx, home, cities) {
     </form>`;
 }
 
-export function profile(ctx, { player, record, bySport, split = null, series = [], last10 = null, rank = null, follows = { followers: 0, following: 0 }, following = false, picks, hidden, nextChange = null, badges = [], streak = null, clv = null, look = { preset: null }, photo = {}, teams = null, home = null, cities = null }) {
+export function profile(ctx, { player, nametag = null, record, bySport, split = null, series = [], last10 = null, rank = null, follows = { followers: 0, following: 0 }, following = false, picks, hidden, nextChange = null, badges = [], streak = null, clv = null, look = { preset: null }, photo = {}, teams = null, home = null, cities = null }) {
   const own = ctx.user?.id === player.id;
   const team = look.team ?? null;
   // Anyone signed in can report someone else's photo, once.
@@ -553,7 +608,7 @@ export function profile(ctx, { player, record, bySport, split = null, series = [
       <header class="profile-head ${player.photo ? 'has-photo' : ''}">
         ${banner(look)}
         <div class="profile-face">${avatar(player, player.photo ? 'huge' : 'big')}</div>
-        <div class="team"><h1>${player.screen_name}</h1>${player.official ? officialTag : ''}${team
+        <div class="team">${!player.official && player.nameColor ? html`<h1 class="name-c-${player.nameColor}">${player.screen_name}</h1>` : html`<h1>${player.screen_name}</h1>`}${player.official ? officialTag : nameIcon(player.nameIcon)}${team
           ? html`<span class="team-badge" title="${team.name} fan">${teamLogo(team)}<span class="sr-only">${team.name} fan</span></span>`
           : ''}</div>
       </header>
@@ -574,7 +629,7 @@ export function profile(ctx, { player, record, bySport, split = null, series = [
       ${clvLine(clv)}
       ${streak?.played ? html`<p class="streak-line"><a href="/streak">${icons.flame}<span>Streak: <b>${streak.current}</b> · Best: <b>${streak.best}</b></span></a></p>` : ''}
       ${badgeChips(badges)}
-      ${own ? html`${photoForm(ctx, player, photo)}${screenNameForm(ctx, player, nextChange)}${nameForm(ctx, player)}${bioForm(ctx, player)}${linkForm(ctx, player)}${cities ? homeCityForm(ctx, home, cities) : ''}${colorPicker(ctx, { teams, look })}` : ''}
+      ${own ? html`${photoForm(ctx, player, photo)}${screenNameForm(ctx, player, nextChange)}${nameForm(ctx, player)}${bioForm(ctx, player)}${linkForm(ctx, player)}${cities ? homeCityForm(ctx, home, cities) : ''}${colorPicker(ctx, { teams, look })}${nametag ? nametagPicker(ctx, { player, record, nametag }) : ''}` : ''}
       ${!own && photo.upload ? photoForm(ctx, player, photo) : ''}
       ${bySport.length
         ? html`<h2>By sport</h2>
@@ -690,7 +745,7 @@ function streakTable(rows, key, me, empty) {
     <thead><tr><th>#</th><th>Player</th><th class="n">${key === 'current' ? 'Streak' : 'Best'}</th></tr></thead>
     <tbody>${rows.map((r) => html`<tr class="${r.id === me ? 'me' : ''}">
       <td class="rank"><span class="rk ${r.rank <= 3 ? `r${r.rank}` : ''}">${r.rank}</span></td>
-      <td>${profileLink(r.screen_name)}</td>
+      <td>${playerName(r)}</td>
       <td class="n"><b class="streak hot">${r[key]}</b></td>
     </tr>`)}</tbody>
   </table></div>`;

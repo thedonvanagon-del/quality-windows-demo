@@ -14,6 +14,7 @@ import { createOfficialImporter } from './official.js';
 import { createPush } from './push.js';
 import { createReminders } from './reminders.js';
 import { createSummaries } from './summaries.js';
+import { createTeamCatalog } from './teams.js';
 import { closeDueTournaments, ensureAutoTournaments, sendStartReminders } from './tournaments.js';
 
 const GRADE_EVERY = 10 * 60_000;
@@ -23,6 +24,8 @@ const DAILY_EVERY = 5 * 60_000;
 const BADGES_EVERY = 60 * 60_000;
 // New auto tournaments (NFL Sunday, College Saturday, Hoops Night, the Weekly Open), about two days ahead.
 const TOURNAMENTS_EVERY = 60 * 60_000;
+// Team logos for scoreboard icons: checked hourly, fetched from ESPN once a day.
+const TEAMS_EVERY = 60 * 60_000;
 
 const config = loadConfig();
 const store = openStore(config.databasePath);
@@ -54,7 +57,10 @@ if (mailer.configured && !config.appUrl) {
 }
 // Injuries and recent form for game pages, cached and fetched in the background.
 const summaries = createSummaries({ espn });
-const server = http.createServer(createApp({ store, games, config, mailer, notifier, push, summaries }));
+// Team logos players can pick as their icon. The demo has no network, so it
+// uses the teams on its own board.
+const teams = createTeamCatalog({ store, fetch: config.demo ? null : globalThis.fetch });
+const server = http.createServer(createApp({ store, games, config, mailer, notifier, push, summaries, teams }));
 server.listen(config.port, config.host, () => {
   console.log(`${config.appName} is up on http://localhost:${config.port}`);
   if (config.demo) console.log(`Demo mode. Log in as ${DEMO_LOGIN.email} / ${DEMO_LOGIN.password}`);
@@ -134,12 +140,17 @@ function badges() {
 const badgesTimer = setInterval(badges, BADGES_EVERY);
 badges();
 
+// ESPN's team lists, once a day, in the background. Pages never wait on it.
+const teamsTimer = setInterval(() => teams.refreshIfDue(), TEAMS_EVERY);
+teams.refreshIfDue();
+
 function shutdown() {
   clearInterval(timer);
   clearInterval(importTimer);
   clearInterval(dailyTimer);
   clearInterval(badgesTimer);
   clearInterval(tournamentsTimer);
+  clearInterval(teamsTimer);
   server.close(() => {
     store.close();
     process.exit(0);
