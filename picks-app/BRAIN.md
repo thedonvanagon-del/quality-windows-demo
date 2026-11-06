@@ -269,6 +269,15 @@ not dollars, and nothing is paid out.
     so restarts never double up. The official account gets nothing.
 
 ### Following, streaks, splits, notifications
+- **2026-11-06: No counts on the tab bar** (owner's call). The My bets tab
+  no longer shows an open-bet number; anything new shows only on the bell at
+  the top right.
+- **2026-11-06: Live games fixed.** The live page used to re-read only the
+  boards from today on, so a game that ran past midnight Eastern froze with
+  an old score and stayed "live". Now it re-reads each in-progress game's own
+  day (at most once a minute), drops games still "in progress" 12 hours after
+  their start, and the page refreshes its scores every 30 seconds. ESPN's
+  scoreboard is free; one read per sport-day per minute is shared by everyone.
 - **2026-11-05: Player search** (`/search`, a box on the leaderboard, "Find
   players" in More). Matches the start of a screen name, any case, up to 20,
   with record and units. Unconfirmed emails stay out, same as the boards.

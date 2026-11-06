@@ -1151,12 +1151,8 @@ export function createApp({ store, games, config, mailer = createMailer({ log: {
       ctx.cookieValues = cookies;
       ctx.session = auth.readSession(store, cookies.sid, ctx.now);
       ctx.user = ctx.session?.user ?? null;
-      // The count on the My bets tab (a parlay is one bet), and the parlay bar.
+      // The parlay bar, and the unread count on the bell.
       if (ctx.user?.screenName) {
-        ctx.openBets = store.get(
-          'SELECT (SELECT COUNT(*) FROM picks WHERE user_id = ? AND result IS NULL) + (SELECT COUNT(*) FROM parlays WHERE user_id = ? AND result IS NULL) AS n',
-          ctx.user.id, ctx.user.id,
-        ).n;
         ctx.parlay = draftSummary(store, ctx.user.id, ctx.now);
         ctx.unread = notifier.unread(ctx.user.id);
       }

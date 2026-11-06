@@ -237,7 +237,7 @@ describe('locking a parlay', () => {
     assert.match(visible(bets.text), /Locked 3-leg parlay \(\+596\), 0\.83u to win 4\.95u On the record Oct 25, 8:00 AM ET/);
     assert.doesNotMatch(bets.text, /class="parlay-bar"/, 'the draft is cleared');
     assert.equal(draft('Ann').length, 0);
-    assert.match(bets.text, /class="badge"[^>]*>1</, 'one open bet');
+    assert.doesNotMatch(bets.text, /aria-label="\d+ open"/, 'no open-bet count on the tab bar');
 
     const [p] = parlays();
     assert.deepEqual([p.units, p.odds, p.first_start, p.made_at, p.sport, p.result], [0.83, 596, ONE, MORNING, 'nfl', null]);

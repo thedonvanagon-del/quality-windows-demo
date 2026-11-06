@@ -8,6 +8,11 @@ import { gradeFinished } from './picks.js';
 import { addDays, etDay } from './time.js';
 
 const BOARD_MAX_AGE = 2 * 60_000;
+// Live scores: a game's day is re-read from ESPN at most this often.
+const LIVE_MAX_AGE = 60_000;
+// A game ESPN still calls in progress this long after its start is treated as
+// stuck (we lost track of it) and left off the live list.
+const LIVE_WINDOW = 12 * 60 * 60_000;
 const PICK_MAX_AGE = 60_000;
 // If ESPN can't be reached, a cached line is still good for a pick this long.
 const PICK_FALLBACK_AGE = 10 * 60_000;
@@ -96,6 +101,15 @@ export function createGames({ store, espn, now = () => new Date(), log = console
     return [today, addDays(today, sport.days - 1)];
   }
 
+  /** When this sport's day was last read from ESPN, alone or as part of the board. */
+  function lastFetched(sport, day) {
+    const [from, to] = boardRange(sport);
+    return Math.max(
+      fetchedAt.get(`${sport.key} ${day}-${day}`) ?? 0,
+      day >= from && day <= to ? fetchedAt.get(`${sport.key} ${from}-${to}`) ?? 0 : 0,
+    );
+  }
+
   async function freshBoard(sport) {
     const [from, to] = boardRange(sport);
     const age = now().getTime() - (fetchedAt.get(`${sport.key} ${from}-${to}`) ?? 0);
@@ -105,10 +119,32 @@ export function createGames({ store, espn, now = () => new Date(), log = console
   return {
     save,
 
-    /** Every game in progress right now, across all sports, scores at most two minutes old. */
+    /**
+     * Every game in progress right now, across all sports, scores at most a
+     * minute old. Only the days that have a game under way (or due to have
+     * started) are re-read, by the game's own Eastern day, so a late game
+     * that runs past midnight is still followed to its final.
+     */
     async live() {
-      await Promise.all(SPORTS.map(freshBoard));
-      return store.all(`SELECT * FROM games WHERE state = 'in' ORDER BY start_time, sport, home_name`).map(toGame);
+      const t = now().getTime();
+      const since = new Date(t - LIVE_WINDOW).toISOString();
+      const due = store.all(
+        `SELECT DISTINCT sport, start_time FROM games
+          WHERE completed = 0 AND start_time <= ? AND start_time >= ? AND state != 'post'`,
+        now().toISOString(), since,
+      );
+      const days = new Map();
+      for (const { sport, start_time: start } of due) {
+        if (SPORT[sport]) days.set(`${sport} ${etDay(start)}`, [SPORT[sport], etDay(start)]);
+      }
+      // Today's board too, for games that just started since the last read.
+      for (const sport of SPORTS) days.set(`${sport.key} ${etDay(now())}`, [sport, etDay(now())]);
+      await Promise.all(
+        [...days.values()].map(([sport, day]) => (t - lastFetched(sport, day) > LIVE_MAX_AGE ? refresh(sport, day) : null)),
+      );
+      return store
+        .all(`SELECT * FROM games WHERE state = 'in' AND start_time >= ? ORDER BY start_time, sport, home_name`, since)
+        .map(toGame);
     },
     problem: (sportKey) => problems.get(sportKey) ?? null,
 
