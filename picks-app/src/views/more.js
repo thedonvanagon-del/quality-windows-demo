@@ -194,7 +194,7 @@ export function install(ctx) {
 
 /**
  * Reports, for admins: chat messages (put one back or delete it for good)
- * and profile photos (keep one, or remove it).
+ * and profile and cover photos (keep one, or remove it).
  */
 export function adminReports(ctx, { list, hideAfter, photos = [], photoHideAfter = 3, blockDays = 7 }) {
   return layout(ctx, {
@@ -223,22 +223,28 @@ export function adminReports(ctx, { list, hideAfter, photos = [], photoHideAfter
         : html`<div class="card empty">Nothing reported right now.</div>`}
 
       <h2 id="photos">Reported photos</h2>
-      <p class="lede">Profile photos anyone has reported. ${photoHideAfter} reports hide a photo until you look. Remove photo deletes it, tells the player, and stops new photos for ${blockDays} days. Dismiss keeps it and clears its reports.</p>
+      <p class="lede">Profile photos and cover photos anyone has reported. ${photoHideAfter} reports hide one until you look. Remove deletes it, tells the player, and stops new ones of that kind for ${blockDays} days. Dismiss keeps it and clears its reports.</p>
       ${photos.length
-        ? html`<ul class="reports">${photos.map((p) => html`<li class="card report photo-report ${p.hidden ? 'is-hidden' : ''}">
-            <img class="report-photo" src="/media/${p.photo}" alt="${p.screen_name}'s photo" width="96" height="96" loading="lazy">
+        ? html`<ul class="reports">${photos.map((p) => {
+            const cover = p.kind === 'cover';
+            const what = cover ? 'cover' : 'photo';
+            return html`<li class="card report photo-report ${cover ? 'cover-report' : ''} ${p.hidden ? 'is-hidden' : ''}">
+            ${cover
+              ? html`<img class="report-photo report-cover" src="/media/${p.photo}" alt="${p.screen_name}'s cover photo" width="192" height="64" loading="lazy">`
+              : html`<img class="report-photo" src="/media/${p.photo}" alt="${p.screen_name}'s photo" width="96" height="96" loading="lazy">`}
             <div class="report-main">
               <div class="report-head">
                 <span>${profileLink(p.screen_name)}</span>
                 <span class="report-count">${p.reports} ${p.reports === 1 ? 'report' : 'reports'}${p.hidden ? ' · Hidden' : ''}</span>
               </div>
-              <p class="muted small">Last report ${at(p.last_report, 'long')}</p>
+              <p class="muted small">Last report ${at(p.last_report, 'long')} · ${cover ? 'Cover photo' : 'Profile photo'}</p>
               <div class="row report-actions">
-                <form method="post" action="/admin/photos/${p.id}/dismiss">${csrfField(ctx)}<input type="hidden" name="photo" value="${p.photo}"><button class="btn small ghost">Dismiss</button></form>
-                <form method="post" action="/admin/photos/${p.id}/remove" data-confirm="Remove ${p.screen_name}'s photo?">${csrfField(ctx)}<input type="hidden" name="photo" value="${p.photo}"><button class="btn small danger">Remove photo</button></form>
+                <form method="post" action="/admin/photos/${p.id}/dismiss">${csrfField(ctx)}<input type="hidden" name="photo" value="${p.photo}"><input type="hidden" name="kind" value="${p.kind}"><button class="btn small ghost">Dismiss</button></form>
+                <form method="post" action="/admin/photos/${p.id}/remove" data-confirm="Remove ${p.screen_name}'s ${what}?">${csrfField(ctx)}<input type="hidden" name="photo" value="${p.photo}"><input type="hidden" name="kind" value="${p.kind}"><button class="btn small danger">Remove ${what}</button></form>
               </div>
             </div>
-          </li>`)}</ul>`
+          </li>`;
+          })}</ul>`
         : html`<div class="card empty">No reported photos right now.</div>`}
     `,
   });

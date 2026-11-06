@@ -1286,6 +1286,33 @@ h2[id] { scroll-margin-top: 80px; }
   .profile-head .banner { border-radius: var(--r); }
 }
 
+/* Cover photos: the banner is the player's picture, taller than the band
+   (140px on a phone, up to 240px wide), cut to fill. A soft fade at the
+   bottom into the page keeps the face's edge and the name clear of a busy
+   photo. The face still sits over the banner's bottom edge. */
+.profile-head { --cover-h: clamp(140px, 24vw, 240px); }
+.profile-head.has-cover { padding-top: calc(var(--cover-h) - 22px); }
+.profile-head.has-cover.has-photo { padding-top: calc(var(--cover-h) - 38px); }
+.profile-head .banner.cover { height: var(--cover-h); overflow: hidden; background: var(--raised); }
+.banner.cover img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.banner.cover::after { content: ""; position: absolute; inset: 0; background: linear-gradient(to bottom, rgb(0 0 0 / 0.18), transparent 30%, transparent 55%, color-mix(in srgb, var(--bg) 70%, transparent)); }
+/* The Edit cover button, top right on the banner: dark glass, white text, on any picture or band. */
+.cover-btn { position: absolute; top: 10px; right: 10px; z-index: 1; display: inline-flex; align-items: center; gap: 6px; padding: 7px 11px; border-radius: 999px; background: rgb(0 0 0 / 0.58); color: #fff; font-size: 0.84rem; font-weight: 700; text-decoration: none; border: 1px solid rgb(255 255 255 / 0.28); backdrop-filter: blur(4px); }
+.cover-btn:hover, .cover-btn:focus-visible { background: rgb(0 0 0 / 0.75); color: #fff; }
+.cover-btn svg { width: 16px; height: 16px; }
+@media (min-width: 761px) { .profile-head .banner.cover { border-radius: var(--r); } }
+@media (max-width: 760px) { .profile-head:not(:first-child) .banner.cover { border-radius: var(--r) var(--r) 0 0; } }
+
+/* The cover form: what's there now (or the crop about to go up), and the form. */
+.cover-edit { display: grid; gap: 10px; max-width: 560px; }
+.cover-edit p, .cover-edit form { margin: 0; }
+.cover-now { position: relative; }
+.cover-thumb { display: block; width: 100%; height: auto; aspect-ratio: 3 / 1; object-fit: cover; border-radius: 10px; background: var(--raised); border: 1px solid var(--line); }
+.cover-empty { display: grid; place-items: center; color: var(--muted); font-size: 0.88rem; font-weight: 600; }
+canvas.cover-crop { cursor: grab; touch-action: none; }
+canvas.cover-crop:active { cursor: grabbing; }
+canvas.cover-crop:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
 /* The look picker: a sample card, preset swatches, Match my team, Custom. */
 .picker { display: grid; gap: 14px; max-width: 560px; }
 .theme-preview { background: var(--bg); color: var(--ink); border: 1px solid var(--line); border-radius: 12px; padding: 12px; display: grid; gap: 10px; }
@@ -1316,6 +1343,9 @@ input[type="file"]::file-selector-button { font: inherit; font-weight: 700; padd
 .photo-report { display: flex; gap: 14px; align-items: flex-start; }
 .report-photo { width: 96px; height: 96px; border-radius: 10px; object-fit: cover; flex: none; background: var(--raised); }
 .report-main { flex: 1; min-width: 0; display: grid; gap: 8px; }
+/* A reported cover: the wide picture on top, the details under it. */
+.cover-report { flex-direction: column; align-items: stretch; }
+.report-cover { width: 100%; max-width: 420px; height: auto; aspect-ratio: 3 / 1; }
 .report-main p { margin: 0; }
 
 /* Name colors and icons (src/nametags.js). Other players see your name on

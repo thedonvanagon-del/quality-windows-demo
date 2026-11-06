@@ -592,6 +592,40 @@ if (picker) {
   }
 }
 
+// A picked file as something a canvas can draw. The page allows data: images
+// but not blob: ones, so older browsers read the file as data.
+async function decodePicture(file) {
+  if (window.createImageBitmap) {
+    try {
+      return await createImageBitmap(file);
+    } catch {
+      // Fall through to an <img>.
+    }
+  }
+  const url = await new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+  return loadImage(url);
+}
+
+/**
+ * Send a cropped canvas as a JPEG in `field`, with the form's token, and
+ * reload the profile, which shows how it went. False if it didn't send.
+ */
+async function sendCanvas(form, canvas, field, quality) {
+  const blob = await new Promise((resolve, reject) => canvas.toBlob((b) => (b ? resolve(b) : reject(new Error('no image'))), 'image/jpeg', quality));
+  const body = new FormData();
+  body.append('_csrf', form.querySelector('input[name="_csrf"]')?.value ?? '');
+  body.append(field, blob, `${field}.jpg`);
+  // The answer is a redirect that carries the result; the profile shows it.
+  const res = await fetch(form.action, { method: 'POST', body, credentials: 'same-origin', redirect: 'manual' });
+  if (res.type !== 'opaqueredirect' && !res.ok) throw new Error(`answered ${res.status}`);
+  window.location.assign(window.location.pathname);
+}
+
 // Profile photo: cut the chosen picture to a square from the middle, shrink
 // it to 400×400 and send it as a JPEG. Drawing it on a canvas also leaves its
 // EXIF (and any GPS) behind. Without this, the form sends the file as it is,
@@ -604,30 +638,13 @@ if (photoForm && photoCanvas && HTMLCanvasElement.prototype.toBlob) {
   const save = photoForm.querySelector('[data-photo-save]');
   const current = photoCanvas.parentElement.querySelector('.avatar:not(canvas)');
   let ready = false;
-  // The page allows data: images but not blob: ones, so older browsers read the file as data.
-  const decode = async (file) => {
-    if (window.createImageBitmap) {
-      try {
-        return await createImageBitmap(file);
-      } catch {
-        // Fall through to an <img>.
-      }
-    }
-    const url = await new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve(reader.result);
-      reader.onerror = reject;
-      reader.readAsDataURL(file);
-    });
-    return loadImage(url);
-  };
   input.addEventListener('change', async () => {
     ready = false;
     const file = input.files?.[0];
     status.textContent = '';
     if (!file) return;
     try {
-      const pic = await decode(file);
+      const pic = await decodePicture(file);
       const w = pic.naturalWidth || pic.width;
       const h = pic.naturalHeight || pic.height;
       const side = Math.min(w, h);
@@ -651,14 +668,118 @@ if (photoForm && photoCanvas && HTMLCanvasElement.prototype.toBlob) {
     save.disabled = true;
     status.textContent = 'Saving…';
     try {
-      const blob = await new Promise((resolve, reject) => photoCanvas.toBlob((b) => (b ? resolve(b) : reject(new Error('no image'))), 'image/jpeg', 0.85));
-      const body = new FormData();
-      body.append('_csrf', photoForm.querySelector('input[name="_csrf"]')?.value ?? '');
-      body.append('photo', blob, 'photo.jpg');
-      // The answer is a redirect that carries the result; the profile shows it.
-      const res = await fetch(photoForm.action, { method: 'POST', body, credentials: 'same-origin', redirect: 'manual' });
-      if (res.type !== 'opaqueredirect' && !res.ok) throw new Error(`answered ${res.status}`);
-      window.location.assign(window.location.pathname);
+      await sendCanvas(photoForm, photoCanvas, 'photo', 0.85);
+    } catch {
+      status.textContent = "That didn't save. Reload the page and try again.";
+      save.disabled = false;
+    }
+  });
+}
+
+// Cover photo: cut the chosen picture to a strip 3 times as wide as it is
+// tall, shrink it to 1200×400 and send it as a JPEG, the same way as the
+// photo. It starts centered; drag the preview (or use the arrow keys) to
+// choose what shows. The Edit cover button on the banner is a link to the
+// form; here it opens the file picker too. Without this, the form sends the
+// file as it is, and the server checks it either way.
+const coverForm = document.querySelector('[data-cover-form]');
+const coverCanvas = document.querySelector('[data-cover-canvas]');
+if (coverForm && coverCanvas && HTMLCanvasElement.prototype.toBlob) {
+  const input = coverForm.querySelector('[data-cover-input]');
+  const status = coverForm.querySelector('[data-cover-status]');
+  const save = coverForm.querySelector('[data-cover-save]');
+  const current = coverCanvas.parentElement.querySelector('.cover-thumb:not(canvas)');
+  const W = 1200;
+  const H = 400;
+  // The picture, its size, the 3:1 part of it that shows, and where that part sits (0 to 1 each way).
+  let pic = null;
+  let w = 0;
+  let h = 0;
+  let cw = 0;
+  let ch = 0;
+  let fx = 0.5;
+  let fy = 0.5;
+  const draw = () => {
+    const c = coverCanvas.getContext('2d');
+    c.fillStyle = '#ffffff';
+    c.fillRect(0, 0, W, H);
+    c.imageSmoothingQuality = 'high';
+    c.drawImage(pic, (w - cw) * fx, (h - ch) * fy, cw, ch, 0, 0, W, H);
+  };
+  const clamp = (n) => Math.min(1, Math.max(0, n));
+
+  for (const pick of document.querySelectorAll('[data-cover-pick]')) {
+    pick.addEventListener('click', (event) => {
+      event.preventDefault();
+      input.click();
+    });
+  }
+
+  input.addEventListener('change', async () => {
+    pic = null;
+    const file = input.files?.[0];
+    status.textContent = '';
+    if (!file) return;
+    try {
+      pic = await decodePicture(file);
+      w = pic.naturalWidth || pic.width;
+      h = pic.naturalHeight || pic.height;
+      // The biggest 3:1 strip the picture has, centered to start.
+      if (w / h > W / H) {
+        ch = h;
+        cw = (h * W) / H;
+      } else {
+        cw = w;
+        ch = (w * H) / W;
+      }
+      fx = 0.5;
+      fy = 0.5;
+      draw();
+      coverCanvas.hidden = false;
+      if (current) current.hidden = true;
+      status.textContent = w - cw > 1 || h - ch > 1 ? 'Drag it to choose what shows, then save.' : 'Looks good? Save it.';
+      coverCanvas.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    } catch {
+      pic = null;
+      status.textContent = "That file didn't open as a picture. Try another.";
+    }
+  });
+
+  // Dragging moves the strip over the picture: along whichever way it has room.
+  let drag = null;
+  coverCanvas.addEventListener('pointerdown', (event) => {
+    if (!pic) return;
+    coverCanvas.setPointerCapture(event.pointerId);
+    drag = { x: event.clientX, y: event.clientY, fx, fy };
+  });
+  coverCanvas.addEventListener('pointermove', (event) => {
+    if (!drag) return;
+    // Picture pixels for each screen pixel of the preview.
+    const scale = cw / coverCanvas.clientWidth;
+    if (w - cw > 1) fx = clamp(drag.fx - ((event.clientX - drag.x) * scale) / (w - cw));
+    if (h - ch > 1) fy = clamp(drag.fy - ((event.clientY - drag.y) * scale) / (h - ch));
+    draw();
+  });
+  const stop = () => (drag = null);
+  coverCanvas.addEventListener('pointerup', stop);
+  coverCanvas.addEventListener('pointercancel', stop);
+  coverCanvas.addEventListener('keydown', (event) => {
+    // The picture moves the way the arrow points, the same as dragging it.
+    const step = { ArrowUp: [0, 0.05], ArrowDown: [0, -0.05], ArrowLeft: [0.05, 0], ArrowRight: [-0.05, 0] }[event.key];
+    if (!pic || !step) return;
+    event.preventDefault();
+    fx = clamp(fx + step[0]);
+    fy = clamp(fy + step[1]);
+    draw();
+  });
+
+  coverForm.addEventListener('submit', async (event) => {
+    if (!pic) return;
+    event.preventDefault();
+    save.disabled = true;
+    status.textContent = 'Saving…';
+    try {
+      await sendCanvas(coverForm, coverCanvas, 'cover', 0.82);
     } catch {
       status.textContent = "That didn't save. Reload the page and try again.";
       save.disabled = false;

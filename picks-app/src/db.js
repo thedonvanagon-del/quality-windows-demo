@@ -504,6 +504,17 @@ export const MIGRATIONS = [
     PRIMARY KEY (source, key)
   );
   `,
+  `
+  -- Cover photos: the banner across the top of a profile, a 1200×400 file in
+  -- MEDIA_DIR with a random name, the same as photos. The same rules: three
+  -- reports hide one, an admin removing one blocks new covers for a week.
+  ALTER TABLE users ADD COLUMN cover TEXT;
+  ALTER TABLE users ADD COLUMN cover_hidden INTEGER NOT NULL DEFAULT 0;
+  ALTER TABLE users ADD COLUMN cover_blocked_until TEXT;
+  CREATE UNIQUE INDEX users_cover ON users(cover);
+  -- Reports on covers go in the same table; kind says which picture it was.
+  ALTER TABLE photo_reports ADD COLUMN kind TEXT NOT NULL DEFAULT 'avatar' CHECK (kind IN ('avatar', 'cover'));
+  `,
 ];
 
 export function openStore(file) {

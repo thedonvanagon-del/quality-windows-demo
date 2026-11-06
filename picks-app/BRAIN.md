@@ -480,6 +480,40 @@ not dollars, and nothing is paid out.
   phones; a Get the app button there is offered, not built.
 
 ### Profile photos
+- **2026-11-06: Cover photos** (owner's ask: "allow people to change their
+  top photo that is blank right now"). The banner across the top of a
+  profile can be the player's own picture instead of the band of colors.
+  - **Adding one:** an **Add cover / Edit cover** button on your own banner
+    (a link to the form; with JavaScript it opens the file picker), and a
+    **Cover photo** section under Profile photo. The browser cuts the biggest
+    **3:1** strip from the middle, lets you **drag it** (or use the arrow
+    keys) to choose what shows, shrinks it to **1200×400** and sends a JPEG
+    at 0.82. Without JavaScript it's a plain file input.
+  - **The same pipeline as photos**, not a copy: `src/photos.js` has a
+    `KINDS` table (`avatar`, `cover`: column, hidden and blocked columns,
+    form field, size limit) and every function takes a `kind`, defaulting
+    to `avatar` so photos work exactly as before. A cover may be **2 MB**;
+    same first-byte checks, same metadata stripping, same `MEDIA_DIR`, a
+    random name in `users.cover`. A new cover deletes the old file; so do
+    **Remove cover** and deleting the account.
+  - **Showing it:** full width, `object-fit: cover`, **140px tall on a phone
+    up to 240px on wide screens** (`clamp(140px, 24vw, 240px)`), with a soft
+    fade at the bottom into the page and a light shade at the top behind the
+    edit button. The face still sits over the bottom edge. No cover, or a
+    hidden one: the color band, unchanged.
+  - **Moderation, the same as photos:** **Report cover** on someone else's
+    profile (once each), **three reports hide it**, and `/admin/reports`
+    lists covers in the same Reported photos section, with Dismiss and
+    **Remove cover** (deletes the file, tells the player "Your cover photo
+    was removed for breaking the rules", and blocks new covers, not photos,
+    for 7 days). Reports share `photo_reports`, with a new `kind` column.
+    The admin buttons send `kind`; without one it means the photo, as before.
+  - `/media/<name>` serves a file only while someone has it as a photo or a
+    cover. Only an admin can give the official account a cover.
+  - **Decided differently from the brief:** the Edit cover button scrolls
+    to the form's preview rather than cropping on the banner itself, so
+    there's one crop preview, not two. Photos and covers share one admin
+    section ("Reported photos"), each card saying which it is.
 - **2026-11-06: Profile photos** (owner's ask). From your own profile: pick a
   picture, the browser cuts a square from the middle, shrinks it to 400×400
   and sends a JPEG (redrawing it drops EXIF and GPS). Without JavaScript it's
@@ -686,7 +720,8 @@ Launch log:
   rename/archive (2026-11-06)
 - Eight preset looks (one light), team colors and custom colors with a
   readability guard; profile photos with reports and an admin review; a
-  banner in the player's colors on every profile
+  banner in the player's colors on every profile, or their own cover photo
+  (2026-11-06)
 - Name colors and scoreboard icons (emoji, four earned by badges, and any
   team's logo from ESPN's daily team lists) on every board, standings and chat
 - Demo mode: `npm run demo`, log in as demo@example.com / letmein123

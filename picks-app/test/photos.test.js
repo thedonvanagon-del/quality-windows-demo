@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, test } from 'node:test';
 
 import { loadConfig } from '../src/config.js';
 import { ensureOfficial } from '../src/official.js';
-import { cleanImage, PHOTO_MAX, sniff, stripJpeg, stripPng, stripWebp } from '../src/photos.js';
+import { cleanImage, COVER_MAX, PHOTO_MAX, sniff, stripJpeg, stripPng, stripWebp } from '../src/photos.js';
 import { avatar } from '../src/views/avatar.js';
 import { clock, event, startApp, visible } from './helpers.js';
 
@@ -386,5 +386,335 @@ describe('profile photos', () => {
     const list = (await ann.get('/search?q=')).text + (await ann.get('/search?q=B')).text;
     assert.match(list, /<span class="player"><span class="avatar">B<\/span><a class="who" href="\/u\/Bob">Bob<\/a>/);
     assert.match((await ann.get('/u/Bob')).text, /<div class="profile-face"><span class="avatar big">B<\/span><\/div>/);
+  });
+});
+
+describe('cover photos', () => {
+  let time;
+  let app;
+
+  beforeEach(async () => {
+    time = clock(MORNING);
+    app = await startApp({ time, config: { adminEmails: ['boss@example.com'] } });
+  });
+
+  afterEach(() => app.close());
+
+  async function player(email, name) {
+    const b = app.browser();
+    await b.join(email, name);
+    await b.get('/games');
+    return b;
+  }
+
+  const coverOf = (name) => app.store.get('SELECT cover FROM users WHERE screen_name = ?', name)?.cover ?? null;
+  const photoOf = (name) => app.store.get('SELECT photo FROM users WHERE screen_name = ?', name)?.photo ?? null;
+  const idOf = (name) => app.store.get('SELECT id FROM users WHERE screen_name = ?', name).id;
+  const onDisk = () => fs.readdirSync(app.media).sort();
+  const flashOn = async (b, page) => visible((await b.get(page)).text);
+  /** A JPEG `size` bytes long: the clean picture with filler in its scan data. */
+  const jpegOf = (size) => Buffer.concat([cleanJpeg(), Buffer.alloc(size - cleanJpeg().length)]);
+  const cover = (data, more = {}) => ({ data, field: 'cover', name: 'cover.jpg', ...more });
+  const band = /<svg class="banner" viewBox="0 0 400 100"/;
+
+  test('the cover limit is 2 MB, the photo limit stays 1 MB', () => {
+    assert.equal(COVER_MAX, 2 * 1024 * 1024);
+    assert.equal(cleanImage(jpegOf(COVER_MAX), 'cover').ext, 'jpg');
+    assert.match(cleanImage(jpegOf(COVER_MAX + 1), 'cover').error, /That photo is over 2 MB/);
+    assert.equal(cleanImage(jpegOf(PHOTO_MAX + 1), 'cover').ext, 'jpg');
+    assert.match(cleanImage(jpegOf(PHOTO_MAX + 1)).error, /over 1 MB/);
+    assert.match(cleanImage(Buffer.from('GIF89a......'), 'cover').error, /isn't a photo we can use/);
+  });
+
+  test('no cover: the color band, exactly as before, and an Add cover button on your own', async () => {
+    const ann = await player('ann@example.com', 'Ann');
+    await player('bob@example.com', 'Bob');
+    const own = (await ann.get('/u/Ann')).text;
+    assert.match(own, band);
+    assert.doesNotMatch(own, /banner cover|has-cover/);
+    assert.match(own, /<a class="cover-btn" href="#cover" data-cover-pick>.*<span>Add cover<\/span><\/a>/s);
+    assert.match(own, /<h2 id="cover">Cover photo<\/h2>/);
+    assert.match(own, /<form class="form photo-form" method="post" action="\/cover" enctype="multipart\/form-data" data-cover-form>/);
+    assert.match(own, /<input type="file" name="cover" accept="image\/jpeg,image\/png,image\/webp" required data-cover-input>/);
+    assert.match(visible(own), /No cover photo yet/);
+    assert.doesNotMatch(own, /action="\/cover\/delete"/, 'nothing to remove');
+    // Someone else's profile: the band, no edit button, no cover form, nothing to report.
+    const theirs = (await ann.get('/u/Bob')).text;
+    assert.match(theirs, band);
+    assert.doesNotMatch(theirs, /cover-btn|data-cover-form|cover\/report/);
+    assert.doesNotMatch((await app.browser().get('/u/Ann')).text, /cover-btn|data-cover-form/);
+  });
+
+  test('upload: checked, stripped, stored under a random name, shown across the banner, served', async () => {
+    const ann = await player('ann@example.com', 'Ann');
+    await ann.get('/u/Ann');
+    const sent = await ann.upload('/cover', cover(phoneJpeg()));
+    assert.equal(sent.status, 303);
+    assert.equal(sent.location, '/u/Ann#cover');
+    const name = coverOf('Ann');
+    assert.match(name, /^[0-9a-f]{32}\.jpg$/);
+    assert.equal(photoOf('Ann'), null, 'the photo is a separate thing');
+    assert.deepEqual(onDisk(), [name]);
+    assert.deepEqual(fs.readFileSync(path.join(app.media, name)), cleanJpeg(), 'metadata gone on disk');
+    assert.match(await flashOn(ann, '/u/Ann'), /Cover photo saved/);
+
+    const res = await fetch(`${app.base}/media/${name}`);
+    assert.equal(res.status, 200);
+    assert.equal(res.headers.get('content-type'), 'image/jpeg');
+    assert.equal(res.headers.get('x-content-type-options'), 'nosniff');
+    assert.equal(res.headers.get('cache-control'), 'public, max-age=31536000, immutable');
+    assert.deepEqual(Buffer.from(await res.arrayBuffer()), cleanJpeg());
+
+    // Everyone sees it across the banner, in place of the band; the face still sits over it.
+    const page = (await app.browser().get('/u/Ann')).text;
+    assert.match(page, /<header class="profile-head  has-cover">/);
+    assert.match(page, new RegExp(`<div class="banner cover"><img src="/media/${name}" alt="" width="1200" height="400" decoding="async"></div>`));
+    assert.doesNotMatch(page, band);
+    assert.match(page, /<div class="profile-face"><span class="avatar big">A<\/span><\/div>/);
+    const own = (await ann.get('/u/Ann')).text;
+    assert.match(own, /<span>Edit cover<\/span>/);
+    assert.match(own, new RegExp(`<img class="cover-thumb" src="/media/${name}"`));
+    assert.match(own, /action="\/cover\/delete" data-confirm="Remove your cover photo\?"/);
+
+    // With a photo too, both show: the face over the cover.
+    await ann.upload('/photo', { data: cleanJpeg() });
+    const both = (await app.browser().get('/u/Ann')).text;
+    assert.match(both, /<header class="profile-head has-photo has-cover">/);
+    assert.match(both, new RegExp(`<img class="avatar huge photo" src="/media/${photoOf('Ann')}"`));
+
+    // PNG keeps its type.
+    await ann.get('/u/Ann');
+    await ann.upload('/cover', cover(png(), { name: 'c.png', type: 'image/png' }));
+    assert.match(coverOf('Ann'), /\.png$/);
+    assert.equal((await fetch(`${app.base}/media/${coverOf('Ann')}`)).headers.get('content-type'), 'image/png');
+  });
+
+  test('a cover may be up to 2 MB; too big, not a photo, or no form token: nothing is stored', async () => {
+    const ann = await player('ann@example.com', 'Ann');
+    await ann.get('/u/Ann');
+    // Bigger than a photo may be is fine for a cover, and still not for a photo.
+    await ann.upload('/photo', { data: jpegOf(PHOTO_MAX + 1) });
+    assert.match(await flashOn(ann, '/u/Ann'), /That photo is over 1 MB/);
+    assert.equal(photoOf('Ann'), null);
+    await ann.upload('/cover', cover(jpegOf(COVER_MAX)));
+    assert.match(await flashOn(ann, '/u/Ann'), /Cover photo saved/);
+    const kept = coverOf('Ann');
+    assert.equal(fs.statSync(path.join(app.media, kept)).size, COVER_MAX);
+
+    assert.equal((await ann.upload('/cover', cover(jpegOf(COVER_MAX + 1)))).location, '/u/Ann#cover');
+    assert.match(await flashOn(ann, '/u/Ann'), /That photo is over 2 MB/);
+    // Far past the limit, the body is read and dropped, and the answer still gets back.
+    assert.equal((await ann.upload('/cover', cover(Buffer.alloc(3 * COVER_MAX, 0xff)))).location, '/u/Ann#cover');
+    assert.match(await flashOn(ann, '/u/Ann'), /That photo is over 2 MB/);
+
+    for (const [data, type] of [[Buffer.from('GIF89a\x01\x00\x01\x00'), 'image/gif'], [Buffer.from('<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>'), 'image/svg+xml'], [Buffer.from('<html><script>alert(1)</script>'), 'image/jpeg']]) {
+      await ann.upload('/cover', cover(data, { type }));
+      assert.match(await flashOn(ann, '/u/Ann'), /That isn't a photo we can use/);
+    }
+    // A damaged JPEG, and a file sent under the photo's field name instead.
+    await ann.upload('/cover', cover(Buffer.concat([SOI, Buffer.from([0xff, 0xe1, 0xff, 0xff])])));
+    assert.match(await flashOn(ann, '/u/Ann'), /damaged/);
+    await ann.upload('/cover', { data: cleanJpeg() });
+    assert.match(await flashOn(ann, '/u/Ann'), /Pick a photo first/);
+
+    assert.equal((await ann.upload('/cover', cover(cleanJpeg()), {}, { csrf: false })).status, 403);
+    assert.equal((await ann.upload('/cover', cover(cleanJpeg()), {}, { origin: 'https://evil.example' })).status, 403);
+    assert.equal((await app.browser().upload('/cover', cover(cleanJpeg()))).location, '/login');
+    assert.equal(coverOf('Ann'), kept);
+    assert.deepEqual(onDisk(), [kept]);
+  });
+
+  test('a new cover deletes the old file, and Remove cover deletes it and brings the band back', async () => {
+    const ann = await player('ann@example.com', 'Ann');
+    await ann.get('/u/Ann');
+    await ann.upload('/photo', { data: cleanJpeg() });
+    const face = photoOf('Ann');
+    await ann.upload('/cover', cover(phoneJpeg()));
+    const first = coverOf('Ann');
+    await ann.get('/u/Ann');
+    await ann.upload('/cover', cover(cleanJpeg()));
+    const second = coverOf('Ann');
+    assert.notEqual(first, second);
+    assert.deepEqual(onDisk(), [face, second].sort());
+    assert.equal((await fetch(`${app.base}/media/${first}`)).status, 404);
+
+    await ann.get('/u/Ann');
+    assert.equal((await ann.post('/cover/delete')).location, '/u/Ann#cover');
+    assert.match(await flashOn(ann, '/u/Ann'), /Cover photo removed/);
+    assert.equal(coverOf('Ann'), null);
+    assert.equal(photoOf('Ann'), face, 'the photo stays');
+    assert.deepEqual(onDisk(), [face]);
+    assert.equal((await fetch(`${app.base}/media/${second}`)).status, 404);
+    const page = (await app.browser().get('/u/Ann')).text;
+    assert.match(page, band);
+    assert.doesNotMatch(page, /has-cover/);
+
+    // Removing the photo leaves a cover alone, too.
+    await ann.get('/u/Ann');
+    await ann.upload('/cover', cover(cleanJpeg()));
+    await ann.post('/photo/delete');
+    assert.equal(photoOf('Ann'), null);
+    assert.deepEqual(onDisk(), [coverOf('Ann')]);
+  });
+
+  test('three reports hide a cover; an admin removes it; no new cover for 7 days', async () => {
+    const ann = await player('ann@example.com', 'Ann');
+    await ann.get('/u/Ann');
+    await ann.upload('/photo', { data: cleanJpeg() });
+    await ann.upload('/cover', cover(phoneJpeg()));
+    const face = photoOf('Ann');
+    const name = coverOf('Ann');
+    const reporters = [];
+    for (const who of ['Bob', 'Cat', 'Dan']) reporters.push(await player(`${who.toLowerCase()}@example.com`, who));
+    const [bob] = reporters;
+
+    const theirs = (await bob.get('/u/Ann')).text;
+    assert.match(theirs, /<form method="post" action="\/u\/Ann\/cover\/report" data-confirm="Report Ann's cover photo to the admins\?">.*<button class="link-btn">Report cover<\/button><\/form>/s);
+    assert.match(theirs, /action="\/u\/Ann\/photo\/report"/, 'the photo has its own');
+    assert.equal((await bob.post('/u/Ann/cover/report')).location, '/u/Ann');
+    assert.match(visible((await bob.get('/u/Ann')).text), /Thanks\. An admin will look at it\. 3 reports hide a cover until then\. .*Cover reported/);
+    await bob.post('/u/Ann/cover/report');
+    assert.equal(app.store.get("SELECT COUNT(*) AS n FROM photo_reports WHERE kind = 'cover'").n, 1, 'once per player');
+    assert.equal(app.store.get("SELECT COUNT(*) AS n FROM photo_reports WHERE kind = 'avatar'").n, 0);
+    assert.equal((await app.browser().post('/u/Ann/cover/report')).location, '/login');
+    await ann.get('/u/Ann');
+    await ann.post('/u/Ann/cover/report');
+    assert.match(await flashOn(ann, '/u/Ann'), /You can't report your own cover/);
+
+    for (const b of reporters.slice(1)) {
+      await b.get('/u/Ann');
+      await b.post('/u/Ann/cover/report');
+    }
+    // Hidden from everyone until an admin looks: the band is back. The photo isn't touched.
+    const seen = (await app.browser().get('/u/Ann')).text;
+    assert.match(seen, band);
+    assert.doesNotMatch(seen, new RegExp(name));
+    assert.match(seen, new RegExp(`/media/${face}`));
+    assert.match(visible((await ann.get('/u/Ann')).text), /Your cover photo is hidden after reports until an admin looks at it/);
+    assert.equal((await fetch(`${app.base}/media/${name}`)).status, 404, 'hidden from everyone');
+    assert.equal((await fetch(`${app.base}/media/${face}`)).status, 200);
+
+    const boss = await player('boss@example.com', 'Boss');
+    assert.match(visible((await boss.get('/more')).text), /Admin Reported chat and photos 1/);
+    const shot = await fetch(`${app.base}/media/${name}`, { headers: { cookie: [...boss.jar].map(([k, v]) => `${k}=${v}`).join('; ') } });
+    assert.equal(shot.status, 200, 'admins can still see it');
+    assert.equal(shot.headers.get('cache-control'), 'private, no-store');
+    const admin = await boss.get('/admin/reports');
+    assert.match(visible(admin.text), /Reported photos .* Ann 3 reports · Hidden Last report .* Cover photo Dismiss Remove cover/);
+    assert.match(admin.text, new RegExp(`<img class="report-photo report-cover" src="/media/${name}" alt="Ann's cover photo"`));
+    assert.match(admin.text, /<input type="hidden" name="kind" value="cover"><button class="btn small danger">Remove cover<\/button>/);
+    const annId = idOf('Ann');
+    assert.equal((await bob.post(`/admin/photos/${annId}/remove`, { photo: name, kind: 'cover' })).status, 404);
+
+    // The photo's name with kind=cover, or a stale name, changes nothing.
+    await boss.get('/admin/reports');
+    await boss.post(`/admin/photos/${annId}/remove`, { photo: face, kind: 'cover' });
+    assert.match(await flashOn(boss, '/admin/reports'), /already changed or removed/);
+    await boss.post(`/admin/photos/${annId}/remove`, { photo: name });
+    assert.match(await flashOn(boss, '/admin/reports'), /already changed or removed/, 'without a kind it means the photo');
+    assert.equal(coverOf('Ann'), name);
+    assert.equal((await boss.post(`/admin/photos/${annId}/remove`, { photo: name, kind: 'cover' })).location, '/admin/reports#photos');
+    assert.match(await flashOn(boss, '/admin/reports'), /Cover photo removed\. They've been told, and can't add another for 7 days\. .*No reported photos right now/);
+    assert.equal(coverOf('Ann'), null);
+    assert.equal(photoOf('Ann'), face);
+    assert.deepEqual(onDisk(), [face]);
+    assert.equal(app.store.get('SELECT COUNT(*) AS n FROM photo_reports').n, 0);
+    const note = app.store.get("SELECT text, url FROM notifications WHERE user_id = ? AND kind = 'photo'", annId);
+    assert.deepEqual({ ...note }, { text: 'Your cover photo was removed for breaking the rules', url: '/u/Ann#cover' });
+
+    // A week without covers; photos are still fine.
+    const own = (await ann.get('/u/Ann')).text;
+    assert.match(visible(own), /An admin removed your last cover photo\. You can add a new one after Nov 1, 2026\./);
+    assert.doesNotMatch(own, /cover-btn|data-cover-form/);
+    await ann.upload('/cover', cover(cleanJpeg()));
+    assert.match(await flashOn(ann, '/u/Ann'), /An admin removed your last cover photo/);
+    assert.equal(coverOf('Ann'), null);
+    await ann.upload('/photo', { data: cleanJpeg() });
+    assert.match(await flashOn(ann, '/u/Ann'), /Photo saved/);
+    time.advance(7 * DAY + 60_000);
+    await ann.get('/u/Ann');
+    await ann.upload('/cover', cover(cleanJpeg()));
+    assert.match(coverOf('Ann'), /\.jpg$/);
+  });
+
+  test('an admin can keep a reported cover, and photo and cover reports sit side by side', async () => {
+    const ann = await player('ann@example.com', 'Ann');
+    await ann.get('/u/Ann');
+    await ann.upload('/photo', { data: cleanJpeg() });
+    await ann.upload('/cover', cover(cleanJpeg()));
+    const face = photoOf('Ann');
+    const name = coverOf('Ann');
+    for (const who of ['Bob', 'Cat', 'Dan']) {
+      const b = await player(`${who.toLowerCase()}@example.com`, who);
+      await b.get('/u/Ann');
+      await b.post('/u/Ann/cover/report');
+    }
+    const eve = await player('eve@example.com', 'Eve');
+    await eve.get('/u/Ann');
+    await eve.post('/u/Ann/photo/report');
+    assert.equal(app.store.get('SELECT cover_hidden FROM users WHERE cover = ?', name).cover_hidden, 1);
+    assert.equal(app.store.get('SELECT photo_hidden FROM users WHERE photo = ?', face).photo_hidden, 0);
+
+    const boss = await player('boss@example.com', 'Boss');
+    const list = visible((await boss.get('/admin/reports')).text);
+    assert.match(list, /Ann 3 reports · Hidden .* Cover photo Dismiss Remove cover Ann 1 report .* Profile photo Dismiss Remove photo/);
+    assert.match(visible((await boss.get('/more')).text), /Reported chat and photos 2/);
+    const annId = idOf('Ann');
+    assert.equal((await boss.post(`/admin/photos/${annId}/dismiss`, { photo: name, kind: 'cover' })).location, '/admin/reports#photos');
+    assert.equal(app.store.get('SELECT cover_hidden FROM users WHERE cover = ?', name).cover_hidden, 0);
+    assert.equal(app.store.get("SELECT COUNT(*) AS n FROM photo_reports WHERE kind = 'cover'").n, 0);
+    assert.equal(app.store.get("SELECT COUNT(*) AS n FROM photo_reports WHERE kind = 'avatar'").n, 1, 'the photo report waits');
+    assert.match((await app.browser().get('/u/Ann')).text, new RegExp(`<div class="banner cover"><img src="/media/${name}"`));
+    assert.deepEqual(onDisk(), [face, name].sort());
+  });
+
+  test('deleting the account deletes the cover file with the photo', async () => {
+    const ann = await player('ann@example.com', 'Ann');
+    await ann.get('/u/Ann');
+    await ann.upload('/photo', { data: cleanJpeg() });
+    await ann.upload('/cover', cover(cleanJpeg()));
+    const name = coverOf('Ann');
+    assert.equal(onDisk().length, 2);
+    await ann.get('/u/Ann');
+    await ann.post('/account/delete', { password: 'correct horse' });
+    assert.equal(app.store.get("SELECT COUNT(*) AS n FROM users WHERE screen_name = 'Ann'").n, 0);
+    assert.deepEqual(onDisk(), []);
+    assert.equal((await fetch(`${app.base}/media/${name}`)).status, 404);
+  });
+
+  test('the media address serves covers someone has now, and nothing else', async () => {
+    const ann = await player('ann@example.com', 'Ann');
+    await ann.get('/u/Ann');
+    await ann.upload('/cover', cover(cleanJpeg()));
+    const name = coverOf('Ann');
+    fs.writeFileSync(path.join(app.media, `${'1'.repeat(32)}.jpg`), cleanJpeg());
+    for (const bad of [`${'1'.repeat(32)}.jpg`, `${name}.html`, name.toUpperCase(), `${name.slice(0, -4)}.svg`, '..%2F..%2Fpackage.json']) {
+      const res = await fetch(`${app.base}/media/${bad}`);
+      assert.equal(res.status, 404, bad);
+    }
+    assert.equal((await fetch(`${app.base}/media/${name}`)).status, 200);
+  });
+
+  test('only an admin can give the official account a cover', async () => {
+    const officialId = ensureOfficial(app.store, new Date(MORNING));
+    const official = app.store.get('SELECT screen_name FROM users WHERE id = ?', officialId).screen_name;
+    const ann = await player('ann@example.com', 'Ann');
+    const seen = (await ann.get(`/u/${official}`)).text;
+    assert.doesNotMatch(seen, /admin\/official\/cover|cover-btn/);
+    assert.equal((await ann.upload('/admin/official/cover', cover(cleanJpeg()))).status, 404);
+    assert.equal((await ann.post('/admin/official/cover/delete')).status, 404);
+    const boss = await player('boss@example.com', 'Boss');
+    const page = (await boss.get(`/u/${official}`)).text;
+    assert.match(page, /action="\/admin\/official\/cover"/);
+    assert.match(page, /<h2 id="cover">Official account cover<\/h2>/);
+    assert.match(page, /class="cover-btn" href="#cover"/);
+    assert.equal((await boss.upload('/admin/official/cover', cover(cleanJpeg()))).location, `/u/${official}#cover`);
+    const name = app.store.get('SELECT cover FROM users WHERE id = ?', officialId).cover;
+    assert.match(name, /\.jpg$/);
+    assert.match((await app.browser().get(`/u/${official}`)).text, new RegExp(`<div class="banner cover"><img src="/media/${name}"`));
+    await boss.get(`/u/${official}`);
+    await boss.post('/admin/official/cover/delete');
+    assert.equal(app.store.get('SELECT cover FROM users WHERE id = ?', officialId).cover, null);
+    assert.deepEqual(onDisk(), []);
   });
 });

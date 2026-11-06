@@ -212,12 +212,12 @@ export class Browser {
     });
   }
 
-  /** Send a file the way a browser's file input does (multipart), with the form token. */
-  upload(path, { name = 'photo.jpg', type = 'image/jpeg', data }, fields = {}, { origin = this.base, csrf = true } = {}) {
+  /** Send a file the way a browser's file input does (multipart), with the form token. `field` is the input's name. */
+  upload(path, { name = 'photo.jpg', type = 'image/jpeg', data, field = 'photo' }, fields = {}, { origin = this.base, csrf = true } = {}) {
     const form = new FormData();
     if (csrf && this.csrf) form.append('_csrf', this.csrf);
     for (const [k, v] of Object.entries(fields)) form.append(k, v);
-    form.append('photo', new Blob([data], { type }), name);
+    form.append(field, new Blob([data], { type }), name);
     return this.request(path, { method: 'POST', body: form, headers: origin ? { origin } : {} });
   }
 
