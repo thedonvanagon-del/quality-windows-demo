@@ -4,6 +4,7 @@ import path from 'node:path';
 import zlib from 'node:zlib';
 import { afterEach, beforeEach, describe, test } from 'node:test';
 
+import { loadConfig } from '../src/config.js';
 import { ensureOfficial } from '../src/official.js';
 import { cleanImage, PHOTO_MAX, sniff, stripJpeg, stripPng, stripWebp } from '../src/photos.js';
 import { avatar } from '../src/views/avatar.js';
@@ -120,6 +121,12 @@ describe('checking and cleaning images', () => {
     const exact = Buffer.concat([cleanJpeg(), Buffer.alloc(PHOTO_MAX - cleanJpeg().length)]);
     assert.equal(cleanImage(exact).ext, 'jpg');
     assert.match(cleanImage(Buffer.concat([exact, Buffer.from([0])])).error, /over 1 MB/);
+  });
+
+  test('photos live next to the database unless MEDIA_DIR says otherwise', () => {
+    assert.equal(loadConfig({}).mediaDir, path.join('data', 'media'));
+    assert.equal(loadConfig({ DATABASE_PATH: '/var/lib/bookie-bullies-app/bookiebullies.db' }).mediaDir, '/var/lib/bookie-bullies-app/media');
+    assert.equal(loadConfig({ DATABASE_PATH: '/x/app.db', MEDIA_DIR: '/srv/photos' }).mediaDir, '/srv/photos');
   });
 
   test('no photo: the same initials circle as always', () => {

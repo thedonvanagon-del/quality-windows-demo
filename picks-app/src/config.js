@@ -15,9 +15,14 @@ export function loadConfig(env = process.env) {
     port: Number(env.PORT) || 3000,
     host: env.HOST || '0.0.0.0',
     databasePath: env.DATABASE_PATH || 'data/bookiebullies.db',
-    // Profile photos. Keep it on the same disk as the database and in the
-    // same backups. The demo uses a scratch folder of its own.
-    mediaDir: env.MEDIA_DIR || (truthy(env.DEMO) ? path.join(os.tmpdir(), 'bookie-bullies-demo-media') : 'data/media'),
+    // Profile photos. It has to be on the same disk as the database and in
+    // the same backups, so by default it's a "media" folder next to the
+    // database file (data/media; /var/lib/bookie-bullies-app/media on the
+    // server, the one folder the service may write to). The demo, whose
+    // database is in memory, uses a scratch folder.
+    mediaDir: env.MEDIA_DIR || (truthy(env.DEMO) || env.DATABASE_PATH === ':memory:'
+      ? path.join(os.tmpdir(), 'bookie-bullies-demo-media')
+      : path.join(path.dirname(env.DATABASE_PATH || 'data/bookiebullies.db'), 'media')),
     appName: env.APP_NAME || 'Bookie Bullies',
     // The look for visitors and new players: one of THEMES.
     theme: THEMES.includes(env.THEME) ? env.THEME : THEMES[0],

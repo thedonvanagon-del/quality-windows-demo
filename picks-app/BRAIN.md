@@ -36,6 +36,36 @@ not dollars, and nothing is paid out.
   bookie-bullies repo) for the header, the browser tab and the phone icons.
 
 ### Look
+- **2026-11-06: More looks, team colors and custom colors** (owner's ask).
+  - **Eight presets**: Scoreboard, Bull Market, Ember, plus **Ice** (navy and
+    sky blue), **Royal** (purple and gold), **Crimson** (deep red, white
+    text), **Forest** (green and cream) and **Light** (white and charcoal with
+    a dark amber accent, the one light look). Each is a complete token set in
+    `style.css`; a test reads them and checks text, muted text, tiles, odds,
+    buttons, wins, losses and the gold marks for contrast.
+  - **Match my team**: on the profile, pick a sport, then a team (every team
+    the app has seen with an ESPN color). The accent is the team's color and
+    the background takes a hint of it. ESPN's second color (`alternateColor`)
+    is now kept on games too.
+  - **Custom**: two color boxes, an accent and a background tint.
+  - Both come on a **dark or light background**, the player's choice.
+  - **Readability guard:** the accent has to reach 3:1 against the odds
+    tiles. A team color that doesn't uses the team's second color if that
+    does, else gets lighter (on dark) or darker (on light) until it does.
+    Text on accent buttons is black or white, whichever reads better.
+    Saved on the player: `theme = 'custom'`, `theme_team`, `theme_mode`,
+    `theme_accent` (after the guard), `theme_tint`.
+  - **No inline styles:** a team or custom look is a stylesheet whose name is
+    its colors, `/theme/t1-d-<accent>-<tint>.css`, cached for good. **Decided
+    differently from the brief** (an opaque hash): with the colors in the
+    name there's no table to look them up in, and the name is checked
+    letter for letter, so it can only ever hold hex colors. The picker's
+    sample card loads a `-preview` copy that colors only the sample, so
+    what it shows is exactly what saving gives.
+  - Players on a team get the **team's logo** by their name on their profile.
+- **2026-11-06: A banner behind every profile header**, in the player's team
+  colors if they matched a team, else their look's accent and background
+  (an SVG, since inline styles are blocked). Their face sits over its edge.
 - **2026-11-05: Injuries and recent form on game pages** (owner approved),
   before the start only: each team's listed injuries (worst status first,
   six a team, with position and the injury) and last five results as W/L
@@ -315,6 +345,36 @@ not dollars, and nothing is paid out.
   deployed fine, Pick'em tab included. The main site still hides its tabs on
   phones; a Get the app button there is offered, not built.
 
+### Profile photos
+- **2026-11-06: Profile photos** (owner's ask). From your own profile: pick a
+  picture, the browser cuts a square from the middle, shrinks it to 400×400
+  and sends a JPEG (redrawing it drops EXIF and GPS). Without JavaScript it's
+  a plain file input. The server takes **1 MB at most**, checks the **first
+  bytes** (JPEG, PNG or WebP only), **strips metadata itself** (JPEG APP1 to
+  APP15 and comments; PNG text and EXIF chunks; WebP EXIF and XMP), and
+  stores it in `MEDIA_DIR` under a random name. A new photo deletes the old
+  file; so do Remove photo and deleting the account.
+  - **Where they show:** the profile header (large), the top-right chip,
+    leaderboard, contest, search and group boards, group members, Hot
+    streaks, Following (people and feed), group feeds, chat, follow and
+    invite notes in the inbox, and the profile's Share as image. Without a
+    photo it's the same initial circle as before (still hidden on phone
+    boards, where photos show small). New places (chat, feeds, Hot,
+    Following) get the circle too.
+  - **Moderation** (Apple requires it): any signed-in player can **report a
+    photo** once. **Three reports hide it** until an admin looks, like chat.
+    `/admin/reports` has a Reported photos section: **Dismiss** keeps it and
+    clears its reports; **Remove photo** deletes the file, tells the player
+    "Your profile photo was removed for breaking the rules", and blocks new
+    uploads for 7 days. A hidden photo's address answers only admins.
+  - The **official account** has no login, so only an admin can give it a
+    photo (from its profile).
+  - **`MEDIA_DIR` must be on the server's data disk and in its backups.** By
+    default it's a `media` folder next to the database, which on the server
+    is `/var/lib/bookie-bullies-app/media`: the one folder the service may
+    write to, and on the disk Lightsail snapshots every night. Anyone moving
+    the database or changing backups has to move and back up the photos too.
+
 ### Chat
 - **2026-11-05: Group chat (trash talk)**, owner approved. Every group has a
   Chat section on its page (`/groups/:id#chat`), members only: anyone else
@@ -443,6 +503,9 @@ Launch log:
   links, and the Lines are up and Streak reminders
 - Group chat with unread counts on the Groups list; closing line value on
   straight picks and profiles; injuries and recent form on game pages
+- Eight preset looks (one light), team colors and custom colors with a
+  readability guard; profile photos with reports and an admin review; a
+  banner in the player's colors on every profile
 - Demo mode: `npm run demo`, log in as demo@example.com / letmein123
 - Server setup in `aws/stacks/bookie-bullies-app` and a deploy-on-merge
   workflow (`.github/workflows/picks-app-deploy.yml`)
@@ -523,4 +586,5 @@ In rough order of value:
 - Node 22, no npm packages: built-in http server, built-in SQLite.
 - Database changes go at the end of `MIGRATIONS` in `src/db.js`; never edit
   one that has shipped.
+- Profile photos are files in `MEDIA_DIR`, not in the database: back both up.
 - The README has the details: settings, file map, security notes.

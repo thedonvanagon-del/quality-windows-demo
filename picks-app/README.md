@@ -59,7 +59,7 @@ five.
 | `/leaderboard` | Everyone, or one sport, over 7 days, 30 days or all time. Public. |
 | `/groups` | Start a group (all sports or one), join with a code, see its board, its picks feed and its members-only chat. The list shows how many chat messages are new in each group. |
 | `/games/<id>` | One game: its lines (or score), the public split, injuries and each team's last five before the start, and the game chat. |
-| `/u/<name>` | A player's public record: overall, by sport, how often they beat the closing line, and every pick with when it was locked (and its CLV once the game starts). Your own has your settings, including a new screen name (once every 30 days; the old one redirects for 90). |
+| `/u/<name>` | A player's public record: a banner in their colors, their photo, overall, by sport, how often they beat the closing line, and every pick with when it was locked (and its CLV once the game starts). Signed-in players can report a photo. Your own has your settings: your photo, a new screen name (once every 30 days; the old one redirects for 90) and the app color. |
 | `/search` | Find players by the start of their screen name. |
 | `/contest` | The free weekly contest: most units on bets whose games start Monday to Sunday (ET), 5 graded bets to place. Public. |
 | `/winners` | The winners wall: every past week's top 3, and the most weekly wins. Public. |
@@ -67,7 +67,7 @@ five.
 | `/invite` | Your invite link (`/i/<code>`), who joined from it, and progress to the Recruiter badge. |
 | `/notifications` | The inbox, and what to hear about: settled bets, players you follow, Lines are up (about 11 AM ET), the Streak reminder (about 5 PM ET). |
 | `/setup` | Once, after a new player picks a screen name: favorite sports and players to follow. |
-| `/admin/reports` | Reported chat messages, from games and groups, for admins only: restore or delete. |
+| `/admin/reports` | For admins only: reported chat messages, from games and groups (restore or delete), and reported profile photos (dismiss or remove). |
 
 Every week has a free contest (no entry, nothing paid out); results close
 once the week's bets are graded, by Tuesday 6 AM ET at the latest, and the top
@@ -81,8 +81,12 @@ before each game, and is graded like anyone. It shows on the boards with an
 Official tag but never takes a rank.
 
 It looks like a sportsbook: dark, with odds tiles, team logos from ESPN's
-image server, and an app-style tab bar on phones. Players pick their accent
-look (Scoreboard navy and amber, Bull Market black and green, or Ember orange) on their profile.
+image server, and an app-style tab bar on phones. Players pick their look on
+their profile: eight presets (Scoreboard navy and amber, Bull Market black and
+green, Ember orange, Ice, Royal, Crimson, Forest, and Light, a white one), their
+team's colors ("Match my team"), or two colors of their own, on a dark or light
+background. A color too dark or too light to read gets a shade lighter or
+darker. Players can add a profile photo; it shows on boards, chat and feeds.
 
 Sports: NFL, college football, NBA, college basketball, MLB and NHL. Run lines
 and puck lines only go up when ESPN posts a price for them.
@@ -103,7 +107,8 @@ npm start       # the real thing, against ESPN, with the database in data/bookie
 | `PORT` | `3000` | Where it listens. |
 | `DATABASE_PATH` | `data/bookiebullies.db` | The SQLite file. This holds every account and every record. |
 | `APP_NAME` | `Bookie Bullies` | The name in the header and the page titles. |
-| `THEME` | `scoreboard` | The look for visitors and new players: `scoreboard` (navy and amber), `market` (black and green) or `ember` (orange). Each player can switch on their own profile. |
+| `THEME` | `scoreboard` | The look for visitors and new players: `scoreboard` (navy and amber), `market` (black and green), `ember` (orange), `ice`, `royal`, `crimson`, `forest` or `light`. Each player can switch on their own profile. |
+| `MEDIA_DIR` | a `media` folder next to the database | Where profile photos are kept (`data/media` by default, `/var/lib/bookie-bullies-app/media` on the server). Made if it isn't there. Keep it on the same disk as the database and in the same backups. |
 | `TRUST_PROXY` | off | Turn on behind a host's proxy (Fly, Render, Railway) so it reads the real visitor IP and knows the site is on https. |
 | `DEMO` | off | Fake games and players. Never in production. |
 | `ADMIN_EMAILS` | none | Who can open `/admin/reports` (reported chat), comma-separated, any case. Each admin also has to have an account with that email, confirmed. |
@@ -174,7 +179,15 @@ There's also a Dockerfile, for any host that runs containers and keeps a disk.
 - Login and signup are rate limited. A wrong email takes as long to reject as
   a wrong password.
 - Everything a player types is escaped before it reaches a page, and a strict
-  Content-Security-Policy blocks inline scripts.
+  Content-Security-Policy blocks inline scripts and styles. Team and custom
+  colors reach the page as a stylesheet, `/theme/t1-<d|l>-<accent>-<tint>.css`,
+  whose name is checked letter for letter (hex colors only) and which holds
+  nothing but those colors.
+- Profile photos: 1 MB at most, JPEG, PNG or WebP by their first bytes
+  (not by name or type), with EXIF, GPS and other metadata stripped on the
+  server even when the browser already did. Each is stored under a random
+  name and served from `/media/<name>` with its own type and `nosniff`; any
+  other name is a 404. Three reports hide a photo until an admin looks.
 
 ## Not built yet
 
@@ -208,6 +221,8 @@ src/history.js    pick lists, with open picks hidden from other people
 src/auth.js       passwords, sessions, rate limits
 src/db.js         the schema; add migrations at the end, never edit a shipped one
 src/demo.js       the fake ESPN and players behind npm run demo
-src/views/        the pages
+src/themes.js     looks: the presets, the readability guard, team and custom colors, the /theme stylesheet
+src/photos.js     profile photos: checks, metadata stripping, storage, reports, and form uploads (multipart)
+src/views/        the pages (avatar.js: a player's photo, or their initial)
 public/           styles and a little script that shows times in your own time zone
 ```

@@ -1204,6 +1204,11 @@ img.avatar { object-fit: cover; background: var(--raised); }
 /* Profile header: a band in the player's colors, with their face over its edge. */
 .profile-head { position: relative; margin: -24px -16px 0; padding: 66px 16px 0; }
 .profile-head.has-photo { padding-top: 50px; }
+/* Below a message (Photo saved, an error) the band starts under it, not behind it. */
+.profile-head:not(:first-child) { margin-top: 0; }
+@media (max-width: 760px) { .profile-head:not(:first-child) .banner { border-radius: var(--r) var(--r) 0 0; } }
+/* Sections linked with #photo and #color land below the sticky top bar. */
+h2[id] { scroll-margin-top: 80px; }
 .profile-head .banner { position: absolute; top: 0; left: 0; width: 100%; height: 88px; display: block; }
 .banner-shade { fill: var(--bg); opacity: 0.16; }
 .profile-face { position: relative; display: flex; }
