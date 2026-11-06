@@ -8,6 +8,9 @@ import zlib from 'node:zlib';
 import { hashPassword } from './auth.js';
 import { checkAllBadges } from './badges.js';
 import { closeWeek } from './contest.js';
+import { seasonOfDate } from './nflweeks.js';
+import { closePickemWeeks, gradePickem } from './pickem.js';
+import { ensurePool, gradeSurvivor, survivorState } from './survivor.js';
 import { parseScoreboard, parseSummary } from './espn.js';
 import { postMessage } from './chat.js';
 import { createGroup, joinGroup, setHomeCity, startRoom } from './groups.js';
@@ -19,10 +22,10 @@ import { grade, gradeFinished, MARKETS, maxUnits, parlayMaxUnits, parlayPrice, p
 import { SPORTS } from './sports.js';
 import { createTeamCatalog } from './teams.js';
 import { teamAccent, teamsBySport } from './themes.js';
-import { addDays, etDay, etToUtc, HOUR, mondayOf, weekday } from './time.js';
+import { addDays, DAY, etDay, etToUtc, HOUR, mondayOf, weekday } from './time.js';
 import { createNotifier } from './notify.js';
 import {
-  AUTO, closeTournament, createCustom, createPlayerTournament, ensureAutoTournaments, joinTournament, reportTournament, sendMoveAlerts, standingsOf,
+  AUTO, backfillCup, closeTournament, createCustom, createPlayerTournament, ensureAutoTournaments, joinTournament, reportTournament, sendMoveAlerts, standingsOf,
 } from './tournaments.js';
 
 export const DEMO_LOGIN = { email: 'demo@example.com', password: 'letmein123' };
@@ -78,6 +81,8 @@ export function createDemoEspn({ now = () => new Date(), anchor = now() } = {}) 
     }
     bySport.set(sport.key, specs);
   }
+  // NFL games carry ESPN's season and week, like the real feed.
+  for (const g of bySport.get('nfl')) Object.assign(g, demoWeek(g.start, anchor));
   // A few games already under way when the demo starts, whatever the hour,
   // so live scores and a live tournament's "As it stands" have something to
   // show. Their own random numbers, so the rest of the schedule stays the same.
@@ -184,6 +189,17 @@ function game(sport, id, start, homeTeam, awayTeam, rand) {
   return { sport, id, start: start.toISOString(), home, away, homeSpread, total, ml, final: { home: h, away: a } };
 }
 
+// The demo's NFL calendar: the anchor's Tuesday-to-Monday week is Week 10,
+// whatever the date, so Survivor and NFL Pick'em always have a season to show.
+const DEMO_WEEK = 10;
+const tuesdayOf = (day) => addDays(day, -((weekday(day) + 5) % 7));
+const dayUtc = (day) => Date.UTC(+day.slice(0, 4), +day.slice(4, 6) - 1, +day.slice(6, 8));
+
+function demoWeek(start, anchor) {
+  const week = DEMO_WEEK + Math.round((dayUtc(tuesdayOf(etDay(start))) - dayUtc(tuesdayOf(etDay(anchor)))) / (7 * DAY));
+  return week >= 1 && week <= 18 ? { week, season: seasonOfDate(anchor) } : {};
+}
+
 /** The game as ESPN's scoreboard would show it at `at`. */
 // Made-up team colors, records and channels, so demo cards look like the real ones.
 // Each is [color, alternateColor], the way ESPN sends them; a few are light, a few too dark to read on the page.
@@ -240,6 +256,7 @@ function espnEvent(g, at) {
   return {
     id: g.id,
     date: g.start,
+    ...(g.week ? { season: { year: g.season, type: 2, slug: 'regular-season' }, week: { number: g.week } } : {}),
     competitions: [{
       broadcasts: [{ names: [DEMO_TV[g.sport][seed(g.id) % DEMO_TV[g.sport].length]] }],
       competitors: [competitor('home'), competitor('away')],
@@ -438,9 +455,129 @@ export async function seedDemo({ store, games, espn, now = () => new Date(), med
   }
   await seedTournaments(store, ids, at);
   seedPlayerTournaments(store, ids, at);
+  await seedFormats(store, ids, at);
   checkAllBadges(store, at);
   seedNametags(store, ids);
   if (dir) seedLooks(store, ids, dir);
+}
+
+// More NFL players for Survivor and Pick'em, so the standings look like a
+// real pool. They have no bets and can't log in.
+const NFL_PLAYERS = ['BlitzKing', 'RedZoneRay', 'HailMaryHank', 'PickSixPete', 'CoverQueen', 'MondayNightMo', 'TwoMinuteTina', 'GoalLineGus',
+  'SundaySweat', 'FourthAndLong', 'PuntGod', 'TurnoverTom', 'SnapCount', 'NickelPackage'];
+
+/**
+ * Survivor and NFL Pick'em: this season's pool with past weeks graded (some
+ * players out by a loss, one by a missed week, two who joined late), this
+ * week partly picked (the demo player hasn't picked yet, so the slip and the
+ * hub offer it), Pick'em picks for every week so far with the past weeks
+ * closed, and Cup points from everything that's closed.
+ */
+async function seedFormats(store, ids, at) {
+  const rand = prng(1010);
+  const created = new Date(at.getTime() - (PAST_DAYS + 3) * DAY).toISOString();
+  const everyone = { ...ids };
+  for (const name of NFL_PLAYERS) {
+    everyone[name] = Number(store.run(
+      `INSERT INTO users (email, password_hash, screen_name, created_at, age_confirmed_at, terms_accepted_at, email_verified_at)
+       VALUES (?, '!', ?, ?, ?, ?, ?)`,
+      `${name.toLowerCase()}@example.com`, name, created, created, created, created,
+    ).lastInsertRowid);
+  }
+  const pool = ensurePool(store, at);
+  const state = survivorState(store, at);
+  if (!pool || !state.current) return;
+  const current = state.current.week;
+  const past = state.weeks.filter((w) => w.week < current);
+  const firstWeek = state.weeks[0]?.week ?? current;
+  const final = (row) => row.state === 'post' && row.home_score != null;
+  const winner = (row) => (row.home_score > row.away_score ? 'home' : row.away_score > row.home_score ? 'away' : null);
+  const late = new Set(['TurnoverTom', 'SnapCount']);
+
+  // Survivor: everyone in from the first week on the board, two from last week.
+  const alive = new Map();
+  for (const [name, id] of Object.entries(everyone)) {
+    const start = late.has(name) ? current - 1 : firstWeek;
+    const w = state.weeks.find((x) => x.week === start) ?? state.current;
+    store.run(
+      'INSERT INTO survivor_entries (pool_id, user_id, joined_at, start_week) VALUES (?, ?, ?, ?)',
+      pool.id, id, new Date(new Date(w.first ?? at).getTime() - 2 * DAY).toISOString(), start,
+    );
+    alive.set(name, { id, start, used: new Set() });
+  }
+  const pick = (name, row, side, week) => {
+    const p = alive.get(name);
+    const team = side === 'home' ? row.home_abbr : row.away_abbr;
+    p.used.add(team);
+    store.run(
+      'INSERT INTO survivor_picks (pool_id, user_id, week, game_id, side, team, made_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      pool.id, p.id, week, row.id, side, team, new Date(new Date(row.start_time).getTime() - (4 + rand() * 40) * HOUR).toISOString(),
+    );
+  };
+  const sides = (row) => ['home', 'away'].map((side) => ({ row, side }));
+  for (const w of past) {
+    for (const [name, p] of [...alive]) {
+      if (p.start > w.week) continue;
+      if (name === 'MondayNightMo' && w.week === current - 2) { alive.delete(name); continue; }
+      const open = w.games.filter(final).flatMap(sides).filter((c) => !p.used.has(c.side === 'home' ? c.row.home_abbr : c.row.away_abbr));
+      const winners = open.filter((c) => winner(c.row) === c.side);
+      // The demo player always survives; everyone else picks a winner most weeks.
+      const list = name === 'SharpShooter' || rand() < 0.6 ? winners : open;
+      const c = list[Math.floor(rand() * list.length)];
+      if (!c) continue;
+      pick(name, c.row, c.side, w.week);
+      if (winner(c.row) !== c.side) alive.delete(name);
+    }
+  }
+  // This week: a few picked the game already played, most picked a later one, a few haven't picked. The demo player hasn't.
+  const thisWeek = state.current.games;
+  const played = thisWeek.filter((row) => new Date(row.start_time) <= at);
+  const later = thisWeek.filter((row) => new Date(row.start_time) > at);
+  for (const [name, p] of alive) {
+    if (name === 'SharpShooter' || rand() < 0.2) continue;
+    const from = played.length && rand() < 0.3 ? played : later;
+    const open = from.flatMap(sides).filter((c) => !p.used.has(c.side === 'home' ? c.row.home_abbr : c.row.away_abbr));
+    const c = open[Math.floor(rand() * open.length)];
+    if (c) pick(name, c.row, c.side, current);
+  }
+  gradeSurvivor(store, at);
+
+  // NFL Pick'em: every week so far. Past weeks are full; this week has the played game and some of the rest.
+  const skill = new Map(Object.keys(everyone).map((name) => [name, name === 'SharpShooter' ? 0.62 : 0.42 + rand() * 0.2]));
+  for (const w of [...past, state.current]) {
+    for (const [name, id] of Object.entries(everyone)) {
+      if (name !== 'SharpShooter' && rand() < 0.2) continue;
+      const rows = w.week === current
+        ? w.games.filter((row) => new Date(row.start_time) <= at || rand() < (name === 'SharpShooter' ? 0.45 : 0.6))
+        : w.games;
+      const made = [];
+      for (const row of rows) {
+        const lines = JSON.parse(row.lines);
+        const game = { lines };
+        let side = rand() < 0.5 ? 'home' : 'away';
+        const p = price(game, 'spread', side);
+        if (!p) continue;
+        if (final(row)) {
+          const right = grade({ market: 'spread', side, line: p.line }, row.home_score, row.away_score) === 'win';
+          if (right !== rand() < skill.get(name)) side = side === 'home' ? 'away' : 'home';
+        }
+        const madeAt = new Date(Math.min(new Date(row.start_time).getTime() - (2 + rand() * 30) * HOUR, at.getTime() - rand() * 20 * HOUR)).toISOString();
+        store.run(
+          'INSERT INTO pickem_picks (user_id, game_id, season, week, side, line, made_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
+          id, row.id, pool.season, w.week, side, price(game, 'spread', side).line, madeAt,
+        );
+        made.push(row);
+      }
+      // A Best Bet: a game still to come this week, or any game in a past one.
+      const choices = w.week === current ? made.filter((row) => new Date(row.start_time) > at) : made;
+      const best = choices[Math.floor(rand() * choices.length)];
+      if (best) store.run('UPDATE pickem_picks SET best = 1 WHERE user_id = ? AND game_id = ?', id, best.id);
+    }
+  }
+  gradePickem(store, at);
+  closePickemWeeks(store, at);
+  // Cup points for the tournaments and weekly contests that already closed.
+  backfillCup(store, at);
 }
 
 /**
