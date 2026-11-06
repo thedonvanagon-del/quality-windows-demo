@@ -12,10 +12,12 @@ import { parseScoreboard, parseSummary } from './espn.js';
 import { postMessage } from './chat.js';
 import { createGroup, joinGroup, setHomeCity, startRoom } from './groups.js';
 import { inviteCodeOf } from './invites.js';
+import { saveNametag } from './nametags.js';
 import { createOfficialImporter, ensureOfficial } from './official.js';
 import { cleanImage, mediaDir, savePhoto } from './photos.js';
 import { grade, gradeFinished, MARKETS, maxUnits, parlayMaxUnits, parlayPrice, price } from './picks.js';
 import { SPORTS } from './sports.js';
+import { createTeamCatalog } from './teams.js';
 import { teamAccent, teamsBySport } from './themes.js';
 import { addDays, etDay, etToUtc, HOUR, mondayOf, weekday } from './time.js';
 import { AUTO, closeTournament, createCustom, ensureAutoTournaments, joinTournament } from './tournaments.js';
@@ -422,7 +424,30 @@ export async function seedDemo({ store, games, espn, now = () => new Date(), med
   }
   await seedTournaments(store, ids, at);
   checkAllBadges(store, at);
+  seedNametags(store, ids);
   if (dir) seedLooks(store, ids, dir);
+}
+
+/**
+ * Name colors and icons for most of the players: two earned icons (a weekly
+ * winner's crown, a tournament champion's trophy), a team logo from the
+ * board, and a few plain emoji. Saved the way the profile form saves them.
+ */
+function seedNametags(store, ids) {
+  const teams = createTeamCatalog({ store });
+  const nfl = teams.leagues().find((l) => l.key === 'nfl')?.teams ?? [];
+  const tags = [
+    ['BackdoorCover', 'gold', 'crown'],
+    ['ChalkEater', 'purple', 'trophy'],
+    ['DogLover', 'teal', nfl.find((t) => t.abbr === 'PHI')?.key ?? nfl[0]?.key ?? 'goat'],
+    ['OverOverOver', 'red', 'fire'],
+    ['SharpShooter', 'sky', 'shark'],
+    ['FadeMe', 'default', 'joker'],
+  ];
+  for (const [name, color, icon] of tags) {
+    const result = saveNametag(store, { userId: ids[name], color, icon, teams });
+    if (result.error) console.error(`demo name tag for ${name}: ${result.error}`);
+  }
 }
 
 /**

@@ -153,7 +153,7 @@ describe('looks in the app', () => {
       await ann.get('/u/Ann');
       assert.equal((await ann.post('/theme', { theme: key })).location, '/u/Ann');
       const page = (await ann.get('/games')).text;
-      assert.match(page, new RegExp(`<html lang="en" data-theme="${key}">`));
+      assert.match(page, new RegExp(`<html lang="en" data-theme="${key}" data-mode="${key === 'light' ? 'light' : 'dark'}">`));
       assert.match(page, new RegExp(`<meta name="theme-color" content="${PRESET_BAR[key]}">`));
       assert.doesNotMatch(page, /\/theme\/t1-/, 'presets need no extra stylesheet');
     }
@@ -170,7 +170,7 @@ describe('looks in the app', () => {
     assert.deepEqual(row('Ann'), { theme: 'custom', theme_team: 'nfl:NAV', theme_mode: 'dark', theme_accent: '#a5acaf', theme_tint: '#041e42' });
     const page = await ann.get('/u/Ann');
     assert.match(visible(page.text), /Navies colors are on\. Their main color is hard to read here, so the accent is their other one\./);
-    assert.match(page.text, /<html lang="en" data-theme="custom">/);
+    assert.match(page.text, /<html lang="en" data-theme="custom" data-mode="dark">/);
     assert.match(page.text, /<link rel="stylesheet" href="\/theme\/t1-d-a5acaf-041e42\.css">/);
 
     // Anyone looking at Ann sees the team's colors in her banner and its logo by her name.

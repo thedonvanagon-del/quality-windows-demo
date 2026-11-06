@@ -60,7 +60,7 @@ five.
 | `/groups` | Start a group (all sports or one), join with a code, see its board, its picks feed and its members-only chat. The list shows how many chat messages are new in each group. |
 | `/local` | Local rooms: one public room per city, each with its own chat and board. Start one for your city from the list, or join one with a tap. |
 | `/games/<id>` | One game: its lines (or score), the public split, injuries and each team's last five before the start, and the game chat. |
-| `/u/<name>` | A player's public record: a banner in their colors, their photo, overall, by sport, how often they beat the closing line, and every pick with when it was locked (and its CLV once the game starts), and their city if they picked one. Signed-in players can report a photo. Your own has your settings: your photo, your city, a new screen name (once every 30 days; the old one redirects for 90) and the app color. |
+| `/u/<name>` | A player's public record: a banner in their colors, their photo, overall, by sport, how often they beat the closing line, and every pick with when it was locked (and its CLV once the game starts), and their city if they picked one. Signed-in players can report a photo. Your own has your settings: your photo, your city, a new screen name (once every 30 days; the old one redirects for 90), the app color, and your name on the boards: a color and an icon (saved with a POST to `/nametag`). |
 | `/search` | Find players by the start of their screen name. |
 | `/contest` | The free weekly contest: most units on bets whose games start Monday to Sunday (ET), 5 graded bets to place. Public. |
 | `/winners` | The winners wall: every past week's top 3 and the most weekly wins, and a Tournaments tab with every finished tournament's. Public. |
@@ -98,6 +98,11 @@ green, Ember orange, Ice, Royal, Crimson, Forest, and Light, a white one), their
 team's colors ("Match my team"), or two colors of their own, on a dark or light
 background. A color too dark or too light to read gets a shade lighter or
 darker. Players can add a profile photo; it shows on boards, chat and feeds.
+They can also pick how their name shows on the boards, standings and chat:
+one of 12 name colors (each readable on every look) and an icon: an emoji,
+one earned with a badge (👑 for a weekly win, 🏆 for a tournament, 🔥🔥 for a
+10 streak, 💎 for 100 bets), or any NFL, NBA, MLB or NHL team's logo, or a
+major college program's.
 
 Sports: NFL, college football, NBA, college basketball, MLB and NHL. Run lines
 and puck lines only go up when ESPN posts a price for them.
@@ -194,6 +199,10 @@ There's also a Dockerfile, for any host that runs containers and keeps a disk.
   colors reach the page as a stylesheet, `/theme/t1-<d|l>-<accent>-<tint>.css`,
   whose name is checked letter for letter (hex colors only) and which holds
   nothing but those colors.
+- Name colors and icons are stored as keys from fixed lists, never as text,
+  and checked again whenever a name is drawn. Team logos come from ESPN's
+  team lists and must be https on `a.espncdn.com`, the one outside image
+  host the security policy allows; anything else is dropped.
 - Profile photos: 1 MB at most, JPEG, PNG or WebP by their first bytes
   (not by name or type), with EXIF, GPS and other metadata stripped on the
   server even when the browser already did. Each is stored under a random
@@ -211,7 +220,7 @@ There's also a Dockerfile, for any host that runs containers and keeps a disk.
 ```
 src/server.js     starts everything, checks for finals every 10 minutes, imports official picks every 15,
                   closes the weekly contest and tournaments and sends reminders (checked every 5),
-                  badges and new auto tournaments hourly
+                  badges and new auto tournaments hourly, ESPN's team lists once a day
 src/app.js        every page and form
 src/espn.js       reads ESPN's scoreboard (games, lines, scores) and game summaries (injuries, last five)
 src/games.js      keeps the games table fresh, and freezes each game's closing line when it starts
@@ -225,6 +234,8 @@ src/contest.js    the free weekly contest: standings and closing for any window,
 src/tournaments.js free tournaments: auto and admin-made ones, joining, closing once, start reminders
 src/streak.js     the streak game: Streak picks, current and best streaks, the streak boards
 src/badges.js     badges: what earns each one, awarding once, the most notable for a board
+src/nametags.js   name colors and icons: the lists, earned icons, checking and saving
+src/teams.js      team logos for icons: ESPN's team lists once a day, stored, with the games table as a fallback
 src/invites.js    invite links: codes, counting a friend once they're confirmed and named
 src/reminders.js  the Lines are up and Streak reminders, once a day each
 src/groups.js     friend groups and invite codes, and local rooms (their chat is in chat.js)
