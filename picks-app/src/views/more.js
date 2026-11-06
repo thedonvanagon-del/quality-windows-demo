@@ -4,7 +4,8 @@ import { SPORT } from '../sports.js';
 import { when } from '../time.js';
 import { icons } from './icons.js';
 import { csrfField, layout } from './layout.js';
-import { at, minus, profileLink, teamLogo } from './parts.js';
+import { adminTabs } from './local.js';
+import { at, avatar, minus, profileLink, teamLogo } from './parts.js';
 
 /** The menu behind the three dots. New sections get a row here. */
 export function more(ctx, { liveCount, admin = false, reported = 0 }) {
@@ -20,6 +21,7 @@ export function more(ctx, { liveCount, admin = false, reported = 0 }) {
       <h1>More</h1>
       <p class="lede">Everything else in the app.</p>
       <ul class="menu">
+        ${row(`/u/${encodeURIComponent(ctx.user.screenName)}`, icons.me, 'Your profile', 'Your record, badges and settings')}
         ${row('/install', icons.download, 'Get the app', 'Put Bookie Bullies on your Home Screen', '', 'get-app-row')}
         ${row('/live', icons.live, 'Live games', 'Scores right now, with your bets on them', liveCount ? html`<span class="count">${liveCount} live</span>` : '')}
         ${row('/contest', icons.board, 'This week\'s contest', 'Free weekly contest, and the winners wall')}
@@ -31,9 +33,10 @@ export function more(ctx, { liveCount, admin = false, reported = 0 }) {
         ${row('/leaderboard', icons.board, 'Leaderboard', 'Everyone, or one sport at a time')}
         ${row('/search', icons.search, 'Find players', 'Look someone up by screen name')}
         ${row('/groups', icons.groups, 'Groups', 'Your friends and their boards')}
+        ${row('/local', icons.pin, 'Local rooms', 'A chat and a board for your city')}
         ${row('/invite', icons.invite, 'Invite friends', 'Your own link, and who joined')}
-        ${row(`/u/${encodeURIComponent(ctx.user.screenName)}`, icons.me, 'Profile and settings', 'Screen name, bio, link, app color')}
-        ${admin ? row('/admin/reports', icons.flag, 'Admin', 'Reported chat messages', reported ? html`<span class="count">${reported}</span>` : '') : ''}
+        ${admin ? row('/admin/reports', icons.flag, 'Admin', 'Reported chat and photos', reported ? html`<span class="count">${reported}</span>` : '') : ''}
+        ${admin ? row('/admin/tournaments', icons.bracket, 'Admin: tournaments', 'Make a tournament, or cancel one before it starts') : ''}
       </ul>
       <h2>Account</h2>
       <ul class="menu">
@@ -93,7 +96,7 @@ export function chatHub(ctx, { list }) {
 }
 
 // The icon beside each kind of note in the inbox.
-const KIND_ICON = { follow: icons.groups, invite: icons.invite, badge: icons.medal, contest: icons.board, lines: icons.games, streak: icons.flame };
+const KIND_ICON = { follow: icons.groups, invite: icons.invite, badge: icons.medal, contest: icons.board, lines: icons.games, streak: icons.flame, tournament: icons.bracket, photo: icons.me };
 
 /** The inbox, what to be told about, and phone notifications. */
 export function notifications(ctx, { list, prefs, phones, pushKey }) {
@@ -105,7 +108,7 @@ export function notifications(ctx, { list, prefs, phones, pushKey }) {
       <h1>Notifications</h1>
       ${list.length
         ? html`<ul class="menu inbox">${list.map((n) => html`<li class="${n.read_at ? '' : 'unread'}"><a href="${n.url}">
-            <span class="icon">${KIND_ICON[n.kind] ?? icons.picks}</span>
+            ${n.face ? html`<span class="icon face">${avatar(n.face)}</span>` : html`<span class="icon">${KIND_ICON[n.kind] ?? icons.picks}</span>`}
             <span class="text">${n.text}<small><time datetime="${n.created_at}" data-local="long">${when(n.created_at)}</time></small></span>
           </a></li>`)}</ul>`
         : html`<div class="card empty">Nothing yet. You'll hear here when your bets settle and when players you follow make picks.</div>`}
@@ -117,6 +120,7 @@ export function notifications(ctx, { list, prefs, phones, pushKey }) {
         <label class="check"><input type="checkbox" name="follows" ${prefs.notify_follows ? 'checked' : ''}><span>A player I follow locks a pick</span></label>
         <label class="check"><input type="checkbox" name="lines" ${prefs.notify_lines ? 'checked' : ''}><span>Lines are up: today's games in my sports, about 11 AM ET</span></label>
         <label class="check"><input type="checkbox" name="streak" ${prefs.notify_streak ? 'checked' : ''}><span>Streak reminder: no Streak pick yet today, about 5 PM ET</span></label>
+        <label class="check"><input type="checkbox" name="tournaments" ${prefs.notify_tournaments ? 'checked' : ''}><span>A tournament I joined starts in an hour</span></label>
         <button class="btn small">Save</button>
       </form>
 
@@ -188,20 +192,24 @@ export function install(ctx) {
   });
 }
 
-/** Reported chat, for admins: put a message back or delete it for good. */
-export function adminReports(ctx, { list, hideAfter }) {
+/**
+ * Reports, for admins: chat messages (put one back or delete it for good)
+ * and profile photos (keep one, or remove it).
+ */
+export function adminReports(ctx, { list, hideAfter, photos = [], photoHideAfter = 3, blockDays = 7 }) {
   return layout(ctx, {
-    title: 'Reported chat',
+    title: 'Reports',
     active: 'more',
     body: html`
       <a class="back" href="/more">← More</a>
-      <h1>Reported chat</h1>
+      <h1>Admin</h1>
+      ${adminTabs('reports')}
       <p class="lede">Messages anyone has reported. ${hideAfter} reports hide a message. Restore puts it back and clears its reports. Delete takes it down for everyone.</p>
       ${list.length
         ? html`<ul class="reports">${list.map((m) => html`<li class="card report ${m.hidden ? 'is-hidden' : ''}">
             <div class="report-head">
               <span>${profileLink(m.screen_name)} · ${m.group_id != null
-                ? html`Group: ${m.group_name}`
+                ? m.group_kind === 'local' ? html`Local room: <a href="/groups/${m.group_id}#chat">${m.group_name}</a>` : html`Group: ${m.group_name}`
                 : html`<a href="/games/${encodeURIComponent(m.game_id)}#chat">${m.away_short} @ ${m.home_short}</a> · ${SPORT[m.sport]?.short ?? m.sport}`}</span>
               <span class="report-count">${m.reports} ${m.reports === 1 ? 'report' : 'reports'}${m.hidden ? ' · Hidden' : ''}</span>
             </div>
@@ -213,6 +221,25 @@ export function adminReports(ctx, { list, hideAfter }) {
             </div>
           </li>`)}</ul>`
         : html`<div class="card empty">Nothing reported right now.</div>`}
+
+      <h2 id="photos">Reported photos</h2>
+      <p class="lede">Profile photos anyone has reported. ${photoHideAfter} reports hide a photo until you look. Remove photo deletes it, tells the player, and stops new photos for ${blockDays} days. Dismiss keeps it and clears its reports.</p>
+      ${photos.length
+        ? html`<ul class="reports">${photos.map((p) => html`<li class="card report photo-report ${p.hidden ? 'is-hidden' : ''}">
+            <img class="report-photo" src="/media/${p.photo}" alt="${p.screen_name}'s photo" width="96" height="96" loading="lazy">
+            <div class="report-main">
+              <div class="report-head">
+                <span>${profileLink(p.screen_name)}</span>
+                <span class="report-count">${p.reports} ${p.reports === 1 ? 'report' : 'reports'}${p.hidden ? ' · Hidden' : ''}</span>
+              </div>
+              <p class="muted small">Last report ${at(p.last_report, 'long')}</p>
+              <div class="row report-actions">
+                <form method="post" action="/admin/photos/${p.id}/dismiss">${csrfField(ctx)}<input type="hidden" name="photo" value="${p.photo}"><button class="btn small ghost">Dismiss</button></form>
+                <form method="post" action="/admin/photos/${p.id}/remove" data-confirm="Remove ${p.screen_name}'s photo?">${csrfField(ctx)}<input type="hidden" name="photo" value="${p.photo}"><button class="btn small danger">Remove photo</button></form>
+              </div>
+            </div>
+          </li>`)}</ul>`
+        : html`<div class="card empty">No reported photos right now.</div>`}
     `,
   });
 }

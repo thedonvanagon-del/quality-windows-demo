@@ -4,8 +4,11 @@ import { formatOdds, formatUnits, parlayPrice, parlayToWin, selection, toWin } f
 import { SPORT, SPORTS } from '../sports.js';
 import { MIN_RANKED, PERIODS } from '../stats.js';
 import { kickoff, when } from '../time.js';
+import { avatar } from './avatar.js';
 import { icons } from './icons.js';
 import { csrfField } from './layout.js';
+
+export { avatar };
 
 /** A time in Eastern from the server; app.js swaps in the viewer's zone. */
 export function at(iso, style = 'short') {
@@ -106,7 +109,7 @@ export function boardTable(rows, { me, ranks = true, badges = null, empty = 'No 
     <tbody>
       ${rows.map((r) => html`<tr class="${r.id === me ? 'me' : ''}">
         ${ranks ? html`<td class="rank">${rankCell(r)}</td>` : ''}
-        <td><span class="player"><span class="avatar">${r.screen_name[0]}</span>${profileLink(r.screen_name, { official: r.official })}${badges ? badgeMark(badges.get(r.id)) : ''}</span></td>
+        <td><span class="player">${avatar(r)}${profileLink(r.screen_name, { official: r.official })}${badges ? badgeMark(badges.get(r.id)) : ''}</span></td>
         <td class="n">${recordText(r)}</td>
         <td class="n hide-sm">${pct(r.winPct)}</td>
         <td class="n"><b>${units(r.units)}</b></td>
@@ -140,7 +143,7 @@ export function pickItem(p, { who = false, actions = null, mine = false, now = n
   const pl = won ? html` <span class="pl">${minus(won)}</span>` : '';
   const stake = mine ? `${formatUnits(p.units)}${p.result ? '' : ` to win ${formatUnits(toWin(p.odds, p.units))}`}` : formatUnits(p.units);
   return html`<li class="ticket">
-    <div class="sel">${who ? html`${profileLink(p.screenName, { official: p.official })} · ` : ''}${p.lock ? lockTag : ''}${p.streakDay ? streakTag : ''}${selection(p.market, p.side, p.line, g)}<span class="odds">${minus(formatOdds(p.odds))}</span>${mine ? '' : html`<span class="units">${stake}</span>`}</div>
+    <div class="sel">${who ? html`${avatar({ screen_name: p.screenName, photo: p.photo }, 'xs')}${profileLink(p.screenName, { official: p.official })} · ` : ''}${p.lock ? lockTag : ''}${p.streakDay ? streakTag : ''}${selection(p.market, p.side, p.line, g)}<span class="odds">${minus(formatOdds(p.odds))}</span>${mine ? '' : html`<span class="units">${stake}</span>`}</div>
     <div class="status ${kind}">${label}${pl}</div>
     ${mine || actions ? html`<div class="stake">${mine ? stake : ''}</div>` : ''}
     ${actions ? html`<div class="act">${actions}</div>` : ''}
@@ -185,7 +188,7 @@ export function parlayItem(p, { who = false, actions = null, mine = false, now =
   const toWinNow = parlayToWin(parlayPrice(p.legs).decimal, p.units);
   const stake = mine ? `${formatUnits(p.units)}${p.result ? '' : ` to win ${formatUnits(toWinNow)}`}` : formatUnits(p.units);
   return html`<li class="ticket parlay">
-    <div class="sel">${who ? html`${profileLink(p.screenName, { official: p.official })} · ` : ''}<span class="parlay-tag">Parlay</span>${p.legs.length} legs<span class="odds">${minus(formatOdds(p.odds))}</span>${mine ? '' : html`<span class="units">${stake}</span>`}</div>
+    <div class="sel">${who ? html`${avatar({ screen_name: p.screenName, photo: p.photo }, 'xs')}${profileLink(p.screenName, { official: p.official })} · ` : ''}<span class="parlay-tag">Parlay</span>${p.legs.length} legs<span class="odds">${minus(formatOdds(p.odds))}</span>${mine ? '' : html`<span class="units">${stake}</span>`}</div>
     <div class="status ${kind}">${label}${pl}</div>
     ${mine || actions ? html`<div class="stake">${mine ? stake : ''}</div>` : ''}
     ${actions ? html`<div class="act">${actions}</div>` : ''}
@@ -237,7 +240,7 @@ function chatMessage(ctx, m, tags, canDelete) {
   const report = html`<form method="post" action="/chat/${m.id}/report" data-confirm="Report this message?">${csrfField(ctx)}<button class="link-btn">Report</button></form>`;
   return html`<li class="msg ${own ? 'own' : ''}" data-id="${m.id}${m.hidden ? 'h' : ''}">
     <div class="msg-head">
-      <a class="who" href="/u/${encodeURIComponent(m.screen_name)}">${m.screen_name}</a>
+      ${avatar(m, 'xs')}<a class="who" href="/u/${encodeURIComponent(m.screen_name)}">${m.screen_name}</a>
       ${tags}
       <time datetime="${m.created_at}" data-local="long">${when(m.created_at)}</time>
       <span class="msg-act">${own ? remove : html`${canDelete ? remove : ''}${report}`}</span>

@@ -1,6 +1,7 @@
 import { html } from '../html.js';
 import { icons, trustMark } from './icons.js';
 import { csrfField, layout } from './layout.js';
+import { citySelect } from './local.js';
 import { SPORTS } from '../sports.js';
 import { boardTable, officialTag, recordText, units } from './parts.js';
 
@@ -164,7 +165,7 @@ export function welcome(ctx, { name = '', error, next, firstName = '', lastName 
  * First-time setup, right after the screen name: favorite sports, and a few
  * players to follow. The official account comes checked.
  */
-export function setup(ctx, { official, players, next }) {
+export function setup(ctx, { official, players, next, cities = [] }) {
   const person = (p, checked) => html`<label class="check follow-pick">
       <input type="checkbox" name="follow" value="${p.id}" ${checked ? 'checked' : ''}>
       <span><b>${p.screen_name}</b>${p.official ? officialTag : ''}<small>${p.official ? "The site's model picks" : ''}${p.official && p.graded ? ' · ' : ''}${p.graded || !p.official ? html`${recordText(p)} · ${units(p.units)}` : ''}</small></span>
@@ -174,7 +175,7 @@ export function setup(ctx, { official, players, next }) {
     body: html`
       <div class="auth setup">
         <h1>You're in, ${ctx.user.screenName}</h1>
-        <p class="lede">Two quick things. You can skip both.</p>
+        <p class="lede">Three quick things. You can skip them all.</p>
         <form class="form" method="post" action="/setup">
           ${csrfField(ctx)}
           ${next ? html`<input type="hidden" name="next" value="${next}">` : ''}
@@ -188,6 +189,11 @@ export function setup(ctx, { official, players, next }) {
             ${official ? person(official, true) : ''}
             ${players.map((p) => person(p, false))}
             <p class="muted small">You'll see their picks in Following once each game starts.</p>
+          </fieldset>
+          <fieldset class="city-pick">
+            <legend>Pick your city</legend>
+            ${citySelect(cities, { blank: 'Not now' })}
+            <p class="muted small">You join its local room: a chat and a board for your city. <a href="/local">See every room</a>.</p>
           </fieldset>
           <button class="btn block">Done</button>
         </form>

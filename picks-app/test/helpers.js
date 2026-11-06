@@ -1,4 +1,7 @@
+import fs from 'node:fs';
 import http from 'node:http';
+import os from 'node:os';
+import path from 'node:path';
 
 import { createApp } from '../src/app.js';
 import { badgesAfterGrading } from '../src/badges.js';
@@ -129,9 +132,11 @@ export async function startApp({ time, espn = fakeEspn(), config = {} }) {
   const mailer = { configured: true, send: async (message) => void outbox.push(message) };
   const logged = [];
   const summaries = createSummaries({ espn, now: time.now, log: { ...quiet, warn: (text) => logged.push(text) } });
+  // Profile photos go in a folder of their own per test, cleared at the end.
+  const media = fs.mkdtempSync(path.join(os.tmpdir(), 'bb-media-'));
   const handler = createApp({
     store, games, mailer, notifier, push, summaries, now: time.now, log: quiet,
-    config: { appName: 'Bookie Bullies', trustProxy: false, appUrl: 'https://app.example.test', ...config },
+    config: { appName: 'Bookie Bullies', trustProxy: false, appUrl: 'https://app.example.test', mediaDir: media, ...config },
   });
   const server = http.createServer(handler);
   await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
@@ -146,11 +151,13 @@ export async function startApp({ time, espn = fakeEspn(), config = {} }) {
     pushed,
     summaries,
     logged,
+    media,
     browser: () => new Browser(base, outbox),
     async close() {
       server.closeAllConnections();
       await new Promise((resolve) => server.close(resolve));
       store.close();
+      fs.rmSync(media, { recursive: true, force: true });
     },
   };
 }
@@ -195,6 +202,15 @@ export class Browser {
       body,
       headers: { 'content-type': 'application/x-www-form-urlencoded', ...(origin ? { origin } : {}), ...headers },
     });
+  }
+
+  /** Send a file the way a browser's file input does (multipart), with the form token. */
+  upload(path, { name = 'photo.jpg', type = 'image/jpeg', data }, fields = {}, { origin = this.base, csrf = true } = {}) {
+    const form = new FormData();
+    if (csrf && this.csrf) form.append('_csrf', this.csrf);
+    for (const [k, v] of Object.entries(fields)) form.append(k, v);
+    form.append('photo', new Blob([data], { type }), name);
+    return this.request(path, { method: 'POST', body: form, headers: origin ? { origin } : {} });
   }
 
   /** Sign up, pick a screen name, confirm the email, and end up on the games page. */

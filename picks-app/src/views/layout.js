@@ -1,7 +1,9 @@
 import { THEMES } from '../config.js';
 import { html } from '../html.js';
 import { formatOdds } from '../picks.js';
+import { barColor, sheetPath } from '../themes.js';
 import { when } from '../time.js';
+import { avatar } from './avatar.js';
 import { icons } from './icons.js';
 
 /**
@@ -10,14 +12,17 @@ import { icons } from './icons.js';
  */
 export function layout(ctx, { title, active, body, description, share }) {
   const { user, flash, app } = ctx;
-  // Players who chose a color that has since been retired get the default.
-  const theme = THEMES.includes(user?.theme) ? user.theme : app.theme;
+  // A team or custom look comes from its own stylesheet. Players who chose a
+  // color that has since been retired get the default.
+  const style = user?.style ?? null;
+  const theme = style ? 'custom' : THEMES.includes(user?.theme) ? user.theme : app.theme;
   const playing = Boolean(user?.screenName);
   const profile = playing ? `/u/${encodeURIComponent(user.screenName)}` : null;
   const nav = playing
     ? [
         ['games', '/games', 'Games', icons.games],
         ['picks', '/picks', 'My bets', icons.picks],
+        ['tournaments', '/tournaments', 'Tournaments', icons.bracket],
         ['board', '/leaderboard', 'Leaderboard', icons.board],
         ['groups', '/groups', 'Groups', icons.groups],
         ['more', '/more', 'More', icons.more],
@@ -39,7 +44,7 @@ export function layout(ctx, { title, active, body, description, share }) {
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>${title ? `${title} · ${app.name}` : app.name}</title>
 <meta name="description" content="${description ?? 'Make your picks before kickoff. They lock, they get graded off the final score, and nobody can edit them.'}">
-<meta name="theme-color" content="#0e1a3a">
+<meta name="theme-color" content="${barColor(style, theme)}">
 <meta property="og:site_name" content="${app.name}">
 <meta property="og:type" content="${share ? 'profile' : 'website'}">
 <meta property="og:title" content="${share?.title ?? (title ? `${title} · ${app.name}` : app.name)}">
@@ -55,6 +60,7 @@ export function layout(ctx, { title, active, body, description, share }) {
 <meta name="apple-mobile-web-app-title" content="${app.name}">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
 <link rel="stylesheet" href="${app.assets.css}">
+${style ? html`<link rel="stylesheet" href="${sheetPath(style)}">` : ''}
 <script src="${app.assets.js}" defer></script>
 </head>
 <body class="${[playing ? 'signed-in' : '', draft ? 'has-parlay' : ''].filter(Boolean).join(' ')}">
@@ -66,7 +72,7 @@ export function layout(ctx, { title, active, body, description, share }) {
       ${active === 'install' ? '' : html`<a class="get-app" href="/install" data-get-app>${icons.download}<span>Get the app</span></a>`}
       ${playing ? html`<a class="bell ${active === 'notifications' ? 'on' : ''}" href="/notifications" aria-label="Notifications${ctx.unread ? `, ${ctx.unread} new` : ''}">${icons.bell}${ctx.unread ? html`<b class="badge">${ctx.unread > 99 ? '99+' : ctx.unread}</b>` : ''}</a>` : ''}
       ${playing
-        ? html`<a class="user-chip ${active === 'me' ? 'on' : ''}" href="${profile}"><span class="avatar">${user.screenName[0]}</span><span class="name">${user.screenName}</span></a>`
+        ? html`<a class="user-chip ${active === 'me' ? 'on' : ''}" href="${profile}">${avatar(user)}<span class="name">${user.screenName}</span></a>`
         : user
           ? ''
           : html`<a class="btn ghost small" href="/login">Log in</a><a class="btn small" href="/signup">Join now</a>`}
@@ -111,13 +117,16 @@ ${active === 'install' ? '' : html`<div class="ios-install" data-ios-install hid
   </div>
 </footer>
 ${playing
-  ? html`<div class="dock">${parlayBar}<nav class="tabbar" aria-label="Main">${[...nav.filter(([key]) => key !== 'more'), ['me', profile, 'Profile', icons.me], ['more', '/more', 'More', icons.more]]
-    // Six tabs share a phone's width, so the longest label gets a shorter name.
-    .map(([key, href, label, icon]) => link([key, href, key === 'board' ? 'Leaders' : label, icon]))}</nav></div>`
+  ? html`<div class="dock">${parlayBar}<nav class="tabbar" aria-label="Main">${nav
+    // Six tabs share a phone's width, so the longest labels get shorter names.
+    // Profile isn't a tab (2026-11-06): it's the avatar up top, and first in More.
+    .map(([key, href, label, icon]) => link([key, href, TAB_LABEL[key] ?? label, icon]))}</nav></div>`
   : ''}
 </body>
 </html>`;
 }
+
+const TAB_LABEL = { board: 'Leaders', tournaments: 'Tourneys' };
 
 export function csrfField(ctx) {
   return ctx.session ? html`<input type="hidden" name="_csrf" value="${ctx.session.csrf}">` : '';

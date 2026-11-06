@@ -181,8 +181,15 @@ function team(competitor, state, sport) {
     logo: espnLogo(t.logo ?? t.logos?.[0]?.href) ?? fallbackLogo(sport, t),
     score: state === 'pre' || Number.isNaN(score) ? null : score,
     record: teamRecord(competitor.records),
-    color: /^[0-9a-f]{6}$/i.test(t.color ?? '') ? `#${t.color.toLowerCase()}` : null,
+    color: teamColor(t.color),
+    // The second color, for "Match my team" when the first doesn't read on the page.
+    alt: teamColor(t.alternateColor),
   };
+}
+
+/** "e31837" -> "#e31837"; anything else -> null. */
+function teamColor(value) {
+  return /^[0-9a-f]{6}$/i.test(value ?? '') ? `#${value.toLowerCase()}` : null;
 }
 
 /** "6-2", "10-5-1": the team's overall record, if ESPN sends one. */

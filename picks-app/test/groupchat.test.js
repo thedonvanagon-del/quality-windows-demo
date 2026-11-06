@@ -222,8 +222,9 @@ describe('the chat migration', () => {
     const file = path.join(dir, 'old.db');
     const old = new DatabaseSync(file);
     old.exec('PRAGMA foreign_keys = ON');
-    MIGRATIONS.slice(0, -1).forEach((sql) => old.exec(sql));
-    old.exec(`PRAGMA user_version = ${MIGRATIONS.length - 1}`);
+    const before = MIGRATIONS.findIndex((sql) => sql.includes('chat_messages_v2'));
+    MIGRATIONS.slice(0, before).forEach((sql) => old.exec(sql));
+    old.exec(`PRAGMA user_version = ${before}`);
     old.exec("INSERT INTO users (id, email, password_hash, created_at) VALUES (1, 'a@x.co', '!', 't'), (2, 'b@x.co', '!', 't')");
     old.exec(
       `INSERT INTO games (id, sport, start_time, state, status, detail, completed, home_name, home_short, home_abbr, away_name, away_short, away_abbr, lines, updated_at)

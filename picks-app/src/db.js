@@ -6,6 +6,12 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 
+// A migration that rebuilds a table other tables point at starts with this
+// line. It runs with foreign keys off (SQLite's own recipe for a rebuild; with
+// them on, dropping the old table deletes every row that points at it) and
+// is checked with foreign_key_check before it commits.
+const KEYS_OFF = '-- runs with foreign keys off';
+
 export const MIGRATIONS = [
   `
   CREATE TABLE users (
@@ -363,6 +369,119 @@ export const MIGRATIONS = [
   ALTER TABLE picks ADD COLUMN clv_points REAL;
   ALTER TABLE picks ADD COLUMN clv_pct REAL;
   `,
+  `
+  -- Tournaments (2026-11-06). A tournament is a window of time, the sports
+  -- it counts (sports: comma-separated keys, null for every sport) and a
+  -- minimum number of graded bets to place. The weekly contest shows as one
+  -- (kind 'weekly', everyone in, no entries); the timer makes the 'auto'
+  -- ones; admins make 'custom' ones. Free only, enforced here: buy-ins wait
+  -- on a lawyer (BRAIN.md), so entry_fee_cents can never be anything but 0.
+  CREATE TABLE tournaments (
+    id INTEGER PRIMARY KEY,
+    slug TEXT NOT NULL UNIQUE,
+    name TEXT NOT NULL,
+    sports TEXT,
+    starts_at TEXT NOT NULL,
+    ends_at TEXT NOT NULL,
+    min_bets INTEGER NOT NULL CHECK (min_bets >= 1),
+    prize TEXT NOT NULL DEFAULT '',
+    kind TEXT NOT NULL CHECK (kind IN ('weekly', 'auto', 'custom')),
+    created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    created_at TEXT NOT NULL,
+    closed_at TEXT,
+    canceled_at TEXT,
+    entry_fee_cents INTEGER NOT NULL DEFAULT 0 CHECK (entry_fee_cents = 0),
+    CHECK (ends_at > starts_at)
+  );
+  CREATE INDEX tournaments_window ON tournaments(ends_at, starts_at);
+  -- Who joined, and when: only bets made after joined_at count.
+  -- reminded_at marks the "starts in 1 hour" note, so it goes once.
+  CREATE TABLE tournament_entries (
+    tournament_id INTEGER NOT NULL REFERENCES tournaments(id) ON DELETE CASCADE,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    joined_at TEXT NOT NULL,
+    reminded_at TEXT,
+    PRIMARY KEY (tournament_id, user_id)
+  );
+  CREATE INDEX tournament_entries_user ON tournament_entries(user_id);
+  -- A closed tournament's top 3, written once. (The weekly one keeps using
+  -- contest_results.)
+  CREATE TABLE tournament_results (
+    tournament_id INTEGER NOT NULL REFERENCES tournaments(id) ON DELETE CASCADE,
+    place INTEGER NOT NULL,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    units REAL NOT NULL,
+    record TEXT NOT NULL,
+    PRIMARY KEY (tournament_id, place)
+  );
+  CREATE INDEX tournament_results_user ON tournament_results(user_id);
+  -- "NFL Sunday starts in 1 hour", on by default.
+  ALTER TABLE users ADD COLUMN notify_tournaments INTEGER NOT NULL DEFAULT 1;
+  `,
+  `${KEYS_OFF}
+  -- Local rooms: a public group for a city, one room per city, that anyone
+  -- signed in can join with one tap. Players start them from a fixed list of
+  -- cities (src/cities.js); none exist until someone does. A room has no
+  -- owner and no invite code, so friend_groups is rebuilt with both optional
+  -- (private groups still need them). Foreign keys are off while this runs:
+  -- dropping the old table with them on would take every member and chat
+  -- message with it.
+  CREATE TABLE friend_groups_v2 (
+    id INTEGER PRIMARY KEY,
+    name TEXT NOT NULL,
+    sport TEXT,                      -- null counts every sport
+    invite_code TEXT UNIQUE,
+    owner_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+    created_at TEXT NOT NULL,
+    kind TEXT NOT NULL DEFAULT 'private' CHECK (kind IN ('private', 'local')),
+    city_slug TEXT,                  -- a local room's city, from src/cities.js
+    created_by INTEGER REFERENCES users(id) ON DELETE SET NULL, -- who started a room: for the daily limit, no powers
+    archived_at TEXT,                -- hidden, read-only, history kept
+    CHECK (kind = 'local' OR (owner_id IS NOT NULL AND invite_code IS NOT NULL)),
+    CHECK (kind = 'private' OR (owner_id IS NULL AND invite_code IS NULL AND city_slug IS NOT NULL))
+  );
+  -- SELECT * stops this with an error if friend_groups has a column this list doesn't know.
+  INSERT INTO friend_groups_v2 (id, name, sport, invite_code, owner_id, created_at) SELECT * FROM friend_groups;
+  DROP TABLE friend_groups;
+  ALTER TABLE friend_groups_v2 RENAME TO friend_groups;
+  CREATE INDEX friend_groups_owner ON friend_groups(owner_id);
+  CREATE INDEX friend_groups_created_by ON friend_groups(created_by, created_at);
+  -- One room per city, archived ones included.
+  CREATE UNIQUE INDEX friend_groups_city ON friend_groups(city_slug) WHERE kind = 'local';
+
+  -- A player's home city: a pick from the same list, never a location.
+  -- Picking it joins (or starts) that city's room.
+  ALTER TABLE users ADD COLUMN home_city TEXT;
+  `,
+  `
+  -- Looks built from two colors: a team's ("Match my team") or the player's
+  -- own ("Custom"). users.theme is 'custom' for both; theme_team is the team
+  -- ("nfl:KC") when there is one. The accent is stored after the readability
+  -- guard; every color is #rrggbb.
+  ALTER TABLE users ADD COLUMN theme_team TEXT;
+  ALTER TABLE users ADD COLUMN theme_mode TEXT CHECK (theme_mode IN ('dark', 'light'));
+  ALTER TABLE users ADD COLUMN theme_accent TEXT;
+  ALTER TABLE users ADD COLUMN theme_tint TEXT;
+  -- ESPN's second team color, for teams whose first one doesn't read on the page.
+  ALTER TABLE games ADD COLUMN home_alt_color TEXT;
+  ALTER TABLE games ADD COLUMN away_alt_color TEXT;
+
+  -- Profile photos: a file in MEDIA_DIR with a random name. Three reports
+  -- hide one until an admin looks; an admin removing one blocks new uploads
+  -- for a week.
+  ALTER TABLE users ADD COLUMN photo TEXT;
+  ALTER TABLE users ADD COLUMN photo_hidden INTEGER NOT NULL DEFAULT 0;
+  ALTER TABLE users ADD COLUMN photo_blocked_until TEXT;
+  CREATE UNIQUE INDEX users_photo ON users(photo);
+  -- A report is on one photo, so a new photo starts clean.
+  CREATE TABLE photo_reports (
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    photo TEXT NOT NULL,
+    reporter_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    created_at TEXT NOT NULL,
+    PRIMARY KEY (user_id, photo, reporter_id)
+  );
+  `,
 ];
 
 export function openStore(file) {
@@ -398,10 +517,18 @@ export function openStore(file) {
 
   const version = store.get('PRAGMA user_version').user_version;
   MIGRATIONS.slice(version).forEach((sql, i) => {
-    store.tx(() => {
-      db.exec(sql);
-      db.exec(`PRAGMA user_version = ${version + i + 1}`);
-    });
+    const keysOff = sql.startsWith(KEYS_OFF);
+    // The pragma does nothing inside a transaction, so it goes around it.
+    if (keysOff) db.exec('PRAGMA foreign_keys = OFF');
+    try {
+      store.tx(() => {
+        db.exec(sql);
+        if (keysOff && store.all('PRAGMA foreign_key_check').length) throw new Error(`migration ${version + i + 1} broke a foreign key`);
+        db.exec(`PRAGMA user_version = ${version + i + 1}`);
+      });
+    } finally {
+      if (keysOff) db.exec('PRAGMA foreign_keys = ON');
+    }
   });
   return store;
 }

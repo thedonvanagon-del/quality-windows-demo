@@ -36,6 +36,36 @@ not dollars, and nothing is paid out.
   bookie-bullies repo) for the header, the browser tab and the phone icons.
 
 ### Look
+- **2026-11-06: More looks, team colors and custom colors** (owner's ask).
+  - **Eight presets**: Scoreboard, Bull Market, Ember, plus **Ice** (navy and
+    sky blue), **Royal** (purple and gold), **Crimson** (deep red, white
+    text), **Forest** (green and cream) and **Light** (white and charcoal with
+    a dark amber accent, the one light look). Each is a complete token set in
+    `style.css`; a test reads them and checks text, muted text, tiles, odds,
+    buttons, wins, losses and the gold marks for contrast.
+  - **Match my team**: on the profile, pick a sport, then a team (every team
+    the app has seen with an ESPN color). The accent is the team's color and
+    the background takes a hint of it. ESPN's second color (`alternateColor`)
+    is now kept on games too.
+  - **Custom**: two color boxes, an accent and a background tint.
+  - Both come on a **dark or light background**, the player's choice.
+  - **Readability guard:** the accent has to reach 3:1 against the odds
+    tiles. A team color that doesn't uses the team's second color if that
+    does, else gets lighter (on dark) or darker (on light) until it does.
+    Text on accent buttons is black or white, whichever reads better.
+    Saved on the player: `theme = 'custom'`, `theme_team`, `theme_mode`,
+    `theme_accent` (after the guard), `theme_tint`.
+  - **No inline styles:** a team or custom look is a stylesheet whose name is
+    its colors, `/theme/t1-d-<accent>-<tint>.css`, cached for good. **Decided
+    differently from the brief** (an opaque hash): with the colors in the
+    name there's no table to look them up in, and the name is checked
+    letter for letter, so it can only ever hold hex colors. The picker's
+    sample card loads a `-preview` copy that colors only the sample, so
+    what it shows is exactly what saving gives.
+  - Players on a team get the **team's logo** by their name on their profile.
+- **2026-11-06: A banner behind every profile header**, in the player's team
+  colors if they matched a team, else their look's accent and background
+  (an SVG, since inline styles are blocked). Their face sits over its edge.
 - **2026-11-05: Injuries and recent form on game pages** (owner approved),
   before the start only: each team's listed injuries (worst status first,
   six a team, with position and the injury) and last five results as W/L
@@ -204,6 +234,77 @@ not dollars, and nothing is paid out.
   as "Name · 47-31 · +17.5u" with the crest.
 - **2026-10-25:** Profiles have a short bio, up to 160 characters.
 
+### Tournaments
+- **2026-11-06: Tournaments** (owner approved), a tab of their own
+  (`/tournaments`, `src/tournaments.js`). **Free, every one of them.**
+  - **What counts:** units won on graded bets (picks and parlays, through
+    `BETS`) made **after you joined**, on games that **start inside the
+    window**, in the tournament's sports. A parlay counts for a sport list
+    only when every leg is in it (NBA + college hoops counts in Hoops Night);
+    its date is its first leg's start, as everywhere else. A minimum of graded
+    bets to place; ties to the better ROI, then whose last counted bet started
+    first. Entrants under the minimum show below with "N more bets to place".
+  - **Reuse:** the weekly contest's standings and closing were generalized in
+    `src/contest.js` (`windowStandings`, `ungradedIn`, `dueToClose`,
+    `closeWindow`) for any window, sport list and entrant list; `/contest`
+    and `/winners` run on the same code, unchanged.
+  - **Joining:** one tap, until the end. Leave only before the start. The
+    official account can't join. Unconfirmed emails can join but show on the
+    standings only once confirmed, like the boards.
+  - **The Weekly Open** is the weekly contest as a tournament (kind
+    `weekly`, slug `weekly-open-YYYY-MM-DD`): everyone's in, no joining, the
+    same standings as `/contest`, and it closes with the week (`closeWeek`
+    marks it closed; its podium is `contest_results`). Its winners keep the
+    Weekly winner and Podium badges and the contest's own note; no second
+    badge or note for the same finish.
+  - **Auto tournaments**, made by an hourly timer up to two days ahead, once
+    each (by slug): **NFL Sunday** (NFL, min 3), **College Saturday** (college
+    football, min 3), **Hoops Night** (every day, NBA and college hoops, min 2).
+    One whose sports have **no games that day isn't made**, so the off-season
+    stays empty; it's made later if games show up. Each starts at its day's
+    first game (so "starts in 1 hour" means the first kickoff; it follows the
+    schedule until it starts) and ends at midnight ET.
+  - **Custom:** admins make them at `/admin/tournaments` (name, sports, start
+    and end in ET, min bets, prize text) and can cancel one before it starts;
+    entrants hear about it. A canceled auto tournament isn't made again.
+    Everyone else gets a 404.
+  - **Closing:** at most once, after the end, when every counted bet is
+    graded, or 30 hours after the end at the latest (anything ungraded doesn't
+    count). The top 3 go in `tournament_results` once and hear "You finished
+    #1 in NFL Sunday (+4.2u)."; everyone else who joined hears who won.
+    Badges: **Tournament champion** (each 1st, kept apart by slug) and
+    **Tournament podium** (top 3, once), next to Weekly winner and Podium on
+    the boards.
+  - **Notes:** "NFL Sunday starts in 1 hour." once per entrant, with a new
+    setting (on by default) next to the other reminders. Results always go.
+  - **Pages:** the hub (Live now, Starting soon, the last 10 Finished, a
+    link to the winners wall), each card with name, sport chips, window ("Sun,
+    Nov 8, 1:00 PM – 11:59 PM ET"), entrants, prize, a **Free** chip and your
+    status (Join, Joined, "You're #4"). A tournament's page has the rules in
+    plain words, the countdown, Join/Leave, standings with your row lit up,
+    and the final podium. `/winners` has a Tournaments tab.
+  - **Decided differently from the brief:** the sport column is a list
+    (`sports`, comma-separated keys, null for all) instead of `sport` plus a
+    second list column, since Hoops Night needs two sports; and a
+    `canceled_at` column, so canceling keeps a record and an auto one isn't
+    made again.
+- **2026-11-06: Buy-ins wait.** Every tournament is free, and the database
+  enforces it: `entry_fee_cents INTEGER NOT NULL DEFAULT 0 CHECK
+  (entry_fee_cents = 0)`. No coins, no payments, no "coming soon" money
+  anywhere in the app. Before any paid entry, all of these first:
+  1. **A gaming lawyer.** Paying to enter a contest for a prize is a paid
+     fantasy or sweepstakes question, not a pick'em one.
+  2. **State-by-state rules.** Some states ban paid contests; most need a
+     license or registration; some set age and prize limits. Entries would
+     have to be blocked where it isn't legal.
+  3. **Apple's real-money gaming rules** for the App Store version: a license
+     in each place it runs, geo-restriction to those places, the app free to
+     download, and **no in-app purchase for entries** (entries can't be sold
+     through Apple's payments).
+  4. **A payment processor** that allows real-money contests, plus payouts,
+     refunds and tax forms. Changing the CHECK means a new migration that
+     rebuilds the table, on purpose.
+
 ### Weekly contest, streak game, badges, invites, reminders
 - **2026-11-05: Free weekly contest** (`/contest`, "This week's contest" on the
   leaderboard and in More). No entry, no money, everyone's in. A week runs
@@ -243,8 +344,9 @@ not dollars, and nothing is paid out.
   invite counts, and hourly for everyone. A new one sends "New badge: Hot
   hand." The official account earns none. Profiles show chips (hover or
   screen reader gives the date); leaderboard and contest rows show the one
-  most notable (Weekly winner > Streak 10 > Hot hand > Podium > Streak 5 >
-  Parlay hitter > 500 bets > Recruiter > 100 bets > 50 bets). **First win
+  most notable (Weekly winner > Tournament champion > Streak 10 > Hot hand >
+  Podium > Tournament podium > Streak 5 > Parlay hitter > 500 bets > Recruiter
+  > 100 bets > 50 bets; the two tournament badges added 2026-11-06). **First win
   stays off the boards**: nearly everyone has it, so it says nothing there.
 - **2026-11-05: Invite friends** (`/invite`, in More and on your profile).
   Each player gets a link, `/i/<code>` (8 characters, made the first time it's
@@ -269,6 +371,11 @@ not dollars, and nothing is paid out.
     so restarts never double up. The official account gets nothing.
 
 ### Following, streaks, splits, notifications
+- **2026-11-06: The tab bar is Games · My bets · Tourneys · Leaders · Groups ·
+  More.** Tournaments gets a tab (a bracket icon); "Tournaments" needs 71px
+  and a tab has 64px at 390px wide, so it reads "Tourneys". **Profile left the
+  tab bar:** it's the avatar at the top right (checked on a 390px phone) and
+  "Your profile" at the top of More. Replaces the 2026-10-25 bar (under Look).
 - **2026-11-06: No counts on the tab bar** (owner's call). The My bets tab
   no longer shows an open-bet number; anything new shows only on the bell at
   the top right.
@@ -315,7 +422,78 @@ not dollars, and nothing is paid out.
   deployed fine, Pick'em tab included. The main site still hides its tabs on
   phones; a Get the app button there is offered, not built.
 
+### Profile photos
+- **2026-11-06: Profile photos** (owner's ask). From your own profile: pick a
+  picture, the browser cuts a square from the middle, shrinks it to 400×400
+  and sends a JPEG (redrawing it drops EXIF and GPS). Without JavaScript it's
+  a plain file input. The server takes **1 MB at most**, checks the **first
+  bytes** (JPEG, PNG or WebP only), **strips metadata itself** (JPEG APP1 to
+  APP15 and comments; PNG text and EXIF chunks; WebP EXIF and XMP), and
+  stores it in `MEDIA_DIR` under a random name. A new photo deletes the old
+  file; so do Remove photo and deleting the account.
+  - **Where they show:** the profile header (large), the top-right chip,
+    leaderboard, contest, search and group boards, group members, Hot
+    streaks, Following (people and feed), group feeds, chat, follow and
+    invite notes in the inbox, and the profile's Share as image. Without a
+    photo it's the same initial circle as before (still hidden on phone
+    boards, where photos show small). New places (chat, feeds, Hot,
+    Following) get the circle too.
+  - **Moderation** (Apple requires it): any signed-in player can **report a
+    photo** once. **Three reports hide it** until an admin looks, like chat.
+    `/admin/reports` has a Reported photos section: **Dismiss** keeps it and
+    clears its reports; **Remove photo** deletes the file, tells the player
+    "Your profile photo was removed for breaking the rules", and blocks new
+    uploads for 7 days. A hidden photo's address answers only admins.
+  - The **official account** has no login, so only an admin can give it a
+    photo (from its profile).
+  - **`MEDIA_DIR` must be on the server's data disk and in its backups.** By
+    default it's a `media` folder next to the database, which on the server
+    is `/var/lib/bookie-bullies-app/media`: the one folder the service may
+    write to, and on the disk Lightsail snapshots every night. Anyone moving
+    the database or changing backups has to move and back up the photos too.
+
 ### Chat
+- **2026-11-06: Local rooms** (owner's design). A public group per city, so
+  players can talk to and rank against bettors near them.
+  - **A room is a group** (`friend_groups.kind = 'local'`), with its own chat,
+    board ("Top bettors in San Diego", same period tabs) and picks feed on the
+    group page. No owner, no invite code: anyone signed in joins with one tap
+    and leaves anytime. A non-member opening a room sees a Join page; its chat
+    and board are for members, the same gate as group chat.
+  - **Players start rooms**, from a fixed list of cities in `src/cities.js`
+    (California from the Central Coast south first, then the rest of
+    California, then about 85 major US cities by state). Nobody types a room
+    name; it comes from the list ("San Diego, CA"). **One room per city**
+    (a unique index on `city_slug`); starting a city that has one says
+    "There's already a San Diego room. Join it" with the link. A confirmed
+    email is needed to start one, and **three a day** per player (admins have
+    no limit). The starter is just the first member. No rooms are seeded.
+  - **Directory** (`/local`, from More, the top of the Groups page and setup):
+    a "Start a room for your city" dropdown, then every open room by region
+    (California) or state, with members, "N new" for rooms you're in, and Join
+    or Open. `/local/<city>` goes to that city's room.
+  - **Your city** (`users.home_city`): in setup and in profile settings, "Pick
+    your city" uses the same dropdown. It joins that city's room, starting it
+    if there isn't one; for an unconfirmed email the room starts when the
+    email is confirmed. One home, any number of rooms; leaving your home
+    room clears it. The profile shows it with a pin icon, linked to the room.
+    No geolocation, no address: only a pick from the list.
+  - **Moderation:** admins, plus the three-report hide. Admins can delete any
+    message in a room; reports show on the admin page as "Local room: name".
+    A new **Local rooms** tab on the admin pages (`/admin/rooms`): rename
+    (the shown name only; the city stays), archive and restore, and start a
+    room without the limit. **Archived** rooms leave the directory and lists,
+    take no new posts or members, and keep their history.
+  - **Never private-group rules:** rooms don't count toward the 20 groups a
+    player can run, aren't in "Your groups", and stay when the last member
+    leaves. No notification per message; unread counts only.
+  - **Schema:** `friend_groups` was rebuilt so `owner_id` and `invite_code`
+    can be empty for a room. The migration runs with foreign keys off (a
+    migration that starts with `-- runs with foreign keys off` gets that from
+    `openStore`, plus `foreign_key_check` before it commits), since dropping
+    the old table with them on would delete every member and group message.
+  - Rooms with no members and no posts for 30 days could be archived on a
+    timer; not built (optional in the design).
 - **2026-11-05: Group chat (trash talk)**, owner approved. Every group has a
   Chat section on its page (`/groups/:id#chat`), members only: anyone else
   gets a 404, and leaving a group takes it away. Same rules as game chat
@@ -441,8 +619,17 @@ Launch log:
   same 5u caps, graded with picks, one bet on every record and board
 - A free weekly contest with a winners wall, the streak game, badges, invite
   links, and the Lines are up and Streak reminders
+- Free tournaments: a Tourneys tab, NFL Sunday, College Saturday, Hoops Night
+  and the Weekly Open made on their own, admin-made ones, start reminders,
+  champion and podium badges, and a Tournaments tab on the winners wall
 - Group chat with unread counts on the Groups list; closing line value on
   straight picks and profiles; injuries and recent form on game pages
+- Local rooms: a public room per city, started by players from a fixed city
+  list, with chat, a local board, a home city on profiles, and admin
+  rename/archive (2026-11-06)
+- Eight preset looks (one light), team colors and custom colors with a
+  readability guard; profile photos with reports and an admin review; a
+  banner in the player's colors on every profile
 - Demo mode: `npm run demo`, log in as demo@example.com / letmein123
 - Server setup in `aws/stacks/bookie-bullies-app` and a deploy-on-merge
   workflow (`.github/workflows/picks-app-deploy.yml`)
@@ -496,7 +683,8 @@ In rough order of value:
    changes state by state: some states ban paid contests, most need a license or
    registration, and coins that buy entries for cash prizes count as money.
    Free tournaments with bragging rights (or sponsor prizes) can ship anytime.
-   (~~A free weekly contest~~ built 2026-11-05; the paid kind still waits on the lawyer.)
+   (~~A free weekly contest~~ built 2026-11-05; ~~free tournaments~~ built
+   2026-11-06; the paid kind still waits on the list under Tournaments.)
 3. **Paid picks in the app.** Cappers set a monthly price, subscribers see their
    picks before games start, Bookie Bullies keeps 10 to 20% and Stripe Connect
    pays out the rest. Needs payouts, refunds and tax forms; Apple takes up to
@@ -523,4 +711,5 @@ In rough order of value:
 - Node 22, no npm packages: built-in http server, built-in SQLite.
 - Database changes go at the end of `MIGRATIONS` in `src/db.js`; never edit
   one that has shipped.
+- Profile photos are files in `MEDIA_DIR`, not in the database: back both up.
 - The README has the details: settings, file map, security notes.
