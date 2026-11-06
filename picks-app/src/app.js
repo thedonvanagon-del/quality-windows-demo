@@ -80,6 +80,9 @@ const SECURITY_HEADERS = {
   'Permissions-Policy': 'camera=(), microphone=(), geolocation=()',
 };
 
+// How long away from the app before opening it shows the launch screen again.
+const SPLASH_AWAY_SECONDS = 20 * 60;
+
 export function createApp({ store, games, espn = null, config, mailer = createMailer({ log: { log() {} } }), notifier = createNotifier({ store }), push = null, summaries = null, teams = null, now = () => new Date(), log = console }) {
   const assets = loadAssets();
   // Team logos for scoreboard icons. Without one passed in (tests, the demo)
@@ -161,8 +164,8 @@ export function createApp({ store, games, espn = null, config, mailer = createMa
 
   function send(ctx, status, page) {
     const body = String(page);
-    // The launch screen showed on this page: don't show it again this visit.
-    if (ctx.splashShown) ctx.cookies.push(['bb_splash=1', 'Path=/', 'HttpOnly', 'SameSite=Lax', ...(secure(ctx) ? ['Secure'] : [])].join('; '));
+    // A page went out: hold off the launch screen until 20 minutes of being away.
+    if (ctx.pageShown) ctx.cookies.push(['bb_seen=1', 'Path=/', `Max-Age=${SPLASH_AWAY_SECONDS}`, 'HttpOnly', 'SameSite=Lax', ...(secure(ctx) ? ['Secure'] : [])].join('; '));
     ctx.res.writeHead(status, headers(ctx, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store', 'Content-Length': Buffer.byteLength(body) }));
     ctx.res.end(body);
   }

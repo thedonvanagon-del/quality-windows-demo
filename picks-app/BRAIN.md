@@ -55,8 +55,11 @@ not dollars, and nothing is paid out.
 - **2026-11-06: Launch screen and ".com" (owner's ask, to promote the
   site).** The first page of each visit shows the crest with
   BOOKIEBULLIES.COM in gold for about a second, then fades (pure CSS, a tap
-  skips it, shorter with reduced motion; a session cookie `bb_splash` keeps it
-  to once per visit and a redirect doesn't use it up). The header reads
+  skips it, shorter with reduced motion). Changed the same day: it shows
+  whenever the app is opened after 20 minutes or more away (a `bb_seen` cookie
+  that every page renews for 20 minutes). The first version used a session
+  cookie, which an iPhone home-screen app keeps alive after it's closed, so
+  the owner never saw it. The header reads
   "BOOKIE BULLIES.com" with a small muted ".com"; on phones the name steps
   down a size so the bell and avatar stay on screen. The installed app's name
   (manifest `name`, shown on Android's launch screen) is "BookieBullies.com";
