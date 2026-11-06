@@ -10,7 +10,8 @@ import * as auth from './auth.js';
 import { badgesOf, topBadges } from './badges.js';
 import { clvSummary } from './clv.js';
 import { chatCounts, chatGames, deleteMessage, HIDE_AFTER_REPORTS, markGroupRead, messages, postMessage, removeMessage, reportedMessages, reportMessage, restoreMessage, threadOfMessage, unreadCounts } from './chat.js';
-import { createGroup, deleteGroup, findByCode, groupFor, groupsOf, joinGroup, leaveGroup, membersOf } from './groups.js';
+import { CITY, cityGroups } from './cities.js';
+import { allRooms, archiveRoom, createGroup, deleteGroup, findByCode, groupFor, groupsOf, joinGroup, joinRoom, leaveGroup, localRooms, membersOf, renameRoom, roomFor, roomsOf, setHomeCity, settleHomeCity, startRoom } from './groups.js';
 import { follow, followCounts, followingAmong, followingList, isFollowing, unfollow } from './follows.js';
 import { followFeed, groupFeed, ownPick, ownPicks, picksOnGames, publicPicks } from './history.js';
 import { THEMES } from './config.js';
@@ -32,6 +33,7 @@ import { addDays, etDay, mondayOf, weekLabel } from './time.js';
 import { breakdown, hotStreaks, lastTen, leaderboard, PERIODS, rankOf, record, recordBySport, searchPlayers, splits, unitsSeries } from './stats.js';
 import * as account from './views/account.js';
 import * as legal from './views/legal.js';
+import * as local from './views/local.js';
 import * as moreViews from './views/more.js';
 import * as play from './views/play.js';
 import * as social from './views/social.js';
@@ -220,6 +222,8 @@ export function createApp({ store, games, config, mailer = createMailer({ log: {
     if (!userId) return send(ctx, 400, account.verifyDead(ctx));
     // A friend's invite counts once the email is confirmed (and there's a screen name).
     countInvite(store, userId, ctx.now, notifier);
+    // A home city picked before confirming gets its room now.
+    settleHomeCity(store, userId, ctx.now);
     flash(ctx, 'ok', "Email confirmed. Your record shows on the leaderboards now.");
     redirect(ctx, ctx.user ? '/games' : '/login');
   }
@@ -356,7 +360,7 @@ export function createApp({ store, games, config, mailer = createMailer({ log: {
       : null;
     // The top of the all-time board: ranked players first.
     const players = leaderboard(store, {}, ctx.now, 20).filter((r) => !r.official && r.id !== ctx.user.id).slice(0, 5);
-    send(ctx, 200, account.setup(ctx, { official, players, next }));
+    send(ctx, 200, account.setup(ctx, { official, players, next, cities: cityGroups() }));
   }
 
   /** Finish setup: follow the official account (and whoever else was checked), and remember the sports. */
@@ -380,7 +384,10 @@ export function createApp({ store, games, config, mailer = createMailer({ log: {
     const sports = SPORTS.map((s) => s.key).filter((key) => ctx.form.getAll('sport').includes(key));
     const follows = ctx.form.getAll('follow').map(Number).filter((id) => Number.isInteger(id) && id > 0);
     finishSetup(ctx, { sports, follows });
-    flash(ctx, 'ok', `You're on the board, ${ctx.user.screenName}. Go make a pick.`);
+    // Your city: joins its room (starting it once the email is confirmed).
+    const home = ctx.form.get('city') ? setHomeCity(store, { userId: ctx.user.id, citySlug: ctx.form.get('city'), now: ctx.now, canStart: ctx.user.verified }) : {};
+    if (home.error) flash(ctx, 'error', home.error);
+    else flash(ctx, 'ok', `You're on the board, ${ctx.user.screenName}. Go make a pick.`);
     redirect(ctx, next ?? (sports.length ? `/games?sport=${sports[0]}` : '/games'));
   }
 
@@ -621,7 +628,10 @@ export function createApp({ store, games, config, mailer = createMailer({ log: {
     if (!signedIn(ctx)) return;
     const seen = visibleThread(ctx, Number(id));
     if (!seen) return notFound(ctx);
-    const result = deleteMessage(store, { id: Number(id), userId: ctx.user.id, now: ctx.now });
+    // Local rooms have no owner: admins take down anything in them.
+    const result = isAdmin(ctx) && seen.where?.groupId != null && isLocal(seen.where.groupId)
+      ? removeMessage(store, { id: Number(id), now: ctx.now })
+      : deleteMessage(store, { id: Number(id), userId: ctx.user.id, now: ctx.now });
     if (result.error) flash(ctx, 'error', result.error);
     redirect(ctx, threadPath(seen.where));
   }
@@ -744,7 +754,7 @@ export function createApp({ store, games, config, mailer = createMailer({ log: {
 
   function groupsPage(ctx) {
     if (!signedIn(ctx)) return;
-    send(ctx, 200, social.groups(ctx, { list: groupsOf(store, ctx.user.id), unread: unreadCounts(store, ctx.user.id) }));
+    send(ctx, 200, social.groups(ctx, { list: groupsOf(store, ctx.user.id), rooms: roomsOf(store, ctx.user.id), unread: unreadCounts(store, ctx.user.id) }));
   }
 
   function groupCreate(ctx) {
@@ -772,7 +782,13 @@ export function createApp({ store, games, config, mailer = createMailer({ log: {
   function groupPage(ctx, { id }) {
     if (!signedIn(ctx)) return;
     const group = groupFor(store, Number(id), ctx.user.id);
-    if (!group) return notFound(ctx);
+    if (!group) {
+      // An open local room shows anyone a Join button; its chat and board are for members.
+      const room = store.get("SELECT * FROM friend_groups WHERE id = ? AND kind = 'local' AND archived_at IS NULL", Number(id));
+      if (!room) return notFound(ctx);
+      const members = store.get('SELECT COUNT(*) AS n FROM group_members WHERE group_id = ?', room.id).n;
+      return send(ctx, 200, local.roomPreview(ctx, { room: { ...room, city: CITY[room.city_slug] ?? null }, members }));
+    }
     const rows = leaderboard(store, { groupId: group.id, sport: group.sport, period: periodOf(ctx.query) }, ctx.now);
     const chat = messages(store, { groupId: group.id });
     // Opening the group (or its chat refreshing) reads everything in it.
@@ -782,8 +798,11 @@ export function createApp({ store, games, config, mailer = createMailer({ log: {
       rows,
       members: membersOf(store, group.id),
       feed: groupFeed(store, group, ctx.now),
-      inviteUrl: `${origin(ctx)}/join/${group.invite_code}`,
+      inviteUrl: group.invite_code ? `${origin(ctx)}/join/${group.invite_code}` : null,
       messages: chat,
+      city: group.kind === 'local' ? CITY[group.city_slug] ?? null : null,
+      home: group.kind === 'local' && store.get('SELECT home_city FROM users WHERE id = ?', ctx.user.id).home_city === group.city_slug,
+      admin: isAdmin(ctx),
     }));
   }
 
@@ -792,7 +811,8 @@ export function createApp({ store, games, config, mailer = createMailer({ log: {
     if (!signedIn(ctx)) return;
     const group = groupFor(store, Number(id), ctx.user.id);
     if (!group) return notFound(ctx);
-    postChat(ctx, { groupId: group.id });
+    if (group.archived_at) flash(ctx, 'error', 'This room is archived. Its chat is read-only.');
+    else postChat(ctx, { groupId: group.id });
     redirect(ctx, `/groups/${group.id}#chat`);
   }
 
@@ -802,7 +822,7 @@ export function createApp({ store, games, config, mailer = createMailer({ log: {
     if (!group) return notFound(ctx);
     leaveGroup(store, { groupId: group.id, userId: ctx.user.id });
     flash(ctx, 'ok', `You left ${group.name}.`);
-    redirect(ctx, '/groups');
+    redirect(ctx, group.kind === 'local' ? '/local' : '/groups');
   }
 
   function groupDelete(ctx, { id }) {
@@ -811,6 +831,91 @@ export function createApp({ store, games, config, mailer = createMailer({ log: {
     if (!group || !deleteGroup(store, { groupId: group.id, userId: ctx.user.id })) return notFound(ctx);
     flash(ctx, 'ok', `${group.name} is gone. Everyone's picks stay on their records.`);
     redirect(ctx, '/groups');
+  }
+
+  // ---- local rooms ------------------------------------------------------------
+
+  const isLocal = (groupId) => Boolean(store.get("SELECT 1 AS x FROM friend_groups WHERE id = ? AND kind = 'local'", groupId));
+
+  /** The directory: every open room by region and state, and a form to start one for your city. */
+  function localPage(ctx, extra = {}, status = 200) {
+    if (!signedIn(ctx)) return;
+    send(ctx, status, local.directory(ctx, {
+      rooms: localRooms(store, ctx.user.id),
+      unread: unreadCounts(store, ctx.user.id),
+      cities: cityGroups(),
+      homeCity: store.get('SELECT home_city FROM users WHERE id = ?', ctx.user.id).home_city,
+      city: CITY[ctx.query.get('city')] ? ctx.query.get('city') : '',
+      ...extra,
+    }));
+  }
+
+  /** Start the room for a city on the list. Confirmed emails only, three a day; a city that has one gets a link to it. */
+  function localStart(ctx) {
+    if (!signedIn(ctx)) return;
+    const citySlug = ctx.form.get('city') ?? '';
+    if (!ctx.user.verified) return localPage(ctx, { error: 'Confirm your email to start a room. The link is in your inbox.', city: citySlug }, 403);
+    const result = startRoom(store, { citySlug, userId: ctx.user.id, now: ctx.now, limit: !isAdmin(ctx) });
+    if (result.error) return localPage(ctx, { error: result.error, exists: result.existing ?? null, city: CITY[citySlug] ? citySlug : '' }, 400);
+    flash(ctx, 'ok', `The ${CITY[citySlug].name} room is open, and you're its first member.`);
+    redirect(ctx, `/groups/${result.id}`);
+  }
+
+  /** /local/san-diego-ca: the city's room, or the directory with that city ready to start. */
+  function localCity(ctx, { slug }) {
+    if (!signedIn(ctx)) return;
+    if (!CITY[slug]) return notFound(ctx);
+    const room = roomFor(store, slug);
+    if (room?.archived_at) return notFound(ctx);
+    redirect(ctx, room ? `/groups/${room.id}` : `/local?city=${slug}`, 302);
+  }
+
+  function roomJoin(ctx, { id }) {
+    if (!signedIn(ctx)) return;
+    const result = joinRoom(store, { groupId: Number(id), userId: ctx.user.id, now: ctx.now });
+    if (result.error) return notFound(ctx);
+    flash(ctx, 'ok', `You're in the ${result.room.name} room.`);
+    redirect(ctx, safeNext(ctx.form.get('next')) ?? `/groups/${result.room.id}`);
+  }
+
+  /** Your city, from your profile: joins its room (starting it if need be) and makes it home. Blank clears it. */
+  function homeCityPost(ctx) {
+    if (!signedIn(ctx)) return;
+    const result = setHomeCity(store, { userId: ctx.user.id, citySlug: ctx.form.get('city') ?? '', now: ctx.now, canStart: ctx.user.verified, limit: !isAdmin(ctx) });
+    if (result.error) flash(ctx, 'error', result.error);
+    else if (!result.city) flash(ctx, 'ok', 'City cleared. You stay in its room until you leave it.');
+    else if (!result.room) flash(ctx, 'ok', `${result.city.label} is your city. Its room opens once you confirm your email.`);
+    else flash(ctx, 'ok', `${result.city.label} is your city. You're in its room.`);
+    redirect(ctx, safeNext(ctx.form.get('next')) ?? `/u/${encodeURIComponent(ctx.user.screenName)}`);
+  }
+
+  /** Admins: rename, archive and restore rooms, or start one without the daily limit. */
+  function adminRooms(ctx) {
+    if (!isAdmin(ctx)) return notFound(ctx);
+    send(ctx, 200, local.adminRooms(ctx, { rooms: allRooms(store), cities: cityGroups() }));
+  }
+
+  function adminRoomStart(ctx) {
+    if (!isAdmin(ctx)) return notFound(ctx);
+    const result = startRoom(store, { citySlug: ctx.form.get('city') ?? '', userId: ctx.user.id, now: ctx.now, limit: false });
+    flash(ctx, result.error ? 'error' : 'ok', result.error ?? 'Room started.');
+    redirect(ctx, '/admin/rooms');
+  }
+
+  function adminRoomRename(ctx, { id }) {
+    if (!isAdmin(ctx)) return notFound(ctx);
+    const result = renameRoom(store, { groupId: Number(id), name: ctx.form.get('name') });
+    flash(ctx, result.error ? 'error' : 'ok', result.error ?? `Renamed to ${result.name}.`);
+    redirect(ctx, '/admin/rooms');
+  }
+
+  /** Archive (or, at /restore, put back) a room. */
+  function adminRoomArchive(ctx, { id }) {
+    if (!isAdmin(ctx)) return notFound(ctx);
+    const archived = ctx.url.pathname.endsWith('/archive');
+    if (!archiveRoom(store, { groupId: Number(id), now: ctx.now, archived })) return notFound(ctx);
+    flash(ctx, 'ok', archived ? 'Archived. It is off the directory, and its chat is read-only.' : 'Restored. It is back on the directory.');
+    redirect(ctx, '/admin/rooms');
   }
 
   function joinPage(ctx, { code }) {
@@ -834,7 +939,7 @@ export function createApp({ store, games, config, mailer = createMailer({ log: {
 
   function profilePage(ctx, { name }) {
     const player = store.get(
-      'SELECT id, screen_name, created_at, bio, link_url, link_label, first_name, last_name, official, name_changed_at FROM users WHERE screen_name = ?',
+      'SELECT id, screen_name, created_at, bio, link_url, link_label, first_name, last_name, official, name_changed_at, home_city FROM users WHERE screen_name = ?',
       name,
     );
     if (!player) {
@@ -861,7 +966,17 @@ export function createApp({ store, games, config, mailer = createMailer({ log: {
       badges: player.official ? [] : badgesOf(store, player.id),
       streak: player.official ? null : streakOf(store, player.id),
       clv: clvSummary(store, player.id),
+      home: homeOf(player.home_city),
+      cities: ctx.user?.id === player.id ? cityGroups() : null,
     }));
+  }
+
+  /** A player's city for their profile, with its room when that's open. */
+  function homeOf(slug) {
+    const city = CITY[slug];
+    if (!city) return null;
+    const room = roomFor(store, slug);
+    return { city, room: room && !room.archived_at ? room : null };
   }
 
   function screenNamePost(ctx) {
@@ -1086,6 +1201,16 @@ export function createApp({ store, games, config, mailer = createMailer({ log: {
     ['GET', '/admin/reports', adminReports],
     ['POST', '/admin/reports/:id/restore', adminRestore],
     ['POST', '/admin/reports/:id/delete', adminDelete],
+    ['GET', '/admin/rooms', adminRooms],
+    ['POST', '/admin/rooms', adminRoomStart],
+    ['POST', '/admin/rooms/:id/rename', adminRoomRename],
+    ['POST', '/admin/rooms/:id/archive', adminRoomArchive],
+    ['POST', '/admin/rooms/:id/restore', adminRoomArchive],
+    ['GET', '/local', (ctx) => localPage(ctx)],
+    ['POST', '/local', localStart],
+    ['GET', '/local/:slug', localCity],
+    ['POST', '/groups/:id/join', roomJoin],
+    ['POST', '/home-city', homeCityPost],
     ['GET', '/groups', groupsPage],
     ['POST', '/groups', groupCreate],
     ['POST', '/groups/join', groupJoinByCode],

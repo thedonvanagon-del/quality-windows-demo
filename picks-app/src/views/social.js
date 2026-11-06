@@ -1,3 +1,4 @@
+import { groupLabel } from '../cities.js';
 import { html } from '../html.js';
 import { CHANGE_EVERY_DAYS, HOLD_DAYS } from '../names.js';
 import { formatUnits } from '../picks.js';
@@ -6,6 +7,7 @@ import { MIN_RANKED } from '../stats.js';
 import { dateLabel, joined, when } from '../time.js';
 import { icons, trustMark } from './icons.js';
 import { csrfField, layout } from './layout.js';
+import { citySelect, cityPin, groupsSection } from './local.js';
 import { betItem, boardTable, chatBox, minus, officialTag, pickItem, periodTabs, pct, profileLink, rankCell, recordText, signedPct, sportTabs, units } from './parts.js';
 
 /** Find a player by the start of their screen name. */
@@ -47,7 +49,7 @@ export function leaderboard(ctx, { rows, sport, badges = null }) {
 
 const sportName = (key) => (key ? SPORT[key]?.name ?? key : 'All sports');
 
-export function groups(ctx, { list, unread = new Map(), error, name = '', sport = '' }) {
+export function groups(ctx, { list, rooms = [], unread = new Map(), error, name = '', sport = '' }) {
   return layout(ctx, {
     title: 'Groups',
     active: 'groups',
@@ -55,6 +57,7 @@ export function groups(ctx, { list, unread = new Map(), error, name = '', sport 
       <h1>Groups</h1>
       <p class="lede">Your friends, your board. Your picks and record are the same everywhere; a group just decides who you're up against.</p>
       ${error ? html`<div class="flash err" role="alert">${error}</div>` : ''}
+      ${groupsSection(ctx, { rooms, unread })}
       ${list.length
         ? html`<div class="table"><table>
             <thead><tr><th>Group</th><th>Sport</th><th class="n">Members</th></tr></thead>
@@ -89,46 +92,69 @@ export function groups(ctx, { list, unread = new Map(), error, name = '', sport 
   });
 }
 
-export function group(ctx, { group, rows, members, feed, inviteUrl, messages = [] }) {
-  const isOwner = group.owner_id === ctx.user.id;
+/**
+ * A group's page: its board, chat, feed and members. A local room uses it
+ * too, without the private-group parts (invite code, owner, delete): it says
+ * "Local room" and its region instead, and admins can delete in its chat.
+ */
+export function group(ctx, { group, rows, members, feed, inviteUrl, messages = [], city = null, home = false, admin = false }) {
+  const isLocal = group.kind === 'local';
+  const isOwner = !isLocal && group.owner_id === ctx.user.id;
+  const mod = isOwner || (isLocal && admin);
+  const shown = isLocal ? members.slice(0, 60) : members;
   return layout(ctx, {
     title: group.name,
     active: 'groups',
     body: html`
-      <a class="back" href="/groups">← Groups</a>
+      ${isLocal ? html`<a class="back" href="/local">← Local rooms</a>` : html`<a class="back" href="/groups">← Groups</a>`}
       <h1>${group.name}</h1>
-      <p class="lede">${sportName(group.sport)} · ${members.length} ${members.length === 1 ? 'member' : 'members'}</p>
+      <p class="lede">${isLocal
+        ? html`<span class="local-tag">${icons.pin}Local room</span>${city ? ` · ${groupLabel(city)}` : ''}`
+        : sportName(group.sport)} · ${members.length} ${members.length === 1 ? 'member' : 'members'}</p>
+      ${group.archived_at ? html`<div class="card empty">This room is archived. Its history stays, but nobody can post or join.</div>` : ''}
+      ${isLocal && city && !group.archived_at
+        ? home
+          ? html`<p class="muted small">${cityPin({ city })} is your city.</p>`
+          : html`<form method="post" action="/home-city" class="home-form">${csrfField(ctx)}<input type="hidden" name="city" value="${city.slug}"><input type="hidden" name="next" value="/groups/${group.id}"><button class="btn quiet small">${icons.pin} Make this my city</button></form>`
+        : ''}
+      ${isLocal ? html`<h2>Top bettors in ${city?.name ?? group.name}</h2>` : ''}
       ${periodTabs(`/groups/${group.id}`, ctx.query)}
       ${boardTable(rows, { me: ctx.user.id })}
 
       <h2 id="chat">Chat</h2>
-      ${chatBox(ctx, {
-        messages,
-        action: `/groups/${group.id}/chat`,
-        placeholder: `Talk some trash to ${group.name}`,
-        rules: `Only members of ${group.name} see this. Trash talk is fine; harassment, hate and selling picks aren't. Three reports hide a message${isOwner ? ', and you can delete any message here' : ''}.`,
-        canDelete: (m) => m.user_id === ctx.user.id || isOwner,
-      })}
+      ${group.archived_at
+        ? html`<div class="chat"><ol class="chat-list">${messages.map((m) => html`<li class="msg"><div class="msg-head"><a class="who" href="/u/${encodeURIComponent(m.screen_name)}">${m.screen_name}</a></div><p class="msg-body">${m.hidden ? 'Hidden after reports.' : m.body}</p></li>`)}</ol></div>`
+        : chatBox(ctx, {
+          messages,
+          action: `/groups/${group.id}/chat`,
+          placeholder: isLocal ? `Talk to ${city?.name ?? group.name}` : `Talk some trash to ${group.name}`,
+          rules: isLocal
+            ? `Everyone in the ${group.name} room sees this. Trash talk is fine; harassment, hate and selling picks aren't. Three reports hide a message${admin ? ', and as an admin you can delete any message here' : ''}.`
+            : `Only members of ${group.name} see this. Trash talk is fine; harassment, hate and selling picks aren't. Three reports hide a message${isOwner ? ', and you can delete any message here' : ''}.`,
+          canDelete: (m) => m.user_id === ctx.user.id || mod,
+        })}
 
       <h2>Latest picks</h2>
       ${feed.length
         ? html`<ul class="tickets">${feed.map((p) => betItem(p, { who: true }))}</ul>`
         : html`<div class="card empty">Picks show up here once their game starts.</div>`}
 
-      <h2>Invite friends</h2>
+      ${isLocal
+        ? ''
+        : html`<h2>Invite friends</h2>
       <div class="card stack">
         <div>Code <span class="code">${group.invite_code}</span></div>
         <div class="muted small copy">${inviteUrl}</div>
         <button class="btn quiet small" type="button" data-copy="${inviteUrl}" hidden>Copy invite link</button>
-      </div>
+      </div>`}
 
       <h2>Members</h2>
       <div class="card"><ul class="members">
-        ${members.map((m) => html`<li><span class="player"><span class="avatar">${m.screen_name[0]}</span>${profileLink(m.screen_name)}</span><span class="muted small">${m.id === group.owner_id ? 'Owner' : ''}</span></li>`)}
-      </ul></div>
+        ${shown.map((m) => html`<li><span class="player"><span class="avatar">${m.screen_name[0]}</span>${profileLink(m.screen_name)}</span><span class="muted small">${!isLocal && m.id === group.owner_id ? 'Owner' : ''}</span></li>`)}
+      </ul>${members.length > shown.length ? html`<p class="muted small">And ${members.length - shown.length} more.</p>` : ''}</div>
 
       <div class="row actions">
-        <form method="post" action="/groups/${group.id}/leave" data-confirm="Leave ${group.name}?">${csrfField(ctx)}<button class="btn quiet">Leave group</button></form>
+        <form method="post" action="/groups/${group.id}/leave" data-confirm="Leave ${group.name}?">${csrfField(ctx)}<button class="btn quiet">${isLocal ? 'Leave room' : 'Leave group'}</button></form>
         ${isOwner
           ? html`<form method="post" action="/groups/${group.id}/delete" data-confirm="Delete ${group.name} for everyone? Picks stay on each player's record.">${csrfField(ctx)}<button class="btn danger">Delete group</button></form>`
           : ''}
@@ -389,7 +415,18 @@ function clvLine(clv) {
   </div>`;
 }
 
-export function profile(ctx, { player, record, bySport, split = null, series = [], last10 = null, rank = null, follows = { followers: 0, following: 0 }, following = false, picks, hidden, nextChange = null, badges = [], streak = null, clv = null }) {
+/** Your city, from the same list as the directory. Picking one joins its room, starting it if need be. */
+function homeCityForm(ctx, home, cities) {
+  return html`<h2>Your city</h2>
+    <form class="form home-city-form" method="post" action="/home-city">
+      ${csrfField(ctx)}
+      <label>Pick your city <span class="hint">Joins its local room, and shows on your profile. Just a city, never an address.</span>
+        ${citySelect(cities, { selected: home?.city.slug ?? '', blank: 'No city' })}</label>
+      <div class="row"><button class="btn small">Save city</button></div>
+    </form>`;
+}
+
+export function profile(ctx, { player, record, bySport, split = null, series = [], last10 = null, rank = null, follows = { followers: 0, following: 0 }, following = false, picks, hidden, nextChange = null, badges = [], streak = null, clv = null, home = null, cities = null }) {
   return layout(ctx, {
     title: player.screen_name,
     active: ctx.user?.id === player.id ? 'me' : null,
@@ -400,6 +437,7 @@ export function profile(ctx, { player, record, bySport, split = null, series = [
       ${player.official ? html`<p class="muted small">The official account. Listed on the boards, never ranked. <span class="lock-tag">Lock</span>marks the site's locks.</p>` : ''}
       ${player.first_name || player.last_name ? html`<p class="real-name">${[player.first_name, player.last_name].filter(Boolean).join(' ')}</p>` : ''}
       ${player.bio ? html`<p class="bio">${player.bio}</p>` : ''}
+      ${home ? html`<p class="home-city">${cityPin(home)}</p>` : ''}
       <p class="follow-counts"><b>${follows.followers}</b> ${follows.followers === 1 ? 'follower' : 'followers'} · <b>${follows.following}</b> following</p>
       <div class="row profile-actions">
         ${ctx.user?.screenName && ctx.user.id !== player.id ? followButton(ctx, player.screen_name, following) : ''}
@@ -412,7 +450,7 @@ export function profile(ctx, { player, record, bySport, split = null, series = [
       ${clvLine(clv)}
       ${streak?.played ? html`<p class="streak-line"><a href="/streak">${icons.flame}<span>Streak: <b>${streak.current}</b> · Best: <b>${streak.best}</b></span></a></p>` : ''}
       ${badgeChips(badges)}
-      ${ctx.user?.id === player.id ? html`${screenNameForm(ctx, player, nextChange)}${nameForm(ctx, player)}${bioForm(ctx, player)}${linkForm(ctx, player)}${colorPicker(ctx)}` : ''}
+      ${ctx.user?.id === player.id ? html`${screenNameForm(ctx, player, nextChange)}${nameForm(ctx, player)}${bioForm(ctx, player)}${linkForm(ctx, player)}${cities ? homeCityForm(ctx, home, cities) : ''}${colorPicker(ctx)}` : ''}
       ${bySport.length
         ? html`<h2>By sport</h2>
           <div class="table"><table>

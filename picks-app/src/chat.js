@@ -135,7 +135,7 @@ export function reportedMessages(store, limit = 200) {
   return store
     .all(
       `SELECT m.id, m.body, m.created_at, m.game_id, m.group_id, u.screen_name, g.sport, g.home_short, g.away_short,
-              fg.name AS group_name, COUNT(r.user_id) AS reports, MAX(r.created_at) AS last_report
+              fg.name AS group_name, fg.kind AS group_kind, COUNT(r.user_id) AS reports, MAX(r.created_at) AS last_report
          FROM chat_messages m
          JOIN chat_reports r ON r.message_id = m.id
          JOIN users u ON u.id = m.user_id
