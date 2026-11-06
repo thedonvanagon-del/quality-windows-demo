@@ -38,7 +38,7 @@ export function weekBounds(monday) {
  * board, where a mixed parlay counts overall only). With `tournamentId`,
  * only entrants' bets made after they joined count (the entry is aliased e).
  */
-function counted({ start, end, sports = null, tournamentId = null }) {
+function counted({ start, end, sports = null, tournamentId = null, userIds = null }) {
   let sql = 'p.game_start >= ? AND p.game_start < ?';
   const params = [start.toISOString(), end.toISOString()];
   if (sports?.length) {
@@ -48,6 +48,11 @@ function counted({ start, end, sports = null, tournamentId = null }) {
     params.push(...sports, ...sports);
   }
   if (tournamentId != null) sql += ' AND p.made_at >= e.joined_at';
+  // A league's matchups: only these players' bets.
+  if (userIds) {
+    sql += userIds.length ? ` AND p.user_id IN (${userIds.map(() => '?').join(', ')})` : ' AND 0';
+    params.push(...userIds);
+  }
   return { sql, params };
 }
 
@@ -56,7 +61,8 @@ function counted({ start, end, sports = null, tournamentId = null }) {
  * graded bets that count (see counted), numbered; `min` graded bets to place.
  * Ties go to the better ROI, then to whoever got there first (their last
  * counted bet started earlier). Confirmed players only, like the boards; the
- * official account shows but never places. With `tournamentId` every
+ * official account shows but never places. `userIds` keeps it to those
+ * players (a league's members). With `tournamentId` every
  * confirmed entrant is listed, bets or not; without it (the weekly contest,
  * where everyone's in) everyone with a graded bet in the window is.
  */

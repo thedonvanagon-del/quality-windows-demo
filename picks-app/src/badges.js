@@ -21,6 +21,8 @@ export const BADGES = [
   { key: 'weekly_winner', label: 'Weekly winner', short: 'Winner', about: 'Won a weekly contest' },
   { key: 'tournament_champion', label: 'Tournament champion', short: 'Champion', about: 'Won a tournament' },
   { key: 'survivor_champion', label: 'Survivor champion', short: 'Survivor', about: 'Won a season of Survivor' },
+  { key: 'league_champion', label: 'League champion', short: 'League champ', about: 'Won a head-to-head league' },
+  { key: 'bracket_champion', label: 'Bracket champion', short: 'Bracket', about: 'Won the March Madness bracket challenge' },
   { key: 'streak_10', label: 'Streak 10', short: 'Streak 10', about: '10 Streak picks won in a row' },
   { key: 'hot_hand', label: 'Hot hand', short: 'Hot hand', about: `Won ${HOT_HAND_WINS} or more of their last 10 bets` },
   { key: 'cup_podium', label: 'Cup podium', short: 'Cup top 3', about: 'Finished top 3 in the Bookie Bullies Cup for a year' },
@@ -79,6 +81,12 @@ function qualifies(store, userId) {
   for (const w of store.all('SELECT season, week, points FROM pickem_results WHERE user_id = ? AND place = 1', userId)) {
     add('pickem_winner', `pickem-${w.season}-w${w.week}`, `Week ${w.week}, ${w.season} (${w.points} pts)`);
   }
+  // Leagues (one per league won) and the bracket challenge (one per year won, shared or not).
+  for (const l of store.all('SELECT id, name FROM leagues WHERE champion_id = ? AND closed_at IS NOT NULL', userId)) add('league_champion', `league-${l.id}`, l.name);
+  for (const b of store.all(
+    'SELECT c.year, c.name, e.points FROM bracket_entries e JOIN bracket_challenges c ON c.year = e.year WHERE e.user_id = ? AND e.place = 1 AND c.closed_at IS NOT NULL',
+    userId,
+  )) add('bracket_champion', `bracket-${b.year}`, `${b.name} (${b.points} pts)`);
   for (const c of store.all('SELECT year, place, points FROM cup_results WHERE user_id = ?', userId)) {
     if (c.place === 1) add('cup_champion', String(c.year), `${c.year} Cup, ${c.points} pts`);
     add('cup_podium', String(c.year), `#${c.place}, ${c.year} Cup`);

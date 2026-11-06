@@ -4,14 +4,25 @@ import {
   CLOSE_AFTER_HOURS, endLabel, MIN_BETS_MAX, NAME_MAX, PLAYER_ACTIVE_MAX, PLAYER_LEAD_MINUTES, PLAYER_MAX_DAYS, PLAYER_MIN_BETS_MAX, PLAYER_NAME_MAX,
   PLAYER_PER_DAY, PLAYER_PRIZE, PRIZE_MAX, TOURNAMENT_HIDE_AFTER,
 } from '../tournaments.js';
+import { dollars } from '../prizes.js';
 import { icons } from './icons.js';
 import { csrfField, layout } from './layout.js';
+import { bracketFeature } from './bracket.js';
 import { cupBanner, pickemFeature, survivorFeature } from './formats.js';
+import { leaguesSection } from './leagues.js';
 import { adminTabs } from './local.js';
 import { at, avatar, badgeMark, chatBox, playerName, profileLink, rankCell, recordText, signedPct, units, winShare } from './parts.js';
 
 const free = html`<span class="free-chip">Free</span>`;
 const playerMade = html`<span class="pm-chip">Player-made</span>`;
+const prizeChip = html`<span class="prize-chip">Prize</span>`;
+const draftChip = html`<span class="draft-chip">Draft</span>`;
+
+/** A prize tournament's prize, value and a link to its official rules. */
+function prizeLine(t) {
+  const z = t.prizeInfo;
+  return html`<p class="tn-prize prize-line">${icons.medal}<span><b>${z.prize}</b> (about ${dollars(z.value_cents)}, from ${z.sponsor}) <a href="/tournaments/${t.slug}/rules">Official rules</a></span></p>`;
+}
 
 /** "Made by Ann", and "For Saturday Crew members" when it's tied to a group. */
 function madeBy(t) {
@@ -42,7 +53,11 @@ const placeWord = (n) => `${n} more ${n === 1 ? 'bet' : 'bets'} to place`;
 /** Join: a private one carries its invite code along. */
 function joinForm(ctx, t, next, code = t.host?.visibility === 'private' ? t.host.invite_code : null) {
   if (!ctx.user?.screenName) return html`<a class="btn small" href="/login?next=${encodeURIComponent(t.href ?? `/tournaments/${t.slug}`)}">Join</a>`;
-  return html`<form method="post" action="/tournaments/${t.slug}/join">${csrfField(ctx)}<input type="hidden" name="next" value="${next}">${code ? html`<input type="hidden" name="code" value="${code}">` : ''}<button class="btn small">Join</button></form>`;
+  // A prize tournament: "I've read the official rules" first.
+  const rules = t.prizeInfo
+    ? html`<label class="check rules-check"><input type="checkbox" name="rules" value="1" required><span>I've read the <a href="/tournaments/${t.slug}/rules">official rules</a></span></label>`
+    : '';
+  return html`<form class="${t.prizeInfo ? 'join-rules' : ''}" method="post" action="/tournaments/${t.slug}/join">${csrfField(ctx)}<input type="hidden" name="next" value="${next}">${code ? html`<input type="hidden" name="code" value="${code}">` : ''}${rules}<button class="btn small">Join</button></form>`;
 }
 
 /** The player's status on a card: Join, Joined, "You're #4", or Members only. */
@@ -62,7 +77,7 @@ export function card(ctx, t, next = '/tournaments') {
   return html`<article class="card tn-card ${t.phase} ${t.host ? 'player-made' : ''}">
     <div class="tn-top">
       <a class="tn-name" href="${t.href ?? `/tournaments/${t.slug}`}">${t.name}</a>
-      <span class="tn-chips">${free}${t.host ? playerMade : ''}</span>
+      <span class="tn-chips">${free}${t.prizeInfo ? prizeChip : ''}${t.prizeInfo && !t.prizeInfo.published_at ? draftChip : ''}${t.host ? playerMade : ''}</span>
     </div>
     ${madeBy(t)}
     <div class="tn-line">${sportChips(t.sportList)}<span class="tn-window">${t.window}</span></div>
@@ -72,8 +87,8 @@ export function card(ctx, t, next = '/tournaments') {
         ? html`<span class="dot">${t.podium ? winner ? html`Won by <b>${winner.screen_name}</b> (${units(winner.units)})` : 'Nobody placed' : 'Final once every bet is graded'}</span>`
         : ''}
     </div>
-    <p class="tn-prize">${icons.medal}<span>${t.prize}</span></p>
-    <div class="tn-foot"><span class="tn-min">${t.min_bets} graded ${t.min_bets === 1 ? 'bet' : 'bets'} to place</span>${statusOf(ctx, t, next)}</div>
+    ${t.prizeInfo ? prizeLine(t) : html`<p class="tn-prize">${icons.medal}<span>${t.prize}</span></p>`}
+    <div class="tn-foot ${t.prizeInfo ? 'with-rules' : ''}"><span class="tn-min">${t.min_bets} graded ${t.min_bets === 1 ? 'bet' : 'bets'} to place</span>${statusOf(ctx, t, next)}</div>
   </article>`;
 }
 
@@ -84,16 +99,17 @@ function section(ctx, title, list, empty, id = null) {
 }
 
 /** The hub: live now, starting soon, player tournaments, and the last few finished. */
-export function hub(ctx, { live, soon, players = [], finished, admin = false, survivor = null, pickem = null, cup = null }) {
+export function hub(ctx, { live, soon, players = [], finished, admin = false, survivor = null, pickem = null, cup = null, leagues = null, bracket = null }) {
   return layout(ctx, {
     title: 'Tournaments',
     active: 'tournaments',
-    description: 'Free Bookie Bullies tournaments: join, make your picks, and play for the top spot.',
+    description: 'Free LockBox tournaments: join, make your picks, and play for the top spot.',
     body: html`
       <h1>Tournaments</h1>
       <div class="features">
         ${survivorFeature(ctx, survivor)}
         ${pickemFeature(ctx, pickem)}
+        ${bracketFeature(ctx, bracket)}
       </div>
       ${cup ? cupBanner(ctx, cup) : ''}
       <p class="lede">Free to join, one tap. Only bets you make after joining count, on games inside the tournament's window. Most units wins.</p>
@@ -104,6 +120,7 @@ export function hub(ctx, { live, soon, players = [], finished, admin = false, su
       ${section(ctx, 'Live now', live, 'Nothing live right now.')}
       ${section(ctx, 'Starting soon', soon, 'Nothing new yet. Tournaments open about two days ahead.')}
       ${section(ctx, 'Player tournaments', players, html`None right now. <a href="/tournaments/new">Make one</a> for your crew.`, 'players')}
+      ${leagues ? leaguesSection(ctx, leagues) : ''}
       ${section(ctx, 'Finished', finished, 'None finished yet.')}
       <a class="btn ghost block winners-link" href="/winners?tab=tournaments">Winners wall</a>
     `,
@@ -212,10 +229,11 @@ export function detail(ctx, {
   return layout(ctx, {
     title: t.name,
     active: 'tournaments',
-    description: `${t.name}: a free Bookie Bullies tournament. ${t.window}.`,
+    description: `${t.name}: a free LockBox tournament. ${t.window}.`,
     body: html`
       <a class="back" href="/tournaments">← Tournaments</a>
-      <div class="tn-title"><h1>${t.name}</h1>${free}${host ? playerMade : ''}</div>
+      <div class="tn-title"><h1>${t.name}</h1>${free}${t.prizeInfo ? prizeChip : ''}${host ? playerMade : ''}</div>
+      ${t.prizeInfo && !t.prizeInfo.published_at ? html`<div class="flash err admin-banner" role="status">Draft prize tournament: only admins can see it until a lawyer's review is recorded and it's published. <a href="/admin/tournaments/${t.slug}/prize">Prize settings</a></div>` : ''}
       <div class="tn-line">${sportChips(t.sportList)}<span class="muted">${weekly ? "Everyone's in" : `${entrants} ${entrants === 1 ? 'entrant' : 'entrants'}`}</span></div>
       ${madeBy(t)}
       <div class="contest-clock">
@@ -223,7 +241,7 @@ export function detail(ctx, {
         <b>${canceled ? 'Canceled' : t.phase === 'soon' ? 'Starting soon' : t.phase === 'live' ? 'Live now' : 'Finished'}</b>
         <span class="cc-left">${canceled ? '' : t.clock ?? (podium ? 'Final' : 'Final once every bet is graded')}</span>
       </div>
-      <p class="tn-prize">${icons.medal}<span>${t.prize}</span></p>
+      ${t.prizeInfo ? prizeLine(t) : html`<p class="tn-prize">${icons.medal}<span>${t.prize}</span></p>`}
       ${action}
       ${mine && inviteUrl ? makerTools(ctx, t, { inviteUrl, canceled }) : ''}
       ${myRow && t.phase !== 'soon' && !canceled
@@ -252,7 +270,7 @@ export function detail(ctx, {
       ${chatSection(ctx, t, { chat, canceled, entry: entry ?? (weekly && playing) })}
       <h2>Rules</h2>
       <ul class="tn-rules">
-        <li>Free. Nothing to pay, nothing paid out.</li>
+        <li>${t.prizeInfo ? html`Free to enter. No purchase necessary. The winner gets ${t.prizeInfo.prize} from ${t.prizeInfo.sponsor}. See the <a href="/tournaments/${t.slug}/rules">official rules</a>.` : 'Free. Nothing to pay, nothing paid out.'}</li>
         ${weekly
           ? html`<li>Everyone's in. Every bet on a game that starts in the window counts.</li>`
           : html`<li>Join any time before it ends. Only bets you make after joining count.</li>`}
@@ -324,7 +342,7 @@ export function newTournament(ctx, { groups, form = {}, error = null }) {
 }
 
 /** For admins: make a tournament, and cancel one before it starts. */
-export function admin(ctx, { list, reported = [], error = null, form = {} }) {
+export function admin(ctx, { list, reported = [], prizes = [], error = null, form = {} }) {
   const chosen = new Set(form.sports ?? []);
   return layout(ctx, {
     title: 'Tournaments admin',
@@ -349,6 +367,13 @@ export function admin(ctx, { list, reported = [], error = null, form = {} }) {
             </div>
           </li>`)}</ul>`
         : html`<div class="card empty">Nothing reported right now.</div>`}
+      <h2 id="prizes">Prize tournaments</h2>
+      <p class="muted small">Free to enter, with a sponsor's prize and official rules. Players can't see one until a lawyer's review is recorded and you publish it.</p>
+      ${prizes.length
+        ? html`<ul class="menu tn-admin">${prizes.map((t) => html`<li><div class="tn-admin-row">
+            <span class="text"><a href="/admin/tournaments/${t.slug}/prize">${t.name}</a><small>${t.prize} · ${t.published_at ? 'Published' : t.reviewed_at ? 'Reviewed, not published' : 'Draft, needs review'}${t.closed_at ? (t.sent_at ? ' · Prize sent' : ' · Final: send the prize') : ''}</small></span>
+          </div></li>`)}</ul>`
+        : html`<div class="card empty">None yet. Make a tournament below, then "Make it a prize tournament" from its row.</div>`}
       <h2>New tournament</h2>
       ${error ? html`<div class="flash err" role="alert">${error}</div>` : ''}
       <form class="form card tn-form" method="post" action="/admin/tournaments">
@@ -372,7 +397,7 @@ export function admin(ctx, { list, reported = [], error = null, form = {} }) {
       <h2>Live and coming up</h2>
       ${list.length
         ? html`<ul class="menu tn-admin">${list.map((t) => html`<li><div class="tn-admin-row">
-            <span class="text"><a href="/tournaments/${t.slug}">${t.name}</a><small>${t.window} · ${t.kind === 'weekly' ? "everyone's in" : `${t.entrants} ${t.entrants === 1 ? 'entrant' : 'entrants'}`} · ${t.host ? `player-made by ${t.host.creator_name ?? 'a player'}, ${t.host.visibility}` : t.kind}</small></span>
+            <span class="text"><a href="/tournaments/${t.slug}">${t.name}</a><small>${t.window} · ${t.kind === 'weekly' ? "everyone's in" : `${t.entrants} ${t.entrants === 1 ? 'entrant' : 'entrants'}`} · ${t.host ? `player-made by ${t.host.creator_name ?? 'a player'}, ${t.host.visibility}` : t.kind}${t.prizeInfo ? ` · prize, ${t.prizeInfo.published_at ? 'published' : 'draft'}` : ''}</small>${t.kind === 'custom' && !t.host ? html`<a class="small" href="/admin/tournaments/${t.slug}/prize">${t.prizeInfo ? 'Prize settings' : 'Make it a prize tournament'}</a>` : ''}</span>
             ${(t.phase === 'soon' || t.host) && t.kind !== 'weekly'
               ? html`<form method="post" action="/admin/tournaments/${t.slug}/cancel" data-confirm="Cancel ${t.name}? Everyone who joined hears about it.">${csrfField(ctx)}<button class="btn small danger">Cancel</button></form>`
               : html`<span class="muted small">${t.phase === 'live' ? 'Live' : ''}</span>`}

@@ -713,6 +713,174 @@ export const MIGRATIONS = [
   );
   CREATE INDEX cup_results_user ON cup_results(user_id);
   `,
+  `${KEYS_OFF}
+  -- Leagues, the March Madness bracket challenge and prize tournaments
+  -- (2026-11-06). Free, like every tournament: each new table that could
+  -- ever carry an entry fee refuses anything but 0.
+  --
+  -- The Cup counts league and bracket finishes too, so cup_points is rebuilt
+  -- with two more sources under its CHECK, every row copied as it is.
+  -- Nothing points at cup_points; foreign keys are off anyway, the rebuild
+  -- recipe in openStore.
+  CREATE TABLE cup_points_v2 (
+    year INTEGER NOT NULL,
+    source TEXT NOT NULL CHECK (source IN ('tournament', 'weekly', 'survivor', 'pickem', 'league', 'bracket')),
+    ref TEXT NOT NULL,
+    label TEXT NOT NULL,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    place INTEGER NOT NULL,
+    points INTEGER NOT NULL,
+    awarded_at TEXT NOT NULL,
+    PRIMARY KEY (source, ref, user_id)
+  );
+  -- SELECT * stops this with an error if cup_points has a column this list doesn't know.
+  INSERT INTO cup_points_v2 (year, source, ref, label, user_id, place, points, awarded_at) SELECT * FROM cup_points;
+  DROP TABLE cup_points;
+  ALTER TABLE cup_points_v2 RENAME TO cup_points;
+  CREATE INDEX cup_points_year ON cup_points(year, user_id);
+
+  -- Head-to-head leagues: 4 to 16 players, a round-robin of weekly
+  -- matchups (Monday to Sunday ET, units won on graded bets), then a
+  -- single-elimination playoff. start_week is week 1's Monday ("20261109").
+  -- Like player-made tournaments: public or private (invite_code), and
+  -- optionally tied to a group or local room (members_only).
+  CREATE TABLE leagues (
+    id INTEGER PRIMARY KEY,
+    name TEXT NOT NULL,
+    sports TEXT,                     -- comma-separated keys, null for all
+    start_week TEXT NOT NULL,
+    regular_weeks INTEGER NOT NULL CHECK (regular_weeks BETWEEN 3 AND 10),
+    playoff_size INTEGER NOT NULL CHECK (playoff_size IN (2, 4, 8)),
+    visibility TEXT NOT NULL CHECK (visibility IN ('public', 'private')),
+    invite_code TEXT NOT NULL UNIQUE,
+    group_id INTEGER REFERENCES friend_groups(id) ON DELETE SET NULL,
+    members_only INTEGER NOT NULL DEFAULT 0,
+    created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    created_at TEXT NOT NULL,
+    started_at TEXT,                 -- the schedule was made
+    canceled_at TEXT,
+    cancel_reason TEXT,
+    closed_at TEXT,
+    champion_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    entry_fee_cents INTEGER NOT NULL DEFAULT 0 CHECK (entry_fee_cents = 0)
+  );
+  CREATE INDEX leagues_open ON leagues(started_at, canceled_at, closed_at);
+  CREATE INDEX leagues_created_by ON leagues(created_by);
+  -- seed is set when the regular season ends, for the playoff qualifiers.
+  CREATE TABLE league_members (
+    league_id INTEGER NOT NULL REFERENCES leagues(id) ON DELETE CASCADE,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    joined_at TEXT NOT NULL,
+    seed INTEGER,
+    PRIMARY KEY (league_id, user_id)
+  );
+  CREATE INDEX league_members_user ON league_members(user_id);
+  -- One matchup: a against b (b null is a bye). Regular-season weeks are
+  -- written when the league starts; each playoff round when the round
+  -- before it settles. Settled once: both scores, the result and the winner
+  -- (null for a tie). told_at marks the "This week you play" note.
+  CREATE TABLE league_matchups (
+    league_id INTEGER NOT NULL REFERENCES leagues(id) ON DELETE CASCADE,
+    week INTEGER NOT NULL,
+    slot INTEGER NOT NULL,
+    playoff INTEGER NOT NULL DEFAULT 0,
+    a_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    b_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    a_seed INTEGER,
+    b_seed INTEGER,
+    a_units REAL,
+    b_units REAL,
+    result TEXT CHECK (result IN ('a', 'b', 'tie', 'bye')),
+    winner_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    settled_at TEXT,
+    told_at TEXT,
+    PRIMARY KEY (league_id, week, slot)
+  );
+
+  -- The March Madness bracket challenge: one a year, free. regions are the
+  -- four region names in Final Four order (the 1st plays the 2nd, the 3rd
+  -- the 4th). opened_at is when an admin confirmed the field and players
+  -- could start filling brackets; locks_at the first Round of 64 tip.
+  CREATE TABLE bracket_challenges (
+    year INTEGER PRIMARY KEY,
+    name TEXT NOT NULL,
+    regions TEXT NOT NULL,
+    locks_at TEXT,
+    source TEXT NOT NULL DEFAULT 'admin' CHECK (source IN ('espn', 'admin', 'demo')),
+    opened_at TEXT,
+    opened_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    title_total INTEGER,
+    closed_at TEXT,
+    created_at TEXT NOT NULL,
+    entry_fee_cents INTEGER NOT NULL DEFAULT 0 CHECK (entry_fee_cents = 0)
+  );
+  -- The 64 slots: a region and a seed. A First Four slot has two teams
+  -- (name2...) until its game is played (ff_winner). Picks name the slot,
+  -- never a team, so a First Four result changes nobody's bracket.
+  CREATE TABLE bracket_slots (
+    year INTEGER NOT NULL REFERENCES bracket_challenges(year) ON DELETE CASCADE,
+    region INTEGER NOT NULL CHECK (region BETWEEN 0 AND 3),
+    seed INTEGER NOT NULL CHECK (seed BETWEEN 1 AND 16),
+    name TEXT NOT NULL,
+    abbr TEXT,
+    espn_id TEXT,
+    logo TEXT,
+    name2 TEXT,
+    abbr2 TEXT,
+    espn_id2 TEXT,
+    logo2 TEXT,
+    ff_winner INTEGER CHECK (ff_winner IN (1, 2)),
+    PRIMARY KEY (year, region, seed)
+  );
+  -- A player's bracket: picks is JSON, game number (0 to 62) -> slot
+  -- ("2-11"). tiebreak is their guess at the title game's total points.
+  -- place and points are written once, when the challenge closes.
+  CREATE TABLE bracket_entries (
+    year INTEGER NOT NULL REFERENCES bracket_challenges(year) ON DELETE CASCADE,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    picks TEXT NOT NULL DEFAULT '{}',
+    tiebreak INTEGER,
+    created_at TEXT NOT NULL,
+    saved_at TEXT NOT NULL,
+    place INTEGER,
+    points INTEGER,
+    PRIMARY KEY (year, user_id)
+  );
+  CREATE INDEX bracket_entries_user ON bracket_entries(user_id);
+  -- Each of the 63 games, once decided: the winning slot.
+  CREATE TABLE bracket_results (
+    year INTEGER NOT NULL REFERENCES bracket_challenges(year) ON DELETE CASCADE,
+    game INTEGER NOT NULL CHECK (game BETWEEN 0 AND 62),
+    winner TEXT NOT NULL,
+    score TEXT,
+    source TEXT NOT NULL CHECK (source IN ('espn', 'admin')),
+    decided_at TEXT NOT NULL,
+    PRIMARY KEY (year, game)
+  );
+
+  -- Prize tournaments: an admin-made custom tournament with a sponsor's
+  -- prize. Still free (the tournament's entry_fee_cents CHECK stays). Nobody
+  -- sees it until an admin records a lawyer's review and publishes it.
+  CREATE TABLE prize_tournaments (
+    tournament_id INTEGER PRIMARY KEY REFERENCES tournaments(id) ON DELETE CASCADE,
+    prize TEXT NOT NULL,
+    value_cents INTEGER NOT NULL CHECK (value_cents >= 0),
+    sponsor TEXT NOT NULL,
+    eligibility TEXT NOT NULL,
+    delivery TEXT NOT NULL,
+    created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    reviewed_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    reviewed_at TEXT,
+    published_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    published_at TEXT,
+    sent_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    sent_at TEXT
+  );
+  -- "I've read the official rules", checked when joining a prize tournament.
+  ALTER TABLE tournament_entries ADD COLUMN rules_accepted_at TEXT;
+  `,
 ];
 
 export function openStore(file) {

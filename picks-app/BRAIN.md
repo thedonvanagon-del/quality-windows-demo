@@ -36,6 +36,31 @@ not dollars, and nothing is paid out.
   bookie-bullies repo) for the header, the browser tab and the phone icons.
 
 ### Look
+- **2026-11-06: The app is "LockBox", by BOOKIEBULLIES.COM** (owner's call;
+  "LockBox Picks" was tried first and dropped). Motto: "Made to show the true
+  skill of real handicappers with nothing to hide." The header reads LOCKBOX
+  with "BY BOOKIEBULLIES.COM" in gold under it (replacing the ".com"); the
+  launch screen shows the crest, the name, the byline and the motto; the
+  installed app's full name is "LockBox by BookieBullies.com". The LOCKED
+  ticket adds "Once it's in, it's on the record." Bookie Bullies stays the
+  brand behind it: the official account, the Bookie Bullies Cup, the model's
+  Locks, the crest and the website keep the name. Settings: `APP_NAME`,
+  `APP_SHORT_NAME`. "Lockbox" alone is a common word (key safes, password
+  apps), so the store listing should be "LockBox: Sports Pick Tracker" to be
+  found; check the App Store, Google Play and USPTO for conflicts first.
+- **2026-11-06: Brand font: Black Ops One** (a stencil, like a stamped crate;
+  owner's pick from 12). Used only for the name in the header, the launch
+  screen, the LOCKED stamp and the name on share images (`--brand`); the rest
+  of the app stays Barlow. Self-hosted woff2, SIL Open Font License 1.1.
+- **2026-11-06: Launch screen and ".com" (owner's ask, to promote the
+  site).** The first page of each visit shows the crest with
+  BOOKIEBULLIES.COM in gold for about a second, then fades (pure CSS, a tap
+  skips it, shorter with reduced motion; a session cookie `bb_splash` keeps it
+  to once per visit and a redirect doesn't use it up). The header reads
+  "BOOKIE BULLIES.com" with a small muted ".com"; on phones the name steps
+  down a size so the bell and avatar stay on screen. The installed app's name
+  (manifest `name`, shown on Android's launch screen) is "BookieBullies.com";
+  the home screen label stays "Bookie Bullies".
 - **2026-11-06: Name colors and scoreboard icons** (owner's ask: "be able to
   change your name color for the scoreboard and your icon for the scoreboard").
   On your own profile, under App color, a **Your name on the boards** card: a
@@ -292,6 +317,175 @@ not dollars, and nothing is paid out.
 - **2026-10-25:** Profiles have a short bio, up to 160 characters.
 
 ### Tournaments
+- **2026-11-06: Head-to-head leagues** (owner approved; `src/leagues.js`,
+  `/leagues`). Free. 4 to 16 players.
+  - **Making one:** any confirmed player, at `/leagues/new` (a "Start a
+    league" button in the hub's new **Leagues** section). Two going at once
+    (not canceled, not final); admins no limit. Name by the player-made
+    tournament rules (`cleanTournamentName`). Sports (none checked is all),
+    week 1 (one of the next 8 Mondays), 3 to 10 regular-season weeks, a
+    playoff of 2, 4 or 8. Public (listed, Join) or private (`/l/<code>`), and
+    optionally tied to a group or local room (members only), like
+    player-made tournaments. The maker is in it and can't leave.
+  - **Weeks** are the weekly contest's: Monday to Sunday ET. Joining (a
+    confirmed email) closes when week 1 starts. Then, once (`runLeagues`,
+    every 5 minutes with the daily jobs): **under 4 players it's canceled**
+    and everyone hears "Sunday Crew was canceled. Only 3 players joined
+    before Week 1. A league needs 4."; otherwise the **round-robin** is made
+    and stored (`league_matchups`): the circle method on the members in join
+    order, a bye seat when the count is odd, starting over after n-1 weeks.
+  - **A matchup** is units won on graded bets (`BETS`, picks and parlays, a
+    parlay only when every leg is in the sports) on games that started that
+    week. `contest.js`'s `counted()` gained a `userIds` filter, so the
+    standings, open-bet and ungraded queries are the contest's own. More
+    units wins, the same units is a tie, no bets is 0. A week **settles
+    once**, like the weekly contest: after it ends, when every member's
+    counted bet is graded, by Tuesday 6 AM ET at the latest. Live: the
+    league page shows the current week at the current score (the
+    tournaments' `provisional` grading, now exported), "N live" by a score,
+    the live note, a 45-second refresh; nothing provisional is written.
+  - **Standings:** win share (a tie is half; byes don't count as games),
+    then total units (a bye week's units count), then who joined first.
+  - **Playoffs:** after the last regular week the top N are seeded
+    (`league_members.seed`) into a single-elimination bracket, 1 v N, pairs
+    built so 1 and 2 only meet in the final (8: 1-8, 4-5, 2-7, 3-6). One
+    round a week, each written when the round before settles. A tied playoff
+    matchup goes to the **higher seed**. After the final: `champion_id`, the
+    **League champion** badge (`league_champion`, one per league), a note to
+    everyone, and **Cup points** (new source `league`) by finish: champion
+    1st, runner-up 2nd, semifinal losers 3rd (shared), then everyone else by
+    the regular-season standings. The player-made minimum applies: **8 or
+    more players** or no Cup points.
+  - **Notes**, behind the Tournament updates setting: "This week you play
+    DogLover in Sunday Crew." once per matchup (claimed by `told_at`), the
+    bye version, "You beat DogLover +3.2u to +1.1u." / "DogLover beat you
+    ..." / "You tied ...", "(the higher seed wins a tie)" on a tied playoff
+    game, "You made the playoffs in Sunday Crew as the 3 seed.", and
+    "Playoffs: this week you play ..." / "In the final, ...". Cancel and
+    final notes always go.
+  - **Pages:** `/leagues` (yours, then open public ones), `/leagues/new`,
+    `/leagues/<id>`: this week's matchups (yours first, lit up), the playoff
+    bracket once playoffs start (HTML and CSS: a column a round on wide
+    screens, stacked rounds on a phone; TBD for rounds not set), standings
+    (a dashed line under the playoff cut), the schedule by week
+    (`<details>`, this week open), rules.
+  - **Decided differently from the brief:**
+    - **No league chat.** A league thread would mean rebuilding
+      `chat_messages` again to widen its "exactly one of game, group,
+      tournament" CHECK; that isn't additive, so it's skipped as the brief
+      allowed. A league tied to a group or room uses that chat (the rules say so).
+    - A playoff bigger than the players shrinks when the league starts
+      (8 with 6 players becomes 4), rather than refusing it at creation, when
+      nobody knows yet how many will join.
+    - Ties in the regular season rank by win share, not wins, because byes
+      leave players with different game counts.
+    - Joining needs a confirmed email (tournaments let unconfirmed players
+      join but hide them), since an unseen player would still hold a
+      matchup. A league can't be canceled by its maker; under 4 cancels itself.
+- **2026-11-06: The March Madness bracket challenge** (owner approved;
+  `src/bracket.js`, `/bracket`). One free challenge a year for the NCAA
+  men's tournament (`bracket_challenges`, by year).
+  - **The tree:** games 0 to 62. Round of 64 = 0-31 (8 a region in the
+    1-16, 8-9, 5-12, 4-13, 6-11, 3-14, 7-10, 2-15 order), Round of 32
+    32-47, Sweet 16 48-55, Elite Eight 56-59, Final Four 60-61 (region 1 v
+    2, 3 v 4), title 62; game g in a later round is fed by two games before
+    it. A **slot** is a region and seed ("2-11"). **The First Four isn't
+    picked:** a pick names the slot, the slot holds both teams (`name2`)
+    until its game (`ff_winner`), so a First Four result changes nobody's
+    bracket.
+  - **The field from ESPN:** `parseScoreboard` now keeps the game's note
+    (`competitions[0].notes[0].headline`, else the event's) and each team's
+    ESPN id and a **seed** (`competitor.seed`, else `curatedRank.current`
+    from 1 to 16; during the season that's the AP rank, so only tournament
+    games read it). `tournamentNote` reads "Men's Basketball Championship -
+    South Region - 1st Round" (First Four, rounds, Final Four, National
+    Championship; women's and NIT left out). `assembleField` builds the 64
+    slots from Round of 64 games (a TBD team's slot comes from its First Four
+    game), checks seeds pair to 17, and lists every problem. In March and
+    early April the 10-minute finals job (`syncBracket`) looks for the field
+    and, with no problems, saves it as a **draft**; **an admin always
+    confirms it** at `/admin/bracket`, since the Round of 64 can't say which
+    regions meet in the Final Four. The lock is the first Round of 64 tip.
+  - **`/admin/bracket`** (admins; a Bracket tab and a More row) works fully
+    without ESPN: start the year's challenge, **Look on ESPN** (says so
+    plainly when ESPN can't be reached), the regions in Final Four order and
+    the lock (ET), the field as **4 × 16 boxes** with a list of college
+    teams (`<datalist>`: the catalog's programs plus every college hoops
+    team the board has seen; a typed name works too) and a second box for a
+    First Four pair, or **pasted** ("South, 16, Howard / Wagner" a line).
+    Confirming opens it. Then **results**: First Four winners, every game
+    whose two teams are known, and the title game's total; fixing a game
+    drops later results that rode on it.
+  - **Results from ESPN:** once locked, the finals job reads the last 3
+    days of the scoreboard, matches teams to slots by ESPN id, name or
+    abbreviation, fills First Four slots and puts each final in the one tree
+    game those two slots play, in start order. The title game's score sets
+    the total. Then the challenge closes once: places on the entries, the
+    **Bracket champion** badge (`bracket_champion`, by year), **Cup points**
+    (source `bracket`, no minimum), notes.
+  - **Scoring:** 10, 20, 40, 80, 160, 320 a right pick by round (1920 is
+    perfect). Ties: closest tiebreak guess (the title game's total points,
+    60-300) once the total is known, then whoever saved first. **Possible
+    max** = points + every undecided pick whose slot hasn't lost.
+  - **`/bracket`:** your bracket by region (tabs for the four regions,
+    Final Four, Standings). Each game is two team buttons, radio inputs in a
+    **form per round** with a Save button, so it works without JavaScript;
+    with it, a tap saves at once and the bracket redraws (the next round
+    fills in). Changing a pick drops later picks that rode on the old team,
+    and says so. After the lock it's read-only with right/wrong marks and
+    knocked-out teams struck. **Other players' brackets** (`?player=`) are a
+    404 until the lock; the standings show names and "63 of 63 picked"
+    until then and the champion pick after.
+  - **The hub card** (next to Survivor and Pick'em): fill your bracket, x of
+    63, the lock; your place once locked. Off-season: "The bracket challenge
+    opens on Selection Sunday." with the last winner. From November the
+    challenge looked for is next year's.
+  - **Decided differently from the brief:** an ESPN field is never opened on
+    its own (a draft for the admin), since the Final Four pairings aren't in
+    the Round of 64 games. Team boxes take any plain name, not only teams on
+    the list: the app's college list is about 50 programs plus what the board
+    has seen, and the field has 68 schools.
+  - **The parser hasn't been checked against live ESPN** (see Waiting on
+    the owner). If ESPN's notes or seeds differ, the draft lists problems and
+    the admin pastes the field; results can be entered by hand.
+- **2026-11-06: Prize tournaments** (owner approved; `src/prizes.js`).
+  Admins only can make an **admin-made custom tournament** a prize
+  tournament, from its row on `/admin/tournaments` ("Make it a prize
+  tournament") to `/admin/tournaments/<slug>/prize`: the prize, its value in
+  dollars (up to $5,000), the sponsor, eligibility (default "US residents
+  21+, void where prohibited") and how and when it's delivered. How the
+  winner is picked is fixed: first place in the final standings. Only
+  before the start and with nobody in it yet.
+  - **Still free:** no purchase or payment of any kind; `tournaments`'
+    `entry_fee_cents = 0` CHECK is untouched (and every new table has the
+    same CHECK).
+  - **Official rules** at `/tournaments/<slug>/rules`, from the fields plus
+    a template: sponsor, NO PURCHASE NECESSARY, eligibility, entry period,
+    how to enter (free), how the winner is determined (skill, the app's
+    standings and tiebreaks), prize and approximate retail value, odds
+    ("depend on skill and the number of entrants"), winner notification and
+    verification, publicity, general conditions, a limitation-of-liability
+    **placeholder**, privacy (links `/privacy`), the winners list request.
+    Admins see a gold banner on top: "Draft rules: have a lawyer review
+    before running this tournament."
+  - **Publishing gate:** a new prize tournament is a draft that only admins
+    see (hub, pages, rules, join all refuse it; the hub shows admins a Draft
+    chip). An admin ticks **"A lawyer has reviewed these rules"** (who and
+    when are recorded; changing the prize clears it), then **Publish**
+    (refused without the review; who and when recorded). Published rules
+    can't change.
+  - **Players** see a gold **Prize** chip, the prize, its value and sponsor
+    and an **Official rules** link on cards and the page. Join needs **"I've
+    read the official rules"** checked; its time is stored on the entry
+    (`tournament_entries.rules_accepted_at`).
+  - **After the close** the admin page lists the winner with their record,
+    their **account email** (admins only) and when they read the rules, and
+    **Mark prize sent** (who and when). `/admin/tournaments` lists every
+    prize tournament with its state.
+  - **Before running one for real:** a lawyer reviews the rules, and the
+    sweepstakes and contest rules **state by state** (registration and
+    bonding in some states for prizes over a value, New York and Florida
+    among them; void where prohibited) are checked. See Waiting on the owner.
 - **2026-11-06: Survivor, NFL Pick'em and the Bookie Bullies Cup** (owner
   approved; Survivor is the top priority). All free, like every tournament.
   - **NFL weeks** (`src/nflweeks.js`). ESPN's scoreboard files each NFL game
@@ -628,6 +822,13 @@ not dollars, and nothing is paid out.
     so restarts never double up. The official account gets nothing.
 
 ### Following, streaks, splits, notifications
+- **2026-11-06: Groups reads "Chat Rooms"** (owner's call): the tab bar,
+  the top nav, the page's title and heading, More, and the back links to
+  it. The page holds private groups and local rooms. URLs and internal names
+  stay (`/groups`, `friend_groups`); "Make a group" and the like stay too.
+  Measured at 390×760 in the tab font, "CHAT ROOMS" is 60px in a 64px tab,
+  so it's **one line**; under 380px wide it wraps to "Chat" over "Rooms"
+  rather than cut off (`.tab-wrap`). Screenshot: `tc-tabbar.png`.
 - **2026-11-06: The tab bar is Games · My bets · Tourneys · Leaders · Groups ·
   More.** Tournaments gets a tab (a bracket icon); "Tournaments" needs 71px
   and a tab has 64px at 390px wide, so it reads "Tourneys". **Profile left the
@@ -977,6 +1178,10 @@ Launch log:
   Survivor pool per NFL season (featured at the top of the hub, a Survivor
   checkbox on NFL pick slips), weekly NFL Pick'em against the spread with a
   Best Bet, and a year-long Cup points race over every tournament close
+- Head-to-head leagues with playoff brackets, the March Madness bracket
+  challenge (field from ESPN or an admin, `/admin/bracket`), and prize
+  tournaments with generated official rules behind a lawyer-review gate
+  (2026-11-06); Groups reads "Chat Rooms"
 - Links to www.bookiebullies.com: BB Pick chips and a sheet on the board, a
   Today's Locks card, a More row, a line on the LOCKED ticket and the site
   on the share image, with a setting to hide them (2026-11-06)
@@ -1032,6 +1237,25 @@ Beta launch checklist (2026-10-27). The app code is merged; these get it online.
    session couldn't reach ESPN. With a real NFL scoreboard, check that
    `games.week` fills in. If it doesn't, nothing breaks: weeks come from
    the date (Tuesday to Monday, from the Tuesday after Labor Day).
+
+12. **Prize tournaments need a lawyer first** (2026-11-06). Before running
+   one: a lawyer reviews the generated official rules (and writes the
+   limitation-of-liability section, now a placeholder) and checks the
+   **sweepstakes and contest rules state by state**: skill contests with a
+   prize are still regulated in some states, a few require registration
+   and a bond above a prize value (New York and Florida are the usual
+   examples), and some bar certain prizes. Only then tick "A lawyer has
+   reviewed these rules" and publish. The demo's Buddha Beans tournaments
+   are made up.
+13. **Check the bracket data live on Selection Sunday** (2026-11-06). The
+   session that built the bracket challenge couldn't reach ESPN, so
+   `tournamentNote`, the seed fields (`competitor.seed`, `curatedRank`) and
+   `assembleField` were written from ESPN's known shape and tested on
+   made-up fixtures. On Selection Sunday, open `/admin/bracket`, press
+   **Look on ESPN for the field**, and compare with the real bracket. If
+   the draft lists problems, paste the field instead; set the Final Four
+   order and the lock either way. During the tournament, check that results
+   fill in; if not, enter them on the same page.
 
 ## Ideas, not built yet
 

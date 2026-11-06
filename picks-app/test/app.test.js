@@ -274,7 +274,7 @@ describe('picks', () => {
     assert.equal(res.location, '/games?sport=nfl#g-nfl-1');
     const board = await b.get(res.location);
     assert.match(board.text, /<article class="event" id="g-nfl-1"/);
-    assert.match(visible(board.text), /Locked Bills \+3\.5 \(-110\), 2u to win 1\.82u On the record Oct 25, 8:00 AM ET/);
+    assert.match(visible(board.text), /Locked Bills \+3\.5 \(-110\), 2u to win 1\.82u Once it's in, it's on the record\. On the record Oct 25, 8:00 AM ET/);
     const [p] = picks();
     assert.equal(p.line, 3.5);
     assert.equal(p.odds, -110);

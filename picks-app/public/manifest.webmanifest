@@ -1,7 +1,7 @@
 {
-  "name": "Bookie Bullies",
-  "short_name": "Bookie Bullies",
-  "description": "Make your picks before the game. They lock at the start and get graded off the final score.",
+  "name": "LockBox by BookieBullies.com",
+  "short_name": "LockBox",
+  "description": "Made to show the true skill of real handicappers with nothing to hide. Every pick locked before the game and graded off the final score.",
   "start_url": "/games",
   "scope": "/",
   "display": "standalone",

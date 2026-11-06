@@ -41,7 +41,7 @@ function roomRow(ctx, room, { unread = 0, home = false } = {}) {
   </li>`;
 }
 
-/** The Groups page's top section: the rooms you're in, then a way to find yours. */
+/** The Chat Rooms page's (/groups) top section: the rooms you're in, then a way to find yours. */
 export function groupsSection(ctx, { rooms, unread }) {
   return html`<h2>Local rooms</h2>
     ${rooms.length ? html`<ul class="rooms">${rooms.map((r) => roomRow(ctx, r, { unread: unread.get(r.id) ?? 0 }))}</ul>` : html`<p class="muted">Talk with bettors in your city, and see who's best there.</p>`}
@@ -70,7 +70,7 @@ export function directory(ctx, { rooms, unread, cities, homeCity, city = '', err
     title: 'Local rooms',
     active: 'groups',
     body: html`
-      <a class="back" href="/groups">← Groups</a>
+      <a class="back" href="/groups">← Chat Rooms</a>
       <h1>Local rooms</h1>
       <p class="lede">One room per city: a chat, and a board of the best bettors there. Join as many as you like.</p>
       ${error
@@ -109,6 +109,7 @@ export function adminTabs(active) {
     <a href="/admin/reports" class="${active === 'reports' ? 'on' : ''}">Reported chat</a>
     <a href="/admin/rooms" class="${active === 'rooms' ? 'on' : ''}">Local rooms</a>
     <a href="/admin/tournaments" class="${active === 'tournaments' ? 'on' : ''}">Tournaments</a>
+    <a href="/admin/bracket" class="${active === 'bracket' ? 'on' : ''}">Bracket</a>
   </nav>`;
 }
 

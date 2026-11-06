@@ -234,7 +234,7 @@ describe('locking a parlay', () => {
     assert.equal(res.location, '/picks');
     const bets = await ann.get('/picks');
     assert.match(bets.text, /<div class="locked-ticket" role="status">/);
-    assert.match(visible(bets.text), /Locked 3-leg parlay \(\+596\), 0\.83u to win 4\.95u On the record Oct 25, 8:00 AM ET/);
+    assert.match(visible(bets.text), /Locked 3-leg parlay \(\+596\), 0\.83u to win 4\.95u Once it's in, it's on the record\. On the record Oct 25, 8:00 AM ET/);
     assert.doesNotMatch(bets.text, /class="parlay-bar"/, 'the draft is cleared');
     assert.equal(draft('Ann').length, 0);
     assert.doesNotMatch(bets.text, /aria-label="\d+ open"/, 'no open-bet count on the tab bar');

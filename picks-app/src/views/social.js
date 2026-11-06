@@ -58,10 +58,10 @@ const sportName = (key) => (key ? SPORT[key]?.name ?? key : 'All sports');
 
 export function groups(ctx, { list, rooms = [], unread = new Map(), error, name = '', sport = '' }) {
   return layout(ctx, {
-    title: 'Groups',
+    title: 'Chat Rooms',
     active: 'groups',
     body: html`
-      <h1>Groups</h1>
+      <h1>Chat Rooms</h1>
       <p class="lede">Your friends, your board. Your picks and record are the same everywhere; a group just decides who you're up against.</p>
       ${error ? html`<div class="flash err" role="alert">${error}</div>` : ''}
       ${groupsSection(ctx, { rooms, unread })}
@@ -113,7 +113,7 @@ export function group(ctx, { group, rows, members, feed, inviteUrl, messages = [
     title: group.name,
     active: 'groups',
     body: html`
-      ${isLocal ? html`<a class="back" href="/local">← Local rooms</a>` : html`<a class="back" href="/groups">← Groups</a>`}
+      ${isLocal ? html`<a class="back" href="/local">← Local rooms</a>` : html`<a class="back" href="/groups">← Chat Rooms</a>`}
       <h1>${group.name}</h1>
       <p class="lede">${isLocal
         ? html`<span class="local-tag">${icons.pin}Local room</span>${city ? ` · ${groupLabel(city)}` : ''}`
@@ -206,10 +206,10 @@ function bioForm(ctx, player) {
 function shareCard(player, record) {
   const u = `${record.units > 0 ? '+' : ''}${record.units}u`;
   return {
-    title: record.graded ? `${player.screen_name} · ${recordText(record)} · ${u}` : `${player.screen_name} on Bookie Bullies`,
+    title: record.graded ? `${player.screen_name} · ${recordText(record)} · ${u}` : `${player.screen_name} on LockBox`,
     description: record.graded
       ? `${record.graded} graded ${record.graded === 1 ? 'pick' : 'picks'}, ${pct(record.winPct)} winners, ${signedPct(record.roi)} ROI. Every pick locked before the game and graded off the final score. No edits.`
-      : 'A Bookie Bullies record: every pick locked before the game and graded off the final score. No edits.',
+      : 'A LockBox record: every pick locked before the game and graded off the final score. No edits.',
   };
 }
 
@@ -303,7 +303,7 @@ export function hot(ctx, { rows, followed }) {
   return layout(ctx, {
     title: 'Hot streaks',
     active: 'more',
-    description: "Who's hot on Bookie Bullies: the best last ten picks over the past 30 days.",
+    description: "Who's hot on LockBox: the best last ten picks over the past 30 days.",
     body: html`
       <a class="back" href="/more">← More</a>
       <h1>Hot streaks</h1>
@@ -744,7 +744,7 @@ export function contest(ctx, { week, rows, badges, me, left, min, last, players 
   return layout(ctx, {
     title: "This week's contest",
     active: 'board',
-    description: 'The free weekly contest on Bookie Bullies: most units won Monday to Sunday takes it.',
+    description: 'The free weekly contest on LockBox: most units won Monday to Sunday takes it.',
     body: html`
       <a class="back" href="/leaderboard">← Leaderboard</a>
       <h1>This week's contest</h1>
@@ -809,7 +809,7 @@ export function winners(ctx, { weeks, champions, tab = 'weekly', tournaments = {
   return layout(ctx, {
     title: 'Winners wall',
     active: 'board',
-    description: "Every week's top 3 in the free Bookie Bullies weekly contest, and every tournament's.",
+    description: "Every week's top 3 in the free LockBox weekly contest, and every tournament's.",
     body: html`
       <a class="back" href="/contest">← This week's contest</a>
       <h1>Winners wall</h1>
@@ -875,7 +875,7 @@ export function invite(ctx, { url, joined, waiting, goal }) {
         <div class="copy invite-url">${url}</div>
         <div class="row">
           <button class="btn small" type="button" data-copy="${url}" hidden>Copy link</button>
-          <button class="btn ghost small" type="button" data-share="${url}" data-share-text="Make picks with me on Bookie Bullies" hidden>Share</button>
+          <button class="btn ghost small" type="button" data-share="${url}" data-share-text="Make picks with me on LockBox" hidden>Share</button>
         </div>
       </div>
       <h2>Friends who joined</h2>

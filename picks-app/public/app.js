@@ -265,7 +265,7 @@ for (const button of document.querySelectorAll('[data-share-image]')) {
       const file = new File([blob], name, { type: 'image/png' });
       if (navigator.canShare?.({ files: [file] })) {
         try {
-          await navigator.share({ files: [file], title: `${card.dataset.name} on Bookie Bullies` });
+          await navigator.share({ files: [file], title: `${card.dataset.name} on LockBox` });
         } catch (err) {
           if (err.name !== 'AbortError') throw err;
         }
@@ -350,8 +350,8 @@ async function drawWinCard(d) {
   const crest = document.querySelector('.brand-logo');
   if (crest?.complete && crest.naturalWidth) c.drawImage(crest, 80, 80, 110, 110);
   c.fillStyle = v('--ink');
-  c.font = `800 60px ${cond}`;
-  c.fillText('BOOKIE BULLIES', 214, 142);
+  c.font = `400 60px "Black Ops One", ${cond}`;
+  c.fillText('LOCKBOX', 214, 142);
   c.fillStyle = gold;
   c.font = `800 32px ${cond}`;
   c.fillText('✓ TRUST YOUR BETS', 216, 184);
@@ -426,8 +426,8 @@ async function drawCard(d) {
   const crest = document.querySelector('.brand-logo');
   if (crest?.complete && crest.naturalWidth) c.drawImage(crest, 80, 84, 120, 120);
   c.fillStyle = v('--ink');
-  c.font = `800 64px ${cond}`;
-  c.fillText('BOOKIE BULLIES', 224, 150);
+  c.font = `400 64px "Black Ops One", ${cond}`;
+  c.fillText('LOCKBOX', 224, 150);
   c.fillStyle = v('--gold') || '#ffd257';
   c.font = `800 34px ${cond}`;
   c.fillText('✓ TRUST YOUR BETS', 226, 196);
@@ -987,3 +987,46 @@ for (const form of document.querySelectorAll('form[data-bb-dismiss]')) {
     fetch(form.action, { method: 'POST', body: new URLSearchParams(new FormData(form)), credentials: 'same-origin', redirect: 'manual' }).catch(() => {});
   });
 }
+
+// The bracket challenge: a tap on a team saves it at once and redraws the
+// bracket, so the next round fills in without a Save. Without JavaScript,
+// each round's Save button does the same.
+const bracketBox = document.querySelector('[data-bracket]');
+if (bracketBox && window.DOMParser && window.fetch) {
+  // Round buttons go; the Final Four's stays for the tiebreaker.
+  const hideSaves = () => {
+    for (const button of bracketBox.querySelectorAll('.bk-save')) button.hidden = !button.form?.querySelector('input[name="tiebreak"]');
+  };
+  hideSaves();
+  let saving = Promise.resolve();
+  bracketBox.addEventListener('change', (event) => {
+    const form = event.target.closest('form[data-bracket-round]');
+    if (!form || event.target.type !== 'radio') return;
+    const body = new URLSearchParams();
+    // Only the tapped game and the form's token and view: other games on the form keep what's saved.
+    for (const [key, value] of new FormData(form)) if (!/^g\d+$/.test(key) || key === event.target.name) body.append(key, value);
+    saving = saving.then(async () => {
+      try {
+        const res = await fetch(form.action, { method: 'POST', body, credentials: 'same-origin', headers: { accept: 'text/html' } });
+        if (!res.ok) throw new Error(String(res.status));
+        const page = new DOMParser().parseFromString(await res.text(), 'text/html');
+        const next = page.querySelector('[data-bracket]');
+        const clock = page.querySelector('.contest-clock');
+        if (next) {
+          const y = window.scrollY;
+          bracketBox.replaceChildren(...[...next.childNodes].map((n) => document.adoptNode(n)));
+          hideSaves();
+          window.scrollTo(0, y);
+        }
+        const here = document.querySelector('.contest-clock');
+        if (clock && here) here.replaceWith(document.adoptNode(clock));
+      } catch {
+        // Fall back to a normal submit, which shows any problem.
+        form.submit();
+      }
+    });
+  });
+}
+// The launch screen fades on its own; a tap skips it.
+const splashScreen = document.querySelector('[data-splash]');
+if (splashScreen) splashScreen.addEventListener('click', () => splashScreen.remove());
