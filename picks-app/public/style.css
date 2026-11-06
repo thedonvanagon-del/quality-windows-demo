@@ -1482,3 +1482,44 @@ input[type="file"]::file-selector-button { font: inherit; font-weight: 700; padd
 .win-share { display: inline-flex; align-items: center; gap: 6px; flex: none; }
 .win-share svg { width: 16px; height: 16px; }
 .podium li.podium-share { display: flex; justify-content: flex-end; padding: 0; background: none; border: 0; margin-top: -2px; }
+/* ---- www.bookiebullies.com on the board (src/site.js) -------------------- */
+
+/* The BB Pick chip on a game card: gold for a site Lock. */
+.bb-chip { display: inline-flex; align-items: center; gap: 4px; max-width: 100%; min-width: 0; margin: 0 auto 0 0; padding: 5px 11px; border-radius: 999px; border: 1px solid var(--line); background: var(--raised); color: var(--ink); font-family: var(--cond); font-weight: 700; font-size: 0.95rem; letter-spacing: 0.02em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-height: 36px; }
+.bb-chip:hover { border-color: var(--muted); }
+.bb-chip.lock { color: var(--gold); background: color-mix(in srgb, var(--gold) 14%, var(--card)); border-color: color-mix(in srgb, var(--gold) 55%, transparent); }
+.bb-chip.loading { animation: cell-pulse 0.9s ease-in-out infinite; }
+.card-foot .card-chat, .card-foot .lean { flex: none; }
+
+/* Today's Locks, under the sport tabs. */
+.bb-locks { display: flex; align-items: center; gap: 10px; margin: 0 0 14px; padding: 8px 4px 8px 12px; background: var(--card); border: 1px solid color-mix(in srgb, var(--gold) 45%, transparent); border-radius: var(--r); }
+.bb-crest { flex: none; width: 30px; height: 30px; border-radius: 50%; }
+.bb-locks-text { flex: 1; min-width: 0; display: grid; gap: 1px; }
+.bb-locks-go { color: var(--ink); font-weight: 700; font-size: 0.92rem; line-height: 1.3; }
+.bb-locks-go .sep { color: var(--faint); }
+.bb-locks-go .see { color: var(--gold); white-space: nowrap; }
+.bb-locks-go .nw { white-space: nowrap; }
+.bb-locks-go:hover .see { text-decoration: underline; }
+.bb-locks-profile { justify-self: start; color: var(--muted); font-size: 0.8rem; font-weight: 600; }
+.bb-locks-profile:hover { color: var(--ink); }
+.bb-locks form { flex: none; }
+.bb-locks-close { width: 40px; height: 40px; border: 0; background: transparent; color: var(--muted); font-size: 1.5rem; line-height: 1; cursor: pointer; }
+.bb-locks-close:hover { color: var(--ink); }
+
+/* What a chip opens: the model's picks on one game. */
+.bb-picks { list-style: none; margin: 0 0 12px; padding: 0; }
+.bb-picks li { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--line); }
+.bb-picks li:first-child { padding-top: 0; }
+.bb-picks .lock-tag { vertical-align: 0.2em; }
+.bb-stars { color: var(--gold); letter-spacing: 0.08em; }
+.bb-stars .off { opacity: 0.28; }
+.bb-slip .slip-body > p { margin: 0 0 14px; }
+.btn.gold { background: var(--gold); color: var(--gold-ink); white-space: normal; text-align: center; }
+.bb-profile { display: block; margin-top: 12px; text-align: center; color: var(--accent); font-weight: 700; font-size: 0.92rem; }
+
+/* The More row for the site, and the line on the LOCKED ticket. */
+.menu .site-row .icon { background: transparent; overflow: hidden; }
+.menu .site-row .icon img { width: 34px; height: 34px; border-radius: 9px; }
+.locked-ticket .lt-site { margin-top: 4px; color: var(--muted); font-size: 0.82rem; font-weight: 600; text-decoration: underline; text-underline-offset: 2px; }
+.locked-ticket .lt-site:hover { color: var(--ink); }
+.card-foot:has(.bb-chip) { flex-wrap: wrap; }

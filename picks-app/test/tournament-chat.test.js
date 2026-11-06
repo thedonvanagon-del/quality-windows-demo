@@ -169,7 +169,7 @@ describe('the tournament chat migration', () => {
     const old = new DatabaseSync(file);
     old.exec('PRAGMA foreign_keys = ON');
     const before = MIGRATIONS.findIndex((sql) => sql.includes('chat_messages_v3'));
-    assert.equal(before, MIGRATIONS.length - 1);
+    assert.ok(before > 0, 'the tournament chat migration is in the list');
     MIGRATIONS.slice(0, before).forEach((sql) => old.exec(sql));
     old.exec(`PRAGMA user_version = ${before}`);
     old.exec("INSERT INTO users (id, email, password_hash, created_at) VALUES (1, 'a@x.co', '!', 't'), (2, 'b@x.co', '!', 't'), (3, 'c@x.co', '!', 't')");

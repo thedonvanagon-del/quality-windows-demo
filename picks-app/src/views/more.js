@@ -1,5 +1,6 @@
 import { html } from '../html.js';
 import { formatOdds, formatUnits, selection } from '../picks.js';
+import { siteHost, siteLink } from '../site.js';
 import { SPORT } from '../sports.js';
 import { when } from '../time.js';
 import { icons } from './icons.js';
@@ -21,6 +22,11 @@ export function more(ctx, { liveCount, admin = false, reported = 0, reportedCups
       <h1>More</h1>
       <p class="lede">Everything else in the app.</p>
       <ul class="menu">
+        <li class="site-row"><a href="${siteLink(ctx.app.site, 'more_menu')}" target="_blank" rel="noopener">
+          <span class="icon"><img src="${ctx.app.assets.logo}" alt="" width="34" height="34"></span>
+          <span class="text">Free picks: ${siteHost(ctx.app.site)}<small>The Bookie Bullies model's daily picks and Locks</small></span>
+          <span class="go">${icons.chevron}</span>
+        </a></li>
         ${row(`/u/${encodeURIComponent(ctx.user.screenName)}`, icons.me, 'Your profile', 'Your record, badges and settings')}
         ${row('/install', icons.download, 'Get the app', 'Put Bookie Bullies on your Home Screen', '', 'get-app-row')}
         ${row('/live', icons.live, 'Live games', 'Scores right now, with your bets on them', liveCount ? html`<span class="count">${liveCount} live</span>` : '')}

@@ -467,7 +467,8 @@ describe('tab bar', () => {
     assert.doesNotMatch(tabbar, /\/u\/Ann/);
     assert.match(games.text, /<a class="user-chip [^"]*" href="\/u\/Ann">/);
     const more = visible((await ann.get('/more')).text);
-    assert.match(more, /More Everything else in the app\. Your profile Your record, badges and settings/);
+    // The site's row sits above it (2026-11-06); Profile is the first page in the app.
+    assert.match(more, /More Everything else in the app\. Free picks: bookiebullies\.com The Bookie Bullies model's daily picks and Locks Your profile Your record, badges and settings/);
     assert.match((await ann.get('/tournaments')).text, /<a href="\/tournaments" class="on" aria-current="page">/);
   });
 

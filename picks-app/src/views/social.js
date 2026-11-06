@@ -4,6 +4,7 @@ import { html } from '../html.js';
 import { CHANGE_EVERY_DAYS, HOLD_DAYS } from '../names.js';
 import { formatUnits } from '../picks.js';
 import { SPORT, SPORTS } from '../sports.js';
+import { siteHost } from '../site.js';
 import { MIN_RANKED } from '../stats.js';
 import { bannerColors, PRESETS, sheetPath, teamAccent } from '../themes.js';
 import { dateLabel, joined, when } from '../time.js';
@@ -351,7 +352,7 @@ function recordCard(ctx, { player, record, series, last10, rank }) {
       data-name="${player.screen_name}" data-record="${recordText(record)}" data-units="${record.units}"
       data-win="${pct(record.winPct)}" data-roi="${signedPct(record.roi)}" data-last10="${last}"
       data-rank="${rank ? `#${rank}` : ''}" data-series="${series.join(',')}" data-url="${url.replace(/^https?:\/\//, '')}"
-      data-photo="${player.photo ? `/media/${player.photo}` : ''}">
+      data-photo="${player.photo ? `/media/${player.photo}` : ''}" data-site="${siteHost(ctx.app.site)}">
     <div class="rc-top">
       <span class="trust-small">${trustMark}<span>Trust Your Bets</span></span>
       ${rank
@@ -391,6 +392,20 @@ function sparkline(series) {
     <polygon points="0,${zero} ${pts.join(' ')} ${w},${zero}" class="spark-fill"></polygon>
     <polyline points="${pts.join(' ')}" class="spark-line"></polyline>
   </svg>`;
+}
+
+/**
+ * "Show Bookie Bullies picks on the board": the BB Pick chips, the Locks card
+ * and the line on the LOCKED ticket. On by default.
+ */
+function sitePicksSetting(ctx) {
+  return html`<h2 id="bb-picks">Bookie Bullies picks</h2>
+    <form class="form prefs" method="post" action="/bb/settings">
+      ${csrfField(ctx)}
+      <label class="check"><input type="checkbox" name="show" ${ctx.user.showBb ? 'checked' : ''}><span>Show Bookie Bullies picks on the board</span></label>
+      <p class="muted small">The model's picks from ${siteHost(ctx.app.site)}: a chip on each game it picked, today's Locks up top, and a link on your LOCKED ticket.</p>
+      <button class="btn small">Save</button>
+    </form>`;
 }
 
 /** A sample game card, drawn in whatever look its box carries, so the picker shows a choice before it's saved. */
@@ -680,7 +695,7 @@ export function profile(ctx, { player, nametag = null, record, bySport, split = 
       ${clvLine(clv)}
       ${streak?.played ? html`<p class="streak-line"><a href="/streak">${icons.flame}<span>Streak: <b>${streak.current}</b> · Best: <b>${streak.best}</b></span></a></p>` : ''}
       ${badgeChips(badges)}
-      ${own ? html`${photoForm(ctx, player, photo)}${coverForm(ctx, player, cover)}${screenNameForm(ctx, player, nextChange)}${nameForm(ctx, player)}${bioForm(ctx, player)}${linkForm(ctx, player)}${cities ? homeCityForm(ctx, home, cities) : ''}${colorPicker(ctx, { teams, look })}${nametag ? nametagPicker(ctx, { player, record, nametag }) : ''}` : ''}
+      ${own ? html`${photoForm(ctx, player, photo)}${coverForm(ctx, player, cover)}${screenNameForm(ctx, player, nextChange)}${nameForm(ctx, player)}${bioForm(ctx, player)}${linkForm(ctx, player)}${cities ? homeCityForm(ctx, home, cities) : ''}${colorPicker(ctx, { teams, look })}${sitePicksSetting(ctx)}${nametag ? nametagPicker(ctx, { player, record, nametag }) : ''}` : ''}
       ${!own && photo.upload ? photoForm(ctx, player, photo) : ''}
       ${!own && cover.upload ? coverForm(ctx, player, cover) : ''}
       ${bySport.length

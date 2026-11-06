@@ -636,6 +636,23 @@ describe('more and live', () => {
   });
 });
 
+describe('health check', () => {
+  test('says ok while the database answers, and 503 when it does not', async () => {
+    const res = await app.browser().get('/healthz');
+    assert.equal(res.status, 200);
+    assert.equal(res.text, 'ok');
+    const real = app.store.get;
+    app.store.get = () => { throw new Error('disk I/O error'); };
+    try {
+      const down = await app.browser().get('/healthz');
+      assert.equal(down.status, 503);
+      assert.match(down.text, /database not answering/);
+    } finally {
+      app.store.get = real;
+    }
+  });
+});
+
 describe('live scores past midnight', () => {
   test("follow a late game into the next Eastern day, then drop it at the final or when it's stuck", async () => {
     const ann = await player('ann@example.com', 'Ann');

@@ -93,7 +93,8 @@ export function readSession(store, token, now) {
   if (!token) return null;
   const row = store.get(
     `SELECT s.token_hash, s.csrf, s.expires_at, u.id, u.email, u.screen_name, u.created_at, u.theme, u.email_verified_at,
-            u.fav_sports, u.official, u.setup_done, u.theme_team, u.theme_mode, u.theme_accent, u.theme_tint, u.photo, u.photo_hidden
+            u.fav_sports, u.official, u.setup_done, u.theme_team, u.theme_mode, u.theme_accent, u.theme_tint, u.photo, u.photo_hidden,
+            u.show_bb, u.bb_card_hidden_day
        FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.token_hash = ?`,
     sha256(token),
   );
@@ -113,6 +114,9 @@ export function readSession(store, token, now) {
       themeTeam: row.theme === 'custom' ? row.theme_team ?? null : null,
       // Their photo, unless reports have hidden it.
       photo: row.photo && !row.photo_hidden ? row.photo : null,
+      // The official account's picks on the board, and the day they closed the Locks card (src/site.js).
+      showBb: row.show_bb !== 0,
+      bbHiddenDay: row.bb_card_hidden_day ?? null,
     },
   };
 }

@@ -14,7 +14,7 @@ import { CITY, cityGroups } from './cities.js';
 import { allRooms, archiveRoom, createGroup, deleteGroup, findByCode, groupFor, groupsOf, joinGroup, joinRoom, leaveGroup, localRooms, membersOf, renameRoom, roomFor, roomsOf, setHomeCity, settleHomeCity, startRoom } from './groups.js';
 import { follow, followCounts, followingAmong, followingList, isFollowing, unfollow } from './follows.js';
 import { followFeed, groupFeed, ownPick, ownPicks, picksOnGames, publicPicks } from './history.js';
-import { THEMES } from './config.js';
+import { SITE_URL, THEMES } from './config.js';
 import { clearPhoto, cleanImage, deleteFile, dismissPhoto, filesOf, KINDS, kindOf, MEDIA_NAME, MEDIA_TYPES, mediaDir, mediaOwner, parseMultipart, PHOTO_BLOCK_DAYS, PHOTO_HIDE_AFTER, photosFor, removeReportedPhoto, reportedBy, reportedPhotos, reportPhoto, savePhoto, tooBigText, uploadBlockedUntil } from './photos.js';
 import { cleanHex, customTokens, parseSheet, styleOf, teamAccent, teamByKey, teamsBySport, themeCss } from './themes.js';
 import { CONTEST_MIN, results, standings, timeLeft, weekBounds, winnersWall } from './contest.js';
@@ -31,6 +31,7 @@ import { addLeg, deleteParlay, draftLegs, draftOnGames, draftSummary, lockParlay
 import { validSubscription } from './push.js';
 import { deletePick, formatLine, formatOdds, formatUnits, isLocked, makePick, MARKETS, price, toWin } from './picks.js';
 import { SPORT, SPORTS } from './sports.js';
+import { hideLocksCard, locksCardHidden, officialOnGames, setShowSitePicks, showsSitePicks, todaysSitePicks } from './site.js';
 import { setStreak, streakBoards, streakOf, streakPickOn } from './streak.js';
 import { createTeamCatalog } from './teams.js';
 import {
@@ -77,6 +78,8 @@ export function createApp({ store, games, config, mailer = createMailer({ log: {
   const app = {
     name: config.appName,
     theme: config.theme ?? THEMES[0],
+    // www.bookiebullies.com, for links to the site (src/site.js).
+    site: config.siteUrl ?? SITE_URL,
     assets: {
       css: assets.url('style.css'),
       js: assets.url('app.js'),
@@ -195,9 +198,19 @@ export function createApp({ store, games, config, mailer = createMailer({ log: {
     send(ctx, 200, account.home(ctx, { top: withLooks(leaderboard(store, { period: '30' }, ctx.now, 10)) }));
   }
 
+  /**
+   * For uptime monitors (and the deploy check): "ok" only if the database
+   * answers, so a broken database sets off the alert too, not just a dead app.
+   */
   function health(ctx) {
-    ctx.res.writeHead(200, { 'Content-Type': 'text/plain', 'Cache-Control': 'no-store' });
-    ctx.res.end('ok');
+    let ok = false;
+    try {
+      ok = store.get('SELECT 1 AS ok')?.ok === 1;
+    } catch {
+      ok = false;
+    }
+    ctx.res.writeHead(ok ? 200 : 503, { 'Content-Type': 'text/plain', 'Cache-Control': 'no-store' });
+    ctx.res.end(ok ? 'ok' : 'database not answering');
   }
 
   /** The player whose invite link brought this visitor, from the form, the address or the invite cookie. */
@@ -451,7 +464,37 @@ export function createApp({ store, games, config, mailer = createMailer({ log: {
     const chats = chatCounts(store, list.map((g) => g.id));
     const split = splits(store, list.map((g) => g.id));
     const draft = draftOnGames(store, ctx.user.id, list.map((g) => g.id));
-    send(ctx, 200, play.games(ctx, { sport, list, mine, draft, chats, split, problem: games.problem(sport.key) }));
+    // The official account's picks: a chip on each game it picked, and today's count up top.
+    const site = showsSitePicks(ctx.user);
+    const bb = site ? officialOnGames(store, list.map((g) => g.id)) : new Map();
+    const locks = site && !locksCardHidden(ctx.user, ctx.now) ? todaysSitePicks(store, ctx.now) : null;
+    send(ctx, 200, play.games(ctx, { sport, list, mine, draft, chats, split, bb, locks, problem: games.problem(sport.key) }));
+  }
+
+  // ---- www.bookiebullies.com on the board (src/site.js) -----------------------
+
+  /** What a BB Pick chip opens: the model's picks on one game. A page, so it works without JavaScript; app.js shows it in the sheet. */
+  function sitePicksPage(ctx, { id }) {
+    if (!signedIn(ctx)) return;
+    const game = games.get(id);
+    if (!game) return notFound(ctx);
+    const picks = officialOnGames(store, [game.id]).get(game.id) ?? [];
+    send(ctx, 200, play.sitePicks(ctx, { game, picks }));
+  }
+
+  /** The × on the Locks card: hidden until the next ET day. */
+  function locksCardDismiss(ctx) {
+    if (!signedIn(ctx)) return;
+    hideLocksCard(store, ctx.user.id, ctx.now);
+    redirect(ctx, safeNext(ctx.form.get('next')) ?? '/games');
+  }
+
+  /** "Show Bookie Bullies picks on the board", from profile settings. */
+  function sitePicksSetting(ctx) {
+    if (!signedIn(ctx)) return;
+    setShowSitePicks(store, ctx.user.id, ctx.form.get('show') === 'on');
+    flash(ctx, 'ok', 'Saved.');
+    redirect(ctx, `/u/${encodeURIComponent(ctx.user.screenName)}#bb-picks`);
   }
 
   async function pickForm(ctx) {
@@ -1685,6 +1728,9 @@ export function createApp({ store, games, config, mailer = createMailer({ log: {
     ['POST', '/setup/skip', setupSkip],
     ['GET', '/games', gamesPage],
     ['GET', '/games/:id', gamePage],
+    ['GET', '/games/:id/bb', sitePicksPage],
+    ['POST', '/bb/locks/dismiss', locksCardDismiss],
+    ['POST', '/bb/settings', sitePicksSetting],
     ['POST', '/games/:id/chat', chatPost],
     ['POST', '/chat/:id/delete', chatDelete],
     ['POST', '/chat/:id/report', chatReport],
