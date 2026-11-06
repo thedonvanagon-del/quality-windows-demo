@@ -64,14 +64,16 @@ five.
 | `/search` | Find players by the start of their screen name. |
 | `/contest` | The free weekly contest: most units on bets whose games start Monday to Sunday (ET), 5 graded bets to place. Public. |
 | `/winners` | The winners wall: every past week's top 3 and the most weekly wins, and a Tournaments tab with every finished tournament's. Public. |
-| `/tournaments` | Free tournaments: live now, starting soon, finished. Join in one tap; only bets made after joining, on games inside the window and in its sports, count. Public. |
-| `/tournaments/<slug>` | One tournament: rules, countdown, Join or Leave (before the start), standings, the final podium. |
-| `/admin/tournaments` | For admins only: make a tournament, or cancel one before it starts. |
+| `/tournaments` | Free tournaments: live now, starting soon, player tournaments, finished. Join in one tap; only bets made after joining, on games inside the window and in its sports, count. Public. |
+| `/tournaments/<slug>` | One tournament: rules, countdown, Join or Leave (before the start), standings (while live, "As it stands": games in progress counted at the current score, refreshed every 45 seconds), the chat for players in it, the final podium, and Share for a top-3 finish. A player-made one shows who made it, its maker's invite link and Cancel, and Report. |
+| `/tournaments/new` | Make a free tournament: name, sports, start and end, bets to place, public or private, and optionally a group or local room. Confirmed emails; 2 going at once and 5 a day. |
+| `/t/<code>` | A private tournament's invite link: its page, with Join. |
+| `/admin/tournaments` | For admins only: make a tournament, cancel one before it starts (a player-made one any time), and review reported player-made ones (Dismiss or Cancel). |
 | `/streak` | The streak game: your current and best streak, today's Streak pick, the streak boards. |
 | `/invite` | Your invite link (`/i/<code>`), who joined from it, and progress to the Recruiter badge. |
-| `/notifications` | The inbox, and what to hear about: settled bets, players you follow, Lines are up (about 11 AM ET), the Streak reminder (about 5 PM ET), a tournament you joined starting in an hour. |
+| `/notifications` | The inbox, and what to hear about: settled bets, players you follow, Lines are up (about 11 AM ET), the Streak reminder (about 5 PM ET), a tournament you joined starting in an hour, and Tournament updates (moving into the top 3, and where you stand with 2 hours left). |
 | `/setup` | Once, after a new player picks a screen name: favorite sports, players to follow, and their city. |
-| `/admin/reports` | For admins only: reported chat messages, from games, groups and local rooms (restore or delete), and reported profile and cover photos (dismiss or remove). |
+| `/admin/reports` | For admins only: reported chat messages, from games, groups, local rooms and tournaments (restore or delete), and reported profile and cover photos (dismiss or remove). |
 | `/admin/rooms` | Local rooms, for admins only: rename, archive or restore. |
 
 Every week has a free contest (no entry, nothing paid out); results close
@@ -81,7 +83,11 @@ database refuses any entry fee but 0. The weekly contest shows there as The
 Weekly Open; NFL Sunday, College Saturday and Hoops Night are made about two
 days ahead when their sports have games; admins can add their own. A
 tournament closes once its counted bets are graded (30 hours after the end at
-the latest), and its top 3 get Tournament champion and Tournament podium badges. One straight pick a day can be a **Streak pick**.
+the latest), and its top 3 get Tournament champion and Tournament podium badges.
+Players can make their own too, public or private (by invite link), or just for
+a group or local room; three reports take one off the lists until an admin looks.
+While one is live its page counts games in progress as they stand, and every
+tournament has a chat for the players in it. One straight pick a day can be a **Streak pick**.
 Badges (First win, Hot hand, Weekly winner and more) are worked out from the
 record and show on profiles, with the most notable one on the boards.
 
@@ -200,6 +206,9 @@ There's also a Dockerfile, for any host that runs containers and keeps a disk.
   colors reach the page as a stylesheet, `/theme/t1-<d|l>-<accent>-<tint>.css`,
   whose name is checked letter for letter (hex colors only) and which holds
   nothing but those colors.
+- Player-made tournaments: the name is checked (no links, no @ names, nothing
+  that passes for the official account), the prize is fixed text, and private
+  ones open only from an 8-letter invite code. Three reports hide one.
 - Name colors and icons are stored as keys from fixed lists, never as text,
   and checked again whenever a name is drawn. Team logos come from ESPN's
   team lists and must be https on `a.espncdn.com`, the one outside image
@@ -221,19 +230,20 @@ There's also a Dockerfile, for any host that runs containers and keeps a disk.
 
 ```
 src/server.js     starts everything, checks for finals every 10 minutes, imports official picks every 15,
-                  closes the weekly contest and tournaments and sends reminders (checked every 5),
+                  closes the weekly contest and tournaments and sends reminders and tournament alerts (checked every 5),
                   badges and new auto tournaments hourly, ESPN's team lists once a day
 src/app.js        every page and form
 src/espn.js       reads ESPN's scoreboard (games, lines, scores) and game summaries (injuries, last five)
 src/games.js      keeps the games table fresh, and freezes each game's closing line when it starts
 src/clv.js        closing line value: the close, CLV per pick, Beat the close
 src/summaries.js  injuries and form for game pages: cached 30 minutes, fetched in the background
-src/chat.js       game and group chat: posting, deleting, reports, unread counts
+src/chat.js       chat for games, groups and tournaments: posting, deleting, reports, unread counts
 src/picks.js      lock rules, line checks, grading, payouts (parlays' too)
 src/parlays.js    the parlay draft, locking a parlay, deleting one
 src/stats.js      records and leaderboards
 src/contest.js    the free weekly contest: standings and closing for any window, a week, the winners wall
-src/tournaments.js free tournaments: auto and admin-made ones, joining, closing once, start reminders
+src/tournaments.js free tournaments: auto, admin- and player-made ones, joining, live standings,
+                  closing once, start reminders and "where you stand" alerts, reports
 src/streak.js     the streak game: Streak picks, current and best streaks, the streak boards
 src/badges.js     badges: what earns each one, awarding once, the most notable for a board
 src/nametags.js   name colors and icons: the lists, earned icons, checking and saving
