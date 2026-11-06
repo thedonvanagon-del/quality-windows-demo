@@ -6,6 +6,12 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 
+// A migration that rebuilds a table other tables point at starts with this
+// line. It runs with foreign keys off (SQLite's own recipe for a rebuild; with
+// them on, dropping the old table deletes every row that points at it) and
+// is checked with foreign_key_check before it commits.
+const KEYS_OFF = '-- runs with foreign keys off';
+
 export const MIGRATIONS = [
   `
   CREATE TABLE users (
@@ -412,6 +418,41 @@ export const MIGRATIONS = [
   -- "NFL Sunday starts in 1 hour", on by default.
   ALTER TABLE users ADD COLUMN notify_tournaments INTEGER NOT NULL DEFAULT 1;
   `,
+  `${KEYS_OFF}
+  -- Local rooms: a public group for a city, one room per city, that anyone
+  -- signed in can join with one tap. Players start them from a fixed list of
+  -- cities (src/cities.js); none exist until someone does. A room has no
+  -- owner and no invite code, so friend_groups is rebuilt with both optional
+  -- (private groups still need them). Foreign keys are off while this runs:
+  -- dropping the old table with them on would take every member and chat
+  -- message with it.
+  CREATE TABLE friend_groups_v2 (
+    id INTEGER PRIMARY KEY,
+    name TEXT NOT NULL,
+    sport TEXT,                      -- null counts every sport
+    invite_code TEXT UNIQUE,
+    owner_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+    created_at TEXT NOT NULL,
+    kind TEXT NOT NULL DEFAULT 'private' CHECK (kind IN ('private', 'local')),
+    city_slug TEXT,                  -- a local room's city, from src/cities.js
+    created_by INTEGER REFERENCES users(id) ON DELETE SET NULL, -- who started a room: for the daily limit, no powers
+    archived_at TEXT,                -- hidden, read-only, history kept
+    CHECK (kind = 'local' OR (owner_id IS NOT NULL AND invite_code IS NOT NULL)),
+    CHECK (kind = 'private' OR (owner_id IS NULL AND invite_code IS NULL AND city_slug IS NOT NULL))
+  );
+  -- SELECT * stops this with an error if friend_groups has a column this list doesn't know.
+  INSERT INTO friend_groups_v2 (id, name, sport, invite_code, owner_id, created_at) SELECT * FROM friend_groups;
+  DROP TABLE friend_groups;
+  ALTER TABLE friend_groups_v2 RENAME TO friend_groups;
+  CREATE INDEX friend_groups_owner ON friend_groups(owner_id);
+  CREATE INDEX friend_groups_created_by ON friend_groups(created_by, created_at);
+  -- One room per city, archived ones included.
+  CREATE UNIQUE INDEX friend_groups_city ON friend_groups(city_slug) WHERE kind = 'local';
+
+  -- A player's home city: a pick from the same list, never a location.
+  -- Picking it joins (or starts) that city's room.
+  ALTER TABLE users ADD COLUMN home_city TEXT;
+  `,
 ];
 
 export function openStore(file) {
@@ -447,10 +488,18 @@ export function openStore(file) {
 
   const version = store.get('PRAGMA user_version').user_version;
   MIGRATIONS.slice(version).forEach((sql, i) => {
-    store.tx(() => {
-      db.exec(sql);
-      db.exec(`PRAGMA user_version = ${version + i + 1}`);
-    });
+    const keysOff = sql.startsWith(KEYS_OFF);
+    // The pragma does nothing inside a transaction, so it goes around it.
+    if (keysOff) db.exec('PRAGMA foreign_keys = OFF');
+    try {
+      store.tx(() => {
+        db.exec(sql);
+        if (keysOff && store.all('PRAGMA foreign_key_check').length) throw new Error(`migration ${version + i + 1} broke a foreign key`);
+        db.exec(`PRAGMA user_version = ${version + i + 1}`);
+      });
+    } finally {
+      if (keysOff) db.exec('PRAGMA foreign_keys = ON');
+    }
   });
   return store;
 }

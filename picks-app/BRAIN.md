@@ -393,6 +393,47 @@ not dollars, and nothing is paid out.
   phones; a Get the app button there is offered, not built.
 
 ### Chat
+- **2026-11-06: Local rooms** (owner's design). A public group per city, so
+  players can talk to and rank against bettors near them.
+  - **A room is a group** (`friend_groups.kind = 'local'`), with its own chat,
+    board ("Top bettors in San Diego", same period tabs) and picks feed on the
+    group page. No owner, no invite code: anyone signed in joins with one tap
+    and leaves anytime. A non-member opening a room sees a Join page; its chat
+    and board are for members, the same gate as group chat.
+  - **Players start rooms**, from a fixed list of cities in `src/cities.js`
+    (California from the Central Coast south first, then the rest of
+    California, then about 85 major US cities by state). Nobody types a room
+    name; it comes from the list ("San Diego, CA"). **One room per city**
+    (a unique index on `city_slug`); starting a city that has one says
+    "There's already a San Diego room. Join it" with the link. A confirmed
+    email is needed to start one, and **three a day** per player (admins have
+    no limit). The starter is just the first member. No rooms are seeded.
+  - **Directory** (`/local`, from More, the top of the Groups page and setup):
+    a "Start a room for your city" dropdown, then every open room by region
+    (California) or state, with members, "N new" for rooms you're in, and Join
+    or Open. `/local/<city>` goes to that city's room.
+  - **Your city** (`users.home_city`): in setup and in profile settings, "Pick
+    your city" uses the same dropdown. It joins that city's room, starting it
+    if there isn't one; for an unconfirmed email the room starts when the
+    email is confirmed. One home, any number of rooms; leaving your home
+    room clears it. The profile shows it with a pin icon, linked to the room.
+    No geolocation, no address: only a pick from the list.
+  - **Moderation:** admins, plus the three-report hide. Admins can delete any
+    message in a room; reports show on the admin page as "Local room: name".
+    A new **Local rooms** tab on the admin pages (`/admin/rooms`): rename
+    (the shown name only; the city stays), archive and restore, and start a
+    room without the limit. **Archived** rooms leave the directory and lists,
+    take no new posts or members, and keep their history.
+  - **Never private-group rules:** rooms don't count toward the 20 groups a
+    player can run, aren't in "Your groups", and stay when the last member
+    leaves. No notification per message; unread counts only.
+  - **Schema:** `friend_groups` was rebuilt so `owner_id` and `invite_code`
+    can be empty for a room. The migration runs with foreign keys off (a
+    migration that starts with `-- runs with foreign keys off` gets that from
+    `openStore`, plus `foreign_key_check` before it commits), since dropping
+    the old table with them on would delete every member and group message.
+  - Rooms with no members and no posts for 30 days could be archived on a
+    timer; not built (optional in the design).
 - **2026-11-05: Group chat (trash talk)**, owner approved. Every group has a
   Chat section on its page (`/groups/:id#chat`), members only: anyone else
   gets a 404, and leaving a group takes it away. Same rules as game chat
@@ -523,6 +564,9 @@ Launch log:
   champion and podium badges, and a Tournaments tab on the winners wall
 - Group chat with unread counts on the Groups list; closing line value on
   straight picks and profiles; injuries and recent form on game pages
+- Local rooms: a public room per city, started by players from a fixed city
+  list, with chat, a local board, a home city on profiles, and admin
+  rename/archive (2026-11-06)
 - Demo mode: `npm run demo`, log in as demo@example.com / letmein123
 - Server setup in `aws/stacks/bookie-bullies-app` and a deploy-on-merge
   workflow (`.github/workflows/picks-app-deploy.yml`)

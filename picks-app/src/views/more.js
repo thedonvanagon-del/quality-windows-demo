@@ -4,6 +4,7 @@ import { SPORT } from '../sports.js';
 import { when } from '../time.js';
 import { icons } from './icons.js';
 import { csrfField, layout } from './layout.js';
+import { adminTabs } from './local.js';
 import { at, minus, profileLink, teamLogo } from './parts.js';
 
 /** The menu behind the three dots. New sections get a row here. */
@@ -32,6 +33,7 @@ export function more(ctx, { liveCount, admin = false, reported = 0 }) {
         ${row('/leaderboard', icons.board, 'Leaderboard', 'Everyone, or one sport at a time')}
         ${row('/search', icons.search, 'Find players', 'Look someone up by screen name')}
         ${row('/groups', icons.groups, 'Groups', 'Your friends and their boards')}
+        ${row('/local', icons.pin, 'Local rooms', 'A chat and a board for your city')}
         ${row('/invite', icons.invite, 'Invite friends', 'Your own link, and who joined')}
         ${admin ? row('/admin/reports', icons.flag, 'Admin', 'Reported chat messages', reported ? html`<span class="count">${reported}</span>` : '') : ''}
         ${admin ? row('/admin/tournaments', icons.bracket, 'Admin: tournaments', 'Make a tournament, or cancel one before it starts') : ''}
@@ -197,13 +199,14 @@ export function adminReports(ctx, { list, hideAfter }) {
     active: 'more',
     body: html`
       <a class="back" href="/more">← More</a>
-      <h1>Reported chat</h1>
+      <h1>Admin</h1>
+      ${adminTabs('reports')}
       <p class="lede">Messages anyone has reported. ${hideAfter} reports hide a message. Restore puts it back and clears its reports. Delete takes it down for everyone.</p>
       ${list.length
         ? html`<ul class="reports">${list.map((m) => html`<li class="card report ${m.hidden ? 'is-hidden' : ''}">
             <div class="report-head">
               <span>${profileLink(m.screen_name)} · ${m.group_id != null
-                ? html`Group: ${m.group_name}`
+                ? m.group_kind === 'local' ? html`Local room: <a href="/groups/${m.group_id}#chat">${m.group_name}</a>` : html`Group: ${m.group_name}`
                 : html`<a href="/games/${encodeURIComponent(m.game_id)}#chat">${m.away_short} @ ${m.home_short}</a> · ${SPORT[m.sport]?.short ?? m.sport}`}</span>
               <span class="report-count">${m.reports} ${m.reports === 1 ? 'report' : 'reports'}${m.hidden ? ' · Hidden' : ''}</span>
             </div>

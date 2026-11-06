@@ -3,6 +3,7 @@ import { SPORT, SPORTS } from '../sports.js';
 import { CLOSE_AFTER_HOURS, MIN_BETS_MAX, NAME_MAX, PRIZE_MAX } from '../tournaments.js';
 import { icons } from './icons.js';
 import { csrfField, layout } from './layout.js';
+import { adminTabs } from './local.js';
 import { badgeMark, profileLink, rankCell, recordText, signedPct, units } from './parts.js';
 
 const free = html`<span class="free-chip">Free</span>`;
@@ -180,6 +181,7 @@ export function admin(ctx, { list, error = null, form = {} }) {
     body: html`
       <a class="back" href="/more">← More</a>
       <h1>Tournaments admin</h1>
+      ${adminTabs('tournaments')}
       <p class="lede">Make a free tournament, or cancel one before it starts. NFL Sunday, College Saturday, Hoops Night and the Weekly Open make themselves.</p>
       <h2>New tournament</h2>
       ${error ? html`<div class="flash err" role="alert">${error}</div>` : ''}

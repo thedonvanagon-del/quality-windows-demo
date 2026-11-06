@@ -7,7 +7,8 @@ import { hashPassword } from './auth.js';
 import { checkAllBadges } from './badges.js';
 import { closeWeek } from './contest.js';
 import { parseScoreboard, parseSummary } from './espn.js';
-import { createGroup, joinGroup } from './groups.js';
+import { postMessage } from './chat.js';
+import { createGroup, joinGroup, setHomeCity, startRoom } from './groups.js';
 import { inviteCodeOf } from './invites.js';
 import { createOfficialImporter, ensureOfficial } from './official.js';
 import { grade, gradeFinished, MARKETS, maxUnits, parlayMaxUnits, parlayPrice, price } from './picks.js';
@@ -380,6 +381,7 @@ export async function seedDemo({ store, games, espn, now = () => new Date() }) {
   for (const n of ['BackdoorCover', 'ChalkEater', 'FadeMe']) joinGroup(store, { groupId: crew.id, userId: ids[n], now: at });
   const office = createGroup(store, { ownerId: ids.FadeMe, name: 'Office League', sport: '', now: at });
   for (const n of ['SharpShooter', 'DogLover', 'OverOverOver']) joinGroup(store, { groupId: office.id, userId: ids[n], now: at });
+  seedRooms(store, ids, at);
 
   // Today's and tomorrow's official picks go in through the real importer, from a made-up picks log.
   const soon = new Set([today, addDays(today, 1)]);
@@ -465,6 +467,38 @@ async function seedTournaments(store, ids, at) {
   for (const t of store.all("SELECT * FROM tournaments WHERE kind = 'auto' AND starts_at > ?", at.toISOString())) {
     enter(t, others.slice(0, 2 + (t.id % 3)), at.toISOString());
     if (t.slug.startsWith('nfl-sunday')) joinTournament(store, t, admin, at);
+  }
+}
+
+/**
+ * Local rooms with members and some chat. The demo player is in Los Angeles,
+ * with messages waiting, and not yet in San Diego, so joining shows off.
+ */
+function seedRooms(store, ids, at) {
+  const rooms = [
+    ['los-angeles-ca', ['SharpShooter', 'DogLover', 'OverOverOver', 'ChalkEater'], [
+      ['DogLover', 'Anyone else riding the Clippers dog tonight?'],
+      ['ChalkEater', 'Laying the points. Always.'],
+      ['OverOverOver', 'Over in the Kings game. Book it.'],
+    ]],
+    ['san-diego-ca', ['BackdoorCover', 'FadeMe', 'DogLover'], [
+      ['BackdoorCover', 'SD crew, what are we on this weekend?'],
+      ['FadeMe', 'Whatever I pick, take the other side.'],
+      ['DogLover', 'Chargers +3. Home dog, easy.'],
+      ['BackdoorCover', 'Tailing that. Backdoor cover incoming.'],
+    ]],
+    ['san-luis-obispo-ca', ['ChalkEater', 'OverOverOver'], [['ChalkEater', 'SLO checking in. Who has the late slate?']]],
+    ['santa-barbara-ca', ['FadeMe'], []],
+  ];
+  let t = at.getTime() - 3 * HOUR;
+  for (const [slug, members, chat] of rooms) {
+    const { id } = startRoom(store, { citySlug: slug, userId: ids[members[0]], now: new Date(t - 2 * 86_400_000), limit: false });
+    for (const name of members.slice(1)) joinGroup(store, { groupId: id, userId: ids[name], now: new Date(t - 86_400_000) });
+    for (const [name, text] of chat) postMessage(store, { groupId: id, userId: ids[name], text, now: new Date((t += 9 * 60_000)) });
+  }
+  // The demo player has seen nothing in Los Angeles yet, so it shows "3 new".
+  for (const [name, slug] of [['DogLover', 'san-diego-ca'], ['BackdoorCover', 'san-diego-ca'], ['ChalkEater', 'los-angeles-ca'], ['FadeMe', 'santa-barbara-ca']]) {
+    setHomeCity(store, { userId: ids[name], citySlug: slug, now: at, canStart: false });
   }
 }
 

@@ -1064,3 +1064,27 @@ label.check.streak-check { margin: 10px 0 2px; padding: 10px 12px; border-radius
 .tn-sports legend .hint { margin-left: 6px; font-weight: 500; color: var(--muted); font-size: 0.82rem; }
 .tn-admin-row { display: flex; align-items: center; gap: 12px; padding: 12px 16px; }
 .tn-admin-row .text a { font-weight: 800; }
+/* Local rooms: the directory, the Groups page section, the city pin. */
+.rooms { list-style: none; margin: 0 0 14px; padding: 0; background: var(--card); border: 1px solid var(--line); border-radius: var(--r); overflow: hidden; }
+.room-row { display: flex; align-items: center; gap: 10px; padding: 10px 12px 10px 0; }
+.room-row + .room-row { border-top: 1px solid var(--line); }
+.room-main { display: flex; align-items: center; gap: 12px; flex: 1; min-width: 0; padding-left: 14px; color: var(--ink); font-weight: 700; }
+.room-main .icon { width: 32px; height: 32px; flex: none; border-radius: 9px; background: var(--accent-soft); color: var(--accent); display: grid; place-items: center; }
+.room-main .icon svg { width: 17px; height: 17px; }
+.room-main .text { min-width: 0; overflow-wrap: anywhere; }
+.room-main small { display: block; color: var(--muted); font-weight: 500; font-size: 0.84rem; }
+.room-row .unread-count { margin: 0; }
+.room-row form { flex: none; }
+.home-tag, .local-tag { display: inline-flex; align-items: center; gap: 4px; font-family: var(--cond); font-size: 0.78rem; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; color: var(--accent); }
+.local-tag svg, .city-pin svg, .home-form svg { width: 15px; height: 15px; flex: none; }
+.city-pin { display: inline-flex; align-items: center; gap: 5px; font-weight: 700; color: var(--ink); }
+.city-pin svg { color: var(--accent); }
+.home-city { margin: 10px 0 0; }
+.home-form { margin: 0 0 12px; }
+.home-form .btn { display: inline-flex; align-items: center; gap: 6px; }
+h2.region { margin-top: 18px; }
+.start-room { display: grid; gap: 10px; margin-bottom: 8px; }
+.start-room h2 { margin: 0; }
+.city-pick select, .start-room select, .home-city-form select { width: 100%; }
+.admin-room input[type="text"] { flex: 1; min-width: 0; }
+.flash-go { color: var(--accent); font-weight: 800; text-decoration: underline; }

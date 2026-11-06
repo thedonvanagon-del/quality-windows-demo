@@ -58,8 +58,9 @@ five.
 | `/parlay` | The parlay being built: legs added from the pick slip, combined odds, units, Lock parlay. |
 | `/leaderboard` | Everyone, or one sport, over 7 days, 30 days or all time. Public. |
 | `/groups` | Start a group (all sports or one), join with a code, see its board, its picks feed and its members-only chat. The list shows how many chat messages are new in each group. |
+| `/local` | Local rooms: one public room per city, each with its own chat and board. Start one for your city from the list, or join one with a tap. |
 | `/games/<id>` | One game: its lines (or score), the public split, injuries and each team's last five before the start, and the game chat. |
-| `/u/<name>` | A player's public record: overall, by sport, how often they beat the closing line, and every pick with when it was locked (and its CLV once the game starts). Your own has your settings, including a new screen name (once every 30 days; the old one redirects for 90). |
+| `/u/<name>` | A player's public record: overall, by sport, how often they beat the closing line, and every pick with when it was locked (and its CLV once the game starts), and their city if they picked one. Your own has your settings, including your city and a new screen name (once every 30 days; the old one redirects for 90). |
 | `/search` | Find players by the start of their screen name. |
 | `/contest` | The free weekly contest: most units on bets whose games start Monday to Sunday (ET), 5 graded bets to place. Public. |
 | `/winners` | The winners wall: every past week's top 3 and the most weekly wins, and a Tournaments tab with every finished tournament's. Public. |
@@ -69,8 +70,9 @@ five.
 | `/streak` | The streak game: your current and best streak, today's Streak pick, the streak boards. |
 | `/invite` | Your invite link (`/i/<code>`), who joined from it, and progress to the Recruiter badge. |
 | `/notifications` | The inbox, and what to hear about: settled bets, players you follow, Lines are up (about 11 AM ET), the Streak reminder (about 5 PM ET), a tournament you joined starting in an hour. |
-| `/setup` | Once, after a new player picks a screen name: favorite sports and players to follow. |
-| `/admin/reports` | Reported chat messages, from games and groups, for admins only: restore or delete. |
+| `/setup` | Once, after a new player picks a screen name: favorite sports, players to follow, and their city. |
+| `/admin/reports` | Reported chat messages, from games, groups and local rooms, for admins only: restore or delete. |
+| `/admin/rooms` | Local rooms, for admins only: rename, archive or restore. |
 
 Every week has a free contest (no entry, nothing paid out); results close
 once the week's bets are graded, by Tuesday 6 AM ET at the latest, and the top
@@ -212,7 +214,8 @@ src/streak.js     the streak game: Streak picks, current and best streaks, the s
 src/badges.js     badges: what earns each one, awarding once, the most notable for a board
 src/invites.js    invite links: codes, counting a friend once they're confirmed and named
 src/reminders.js  the Lines are up and Streak reminders, once a day each
-src/groups.js     friend groups and invite codes (their chat is in chat.js)
+src/groups.js     friend groups and invite codes, and local rooms (their chat is in chat.js)
+src/cities.js     the cities a local room can be for
 src/official.js   the official BookieBullies account and its picks importer
 src/names.js      screen name rules, changes and old-name redirects
 src/history.js    pick lists, with open picks hidden from other people
