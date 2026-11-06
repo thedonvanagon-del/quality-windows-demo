@@ -4,9 +4,9 @@ self.addEventListener('push', (event) => {
   try {
     data = event.data ? event.data.json() : {};
   } catch {
-    data = { title: 'LockBox Picks', body: event.data?.text() ?? '' };
+    data = { title: 'LockBox', body: event.data?.text() ?? '' };
   }
-  event.waitUntil(self.registration.showNotification(data.title || 'LockBox Picks', {
+  event.waitUntil(self.registration.showNotification(data.title || 'LockBox', {
     body: data.body || '',
     icon: '/static/icon-192.png',
     badge: '/static/icon-192.png',

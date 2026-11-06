@@ -9,6 +9,8 @@
 @font-face { font-family: "Barlow Condensed"; font-weight: 600; font-display: swap; src: url("/static/barlow-condensed-latin-600-normal.woff2") format("woff2"); }
 @font-face { font-family: "Barlow Condensed"; font-weight: 700; font-display: swap; src: url("/static/barlow-condensed-latin-700-normal.woff2") format("woff2"); }
 @font-face { font-family: "Barlow Condensed"; font-weight: 800; font-display: swap; src: url("/static/barlow-condensed-latin-800-normal.woff2") format("woff2"); }
+/* The brand: LOCKBOX in a stencil, like a stamped crate (2026-11-06, owner's pick). SIL Open Font License 1.1. */
+@font-face { font-family: "Black Ops One"; font-weight: 400; font-display: swap; src: url("/static/black-ops-one-latin-400-normal.woff2") format("woff2"); }
 @font-face { font-family: "Barlow"; font-weight: 500; font-display: swap; src: url("/static/barlow-latin-500-normal.woff2") format("woff2"); }
 @font-face { font-family: "Barlow"; font-weight: 600; font-display: swap; src: url("/static/barlow-latin-600-normal.woff2") format("woff2"); }
 @font-face { font-family: "Barlow"; font-weight: 700; font-display: swap; src: url("/static/barlow-latin-700-normal.woff2") format("woff2"); }
@@ -1777,3 +1779,9 @@ button.sv-team:hover { background: var(--tile-hover); }
 }
 
 .lt-motto { font-weight: 700; color: var(--gold); }
+
+/* The brand font on the name, the launch screen and the LOCKED stamp. */
+:root { --brand: "Black Ops One", var(--cond); }
+.brand-word { font-family: var(--brand); font-weight: 400; letter-spacing: 0.04em; }
+.splash-name { font-family: var(--brand); font-weight: 400; }
+.locked-ticket .stamp { font-family: var(--brand); font-weight: 400; }

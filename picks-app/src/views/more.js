@@ -28,7 +28,7 @@ export function more(ctx, { liveCount, admin = false, reported = 0, reportedCups
           <span class="go">${icons.chevron}</span>
         </a></li>
         ${row(`/u/${encodeURIComponent(ctx.user.screenName)}`, icons.me, 'Your profile', 'Your record, badges and settings')}
-        ${row('/install', icons.download, 'Get the app', 'Put LockBox Picks on your Home Screen', '', 'get-app-row')}
+        ${row('/install', icons.download, 'Get the app', 'Put LockBox on your Home Screen', '', 'get-app-row')}
         ${row('/live', icons.live, 'Live games', 'Scores right now, with your bets on them', liveCount ? html`<span class="count">${liveCount} live</span>` : '')}
         ${row('/contest', icons.board, 'This week\'s contest', 'Free weekly contest, and the winners wall')}
         ${row('/streak', icons.flame, 'Streak', 'One Streak pick a day. How long can you go?')}
@@ -137,7 +137,7 @@ export function notifications(ctx, { list, prefs, phones, pushKey }) {
         ? html`<div class="push-box" data-push-key="${pushKey}">
             <p class="muted">${phones ? `On for ${phones} ${phones === 1 ? 'device' : 'devices'}.` : 'Get these on your lock screen, like any app.'}</p>
             <button class="btn small" type="button" data-push-on hidden>Turn on for this device</button>
-            <p class="muted small" data-push-help hidden>On iPhone, add LockBox Picks to your Home Screen first (Share, then Add to Home Screen), open it from there, and come back to this page.</p>
+            <p class="muted small" data-push-help hidden>On iPhone, add LockBox to your Home Screen first (Share, then Add to Home Screen), open it from there, and come back to this page.</p>
             <p class="small" data-push-status role="status"></p>
             ${phones ? html`<form method="post" action="/push/unsubscribe">${csrfField(ctx)}<button class="btn ghost small">Turn off on every device</button></form>` : ''}
           </div>`
@@ -152,11 +152,11 @@ export function install(ctx) {
   return layout(ctx, {
     title: 'Get the app',
     active: 'install',
-    description: 'Put LockBox Picks on your Home Screen. No app store, takes ten seconds.',
+    description: 'Put LockBox on your Home Screen. No app store, takes ten seconds.',
     body: html`
       <h1>Get the app</h1>
-      <p class="lede">LockBox Picks installs straight from your browser: its own icon on your Home Screen, full screen, and updates on its own. No app store, about ten seconds.</p>
-      <button class="btn" type="button" data-install-now hidden>${icons.download} Install LockBox Picks</button>
+      <p class="lede">LockBox installs straight from your browser: its own icon on your Home Screen, full screen, and updates on its own. No app store, about ten seconds.</p>
+      <button class="btn" type="button" data-install-now hidden>${icons.download} Install LockBox</button>
       <div class="card inapp-note" data-inapp-note hidden>
         <h2>Open this in <span data-browser-name>your browser</span> first</h2>
         <p>You're in <b data-inapp-name>an app's built-in browser</b>, which can't add apps to your Home Screen.</p>

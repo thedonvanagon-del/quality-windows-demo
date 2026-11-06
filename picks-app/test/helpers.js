@@ -143,7 +143,7 @@ export async function startApp({ time, espn = fakeEspn(), config = {}, teamFetch
   const teams = createTeamCatalog({ store, fetch: teamFetch, now: time.now, log: quiet });
   const handler = createApp({
     store, games, espn, mailer, notifier, push, summaries, teams, now: time.now, log: quiet,
-    config: { appName: 'LockBox Picks', trustProxy: false, appUrl: 'https://app.example.test', mediaDir: media, ...config },
+    config: { appName: 'LockBox', trustProxy: false, appUrl: 'https://app.example.test', mediaDir: media, ...config },
   });
   const server = http.createServer(handler);
   await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));

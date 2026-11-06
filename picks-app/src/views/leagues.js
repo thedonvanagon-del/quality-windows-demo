@@ -53,7 +53,7 @@ export function leaguesPage(ctx, { yours, open }) {
   return layout(ctx, {
     title: 'Leagues',
     active: 'tournaments',
-    description: 'Free head-to-head leagues on LockBox Picks: weekly matchups by units won, then playoffs.',
+    description: 'Free head-to-head leagues on LockBox: weekly matchups by units won, then playoffs.',
     body: html`
       <a class="back" href="/tournaments">← Tournaments</a>
       <h1>Leagues</h1>
@@ -166,7 +166,7 @@ export function leaguePage(ctx, { l, view, isMember, code = null, inviteUrl = nu
   return layout(ctx, {
     title: l.name,
     active: 'tournaments',
-    description: `${l.name}: a free head-to-head league on LockBox Picks.`,
+    description: `${l.name}: a free head-to-head league on LockBox.`,
     body: html`
       <a class="back" href="/leagues">← Leagues</a>
       <div class="tn-title"><h1>${l.name}</h1>${free}<span class="pm-chip">League</span></div>

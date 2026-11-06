@@ -130,7 +130,7 @@ export function bracketPage(ctx, { c, field, picks, tiebreak, results, out, view
   return layout(ctx, {
     title: c.name,
     active: 'tournaments',
-    description: `${c.name}: a free bracket challenge on LockBox Picks. Pick all 63 games.`,
+    description: `${c.name}: a free bracket challenge on LockBox. Pick all 63 games.`,
     body: html`
       <a class="back" href="/tournaments">← Tournaments</a>
       <div class="tn-title"><h1>${c.name}</h1>${free}</div>

@@ -103,7 +103,7 @@ export function hub(ctx, { live, soon, players = [], finished, admin = false, su
   return layout(ctx, {
     title: 'Tournaments',
     active: 'tournaments',
-    description: 'Free LockBox Picks tournaments: join, make your picks, and play for the top spot.',
+    description: 'Free LockBox tournaments: join, make your picks, and play for the top spot.',
     body: html`
       <h1>Tournaments</h1>
       <div class="features">
@@ -229,7 +229,7 @@ export function detail(ctx, {
   return layout(ctx, {
     title: t.name,
     active: 'tournaments',
-    description: `${t.name}: a free LockBox Picks tournament. ${t.window}.`,
+    description: `${t.name}: a free LockBox tournament. ${t.window}.`,
     body: html`
       <a class="back" href="/tournaments">← Tournaments</a>
       <div class="tn-title"><h1>${t.name}</h1>${free}${t.prizeInfo ? prizeChip : ''}${host ? playerMade : ''}</div>
