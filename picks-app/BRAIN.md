@@ -292,6 +292,117 @@ not dollars, and nothing is paid out.
 - **2026-10-25:** Profiles have a short bio, up to 160 characters.
 
 ### Tournaments
+- **2026-11-06: Survivor, NFL Pick'em and the Bookie Bullies Cup** (owner
+  approved; Survivor is the top priority). All free, like every tournament.
+  - **NFL weeks** (`src/nflweeks.js`). ESPN's scoreboard files each NFL game
+    under `season.year`, `season.type` (2 is the regular season) and
+    `week.number`; the parser now carries them (the event's own, else the
+    scoreboard's) and `games` keeps them (`season`, `season_type`, `week`).
+    When ESPN sends none, the week comes from the date: Tuesday-to-Monday
+    Eastern windows, week 1 starting the Tuesday after Labor Day. Regular
+    season only (weeks 1 to 18); preseason and playoff games have no week. A
+    week is "over" 4 hours after its last game starts; the current week is
+    the first one not over. Between weeks, before the next week's games are
+    on the board, the next week counts as current with no games yet.
+    **ESPN's week fields haven't been checked against the live feed** (see
+    Waiting on the owner); without them the date rule gives the same weeks.
+  - **Survivor** (`/survivor`, `src/survivor.js`; `/tournaments/survivor`
+    redirects there). One pool per NFL season, made on its own ("Survivor
+    2026") once the season's games are on the board (hourly, and on page
+    views). Each week a player picks **one team to win outright**; a team
+    counts **once a season**. A **loss or a tie** ends the run at once, with
+    "Your Survivor run ended in Week 6 (Bills lost)." A **postponed or
+    canceled game** voids the pick: the player survives the week and the
+    team isn't used (a void pick can be replaced while that week has games
+    left). A **week with no pick** knocks you out when the week is settled
+    ("(no pick)"). **Joining** is open while the current week's first game
+    hasn't started; a late joiner is alive from that week on and only weeks
+    from then count. Picks change until **that team's** game kicks off; other
+    players' picks are hidden until each game starts. When a week is over
+    and every pick in it is graded, it's settled once (`survivor_weeks`):
+    missed weeks go out, then the pool closes if one player is left, or
+    everyone left went out that week (they **share** it), or after Week 18
+    (everyone alive shares it). Winners get the **Survivor champion** badge
+    (`survivor_champion`, one per season) and a note; everyone else hears who
+    won. Alive players with no pick hear "Make your Survivor pick for Week
+    10." once a week, 3 hours before the week's first game, behind the
+    tournament reminder setting (`reminders_sent`, kind `survivor`).
+    - **The pick slip:** on an NFL spread or moneyline bet on a team, for a
+      player alive in Survivor, on a game in the current week that hasn't
+      started: "Use Chiefs as my Survivor pick for Week 10", or "Switch my
+      Survivor pick to Chiefs (now: Bills)", or, for a team used in an earlier
+      week, the same line turned off ("Chiefs: used in Week 3"). Checked, it
+      saves the Survivor pick with the bet (after the bet goes in; the flash
+      says if it couldn't). One small line says Survivor only counts whether
+      the team wins outright, whatever the bet. Totals never show it.
+    - **The page:** your status (Join, "Alive, Week 10", "Out in Week 6"),
+      the week's next kickoff, this week's games with both teams as buttons
+      (used teams say "Used Wk 3", started games are locked, your pick is
+      marked), your picks by week, and the standings: players left of
+      entered, how many went out each week, and every player's picks as
+      chips (a lock until the game starts).
+    - **Grading** runs after every finals check and every 5 minutes, off the
+      same `outcome` as bets (`picks.js` now exports it). `games.checkFinals`
+      also fetches the days of games with open Survivor and Pick'em picks,
+      so a Survivor-only game still gets its final.
+  - **The hub, top first:** a **Survivor featured card** (status, your pick
+    this week or **Make your pick**, "10 of 20 left", and the deadline: your
+    team's kickoff, or the week's first game; once that's started, the next
+    kickoff), then the **NFL Pick'em** card, then a slim **Cup** banner, then
+    everything that was there. Between seasons the Survivor card says
+    "Survivor returns for the NFL season" with the last winner.
+  - **NFL Pick'em** (`/pickem/nfl`, `src/pickem.js`). Every NFL week, pick
+    every game **against the spread**, at the app's spread **when you save
+    that game's pick** (saving the same side again keeps the old line;
+    switching sides takes the new one). 1 point for a right pick, 0.5 for a
+    push, 0 for a void; one **Best Bet** a week doubles its own points. Each
+    game locks at its kickoff, and so does a Best Bet on it. No join step:
+    anyone who saves a pick is in. Its own table (`pickem_picks`): no units,
+    no record, no boards. The page is one form of radio buttons drawn as
+    team buttons with the spread, plus a Best Bet star per game, saved with
+    one button, so it works without JavaScript. Then the week's standings
+    and **Season standings** (points summed, weeks won), with tabs for
+    earlier weeks. A week closes once (`pickem_weeks`) when every pick is
+    graded, 30 hours after its last game at the latest; its top 3 go in
+    `pickem_results` and hear about it, and 1st gets **Pick'em winner**
+    (`pickem_winner`, one per week).
+  - **The Bookie Bullies Cup** (`/cup`, `src/cup.js`): a points race over a
+    calendar year (Eastern). Every close gives points by finish (25, 18, 15,
+    12, 10, 8, 6, 4, 2, 1 for 1st to 10th) **plus 1 for placing**: auto,
+    admin-made and player-made tournaments (player-made only with **8 or
+    more placed**), the Weekly Open, Survivor and each Pick'em week. Stored
+    once per player per event in `cup_points` (source and ref say which), so
+    the standings are a sum and the **backfill** (`backfillCup`, every start)
+    is idempotent: this year's closed tournaments and weekly contests.
+    `/cup` has the standings (rank, points, wins, podiums, your row lit up),
+    your finishes, and a **How points work** box. After the year ends its top
+    3 go in `cup_results` once, get **Cup champion** / **Cup podium**
+    (`cup_champion`, `cup_podium`, by year) and a note, and show on a new
+    **Cup** tab on the winners wall. Profiles show "Cup: #12 · 84 pts"; the
+    hub and the leaderboard link it.
+  - **Badges:** Cup champion leads the board order; Survivor champion comes
+    after Tournament champion, Cup podium before Podium, Pick'em winner after
+    Tournament podium. The "keys stay put" test lists them.
+  - **Decided differently from the brief:**
+    - A Survivor pool needs **two players** in it to close, so a pool with
+      one entrant doesn't crown them after week 1 (or when they lose).
+    - **After Week 18**, everyone still alive shares the win (the brief
+      didn't say).
+    - Survivor's finish for the Cup: winners 1st, then by how late each run
+      ended; players out the same week share a place and its points.
+      Placed means they made at least one pick.
+    - A Pick'em week is not a row of its own until it closes: it exists by
+      the schedule. **5 graded picks to place** (like the weekly contest);
+      ties go to more wins, then to whoever finished saving first.
+    - Pick'em picks have nothing to hide: the standings show only totals.
+    - Once the week's first game has started, the hub's deadline reads
+      "Next kickoff" with the next game still to start, not a time in the
+      past.
+    - Cup points for a shared place are that place's; Cup ties go to more
+      wins, then podiums. Cup podium is one badge per year, not once ever.
+    - The demo's NFL calendar puts its current week at **Week 10**
+      whatever the date, and adds 14 NFL-only players (no bets, no
+      password) so the pools look like pools.
 - **2026-11-06: Tournaments, round two** (owner approved list of five).
   - **Live standings.** While a tournament is live its page shows **As it
     stands** in place of Standings: the graded standings plus every counted
@@ -862,6 +973,10 @@ Launch log:
   player-made tournaments (public, private by invite link, or for a group or
   local room) with reports and an admin review, "where you stand" alerts,
   a chat per tournament, and Share cards for top-3 finishes
+- Survivor, NFL Pick'em and the Bookie Bullies Cup (2026-11-06): a free
+  Survivor pool per NFL season (featured at the top of the hub, a Survivor
+  checkbox on NFL pick slips), weekly NFL Pick'em against the spread with a
+  Best Bet, and a year-long Cup points race over every tournament close
 - Links to www.bookiebullies.com: BB Pick chips and a sheet on the board, a
   Today's Locks card, a More row, a line on the LOCKED ticket and the site
   on the share image, with a setting to hide them (2026-11-06)
@@ -910,6 +1025,13 @@ Beta launch checklist (2026-10-27). The app code is merged; these get it online.
    Villanova have no FBS team, as expected), so `parseTeams` reads ESPN's real
    lists. sqlite3 isn't on the server; check with
    `sudo node -e` and `node:sqlite` (read-only) instead.
+
+11. **Check NFL weeks against live ESPN** (2026-11-06). The parser reads
+   `event.week.number` and `event.season.{year,type}` (falling back to the
+   scoreboard's own `week` and `season`) from ESPN's known shape; this
+   session couldn't reach ESPN. With a real NFL scoreboard, check that
+   `games.week` fills in. If it doesn't, nothing breaks: weeks come from
+   the date (Tuesday to Monday, from the Tuesday after Labor Day).
 
 ## Ideas, not built yet
 
