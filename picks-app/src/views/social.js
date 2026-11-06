@@ -14,6 +14,7 @@ import { citySelect, cityPin, groupsSection } from './local.js';
 import { avatar, betItem, boardTable, chatBox, minus, nameIcon, officialTag, pickItem, periodTabs, pct, playerName, profileLink, rankCell, recordText, signedPct, sportTabs, tabs, teamLogo, units, winShare } from './parts.js';
 import { endLabel } from '../tournaments.js';
 import { card as tournamentCard } from './tournaments.js';
+import { cupBanner } from './formats.js';
 
 /** Find a player by the start of their screen name. */
 function searchBox(q = '') {
@@ -36,7 +37,7 @@ export function search(ctx, { q, rows }) {
   });
 }
 
-export function leaderboard(ctx, { rows, sport, badges = null }) {
+export function leaderboard(ctx, { rows, sport, badges = null, cup = null }) {
   return layout(ctx, {
     title: sport ? `${sport.name} leaderboard` : 'Leaderboard',
     active: 'board',
@@ -44,6 +45,7 @@ export function leaderboard(ctx, { rows, sport, badges = null }) {
       <h1>${sport ? `${sport.name} leaderboard` : 'Leaderboard'}</h1>
       <p class="lede">Ranked by units won, not win rate, so betting only big favorites doesn't pay. Every graded pick counts, losses included. You need ${MIN_RANKED} graded picks in the window for a rank.</p>
       <a class="promo" href="/contest">${icons.board}<span><b>This week's contest</b><small>Free, everyone's in. Most units Monday to Sunday wins.</small></span><span class="go">${icons.chevron}</span></a>
+      ${cup ? cupBanner(ctx, cup) : ''}
       ${searchBox()}
       ${sportTabs('/leaderboard', ctx.query)}
       ${periodTabs('/leaderboard', ctx.query)}
@@ -650,7 +652,7 @@ function homeCityForm(ctx, home, cities) {
     </form>`;
 }
 
-export function profile(ctx, { player, nametag = null, record, bySport, split = null, series = [], last10 = null, rank = null, follows = { followers: 0, following: 0 }, following = false, picks, hidden, nextChange = null, badges = [], streak = null, clv = null, look = { preset: null }, photo = {}, cover = {}, teams = null, home = null, cities = null }) {
+export function profile(ctx, { player, nametag = null, record, bySport, split = null, series = [], last10 = null, rank = null, follows = { followers: 0, following: 0 }, following = false, picks, hidden, nextChange = null, badges = [], streak = null, cup = null, clv = null, look = { preset: null }, photo = {}, cover = {}, teams = null, home = null, cities = null }) {
   const own = ctx.user?.id === player.id;
   const team = look.team ?? null;
   // Anyone signed in can report someone else's photo, once.
@@ -694,6 +696,7 @@ export function profile(ctx, { player, nametag = null, record, bySport, split = 
       ${recordCard(ctx, { player, record, series, last10, rank })}
       ${clvLine(clv)}
       ${streak?.played ? html`<p class="streak-line"><a href="/streak">${icons.flame}<span>Streak: <b>${streak.current}</b> · Best: <b>${streak.best}</b></span></a></p>` : ''}
+      ${cup ? html`<p class="streak-line cup-line"><a href="/cup">${icons.board}<span>Cup: <b>${cup.rank ? `#${cup.rank}` : '–'}</b> · <b>${cup.points} pts</b></span></a></p>` : ''}
       ${badgeChips(badges)}
       ${own ? html`${photoForm(ctx, player, photo)}${coverForm(ctx, player, cover)}${screenNameForm(ctx, player, nextChange)}${nameForm(ctx, player)}${bioForm(ctx, player)}${linkForm(ctx, player)}${cities ? homeCityForm(ctx, home, cities) : ''}${colorPicker(ctx, { teams, look })}${sitePicksSetting(ctx)}${nametag ? nametagPicker(ctx, { player, record, nametag }) : ''}` : ''}
       ${!own && photo.upload ? photoForm(ctx, player, photo) : ''}
@@ -777,7 +780,7 @@ export function contest(ctx, { week, rows, badges, me, left, min, last, players 
  * The winners wall, in two tabs: every closed week's top 3 (and who has won
  * the most weeks), and every closed tournament's.
  */
-export function winners(ctx, { weeks, champions, tab = 'weekly', tournaments = { list: [], champions: [] }, players = null }) {
+export function winners(ctx, { weeks, champions, tab = 'weekly', tournaments = { list: [], champions: [] }, cupList = [], players = null }) {
   const chips = (list) => html`<p class="chips-row">${list.map((c) => html`<a class="chip" href="/u/${encodeURIComponent(c.screen_name)}">${c.screen_name} · ${c.wins} ${c.wins === 1 ? 'win' : 'wins'}</a>`)}</p>`;
   const weekly = html`
       ${champions.length ? html`<h2>Most weekly wins</h2>${chips(champions)}` : ''}
@@ -796,6 +799,13 @@ export function winners(ctx, { weeks, champions, tab = 'weekly', tournaments = {
             ${t.podium.length ? podium(t.podium, { ctx, title: t.name, date: endLabel(t), path: `/tournaments/${t.slug}`, players: () => t.players }) : html`<p class="muted small">Nobody had enough graded bets to place.</p>`}
           </section>`)
         : html`<div class="card empty">No tournaments finished yet. <a href="/tournaments">See what's on</a>.</div>`}`;
+  const cupYears = cupList.length
+    ? cupList.map((y) => html`<section class="card week-card">
+        <h3><a href="/cup?year=${y.year}">${y.year} Bookie Bullies Cup</a></h3>
+        <ol class="podium">${y.podium.map((r) => html`<li class="p${r.place}"><span class="place">#${r.place}</span><span class="who-cell">${profileLink(r.screen_name)}</span><span class="rec"></span><b>${r.points} pts</b></li>`)}</ol>
+      </section>`)
+    : html`<div class="card empty">The first Cup winners go up when the year ends. <a href="/cup">See the standings</a>.</div>`;
+  const lede = { tournaments: 'The top 3 from every finished tournament, newest first.', cup: 'The top 3 in the Bookie Bullies Cup, every year.', weekly: 'The top 3 from every week of the free weekly contest, newest first.' }[tab];
   return layout(ctx, {
     title: 'Winners wall',
     active: 'board',
@@ -803,9 +813,9 @@ export function winners(ctx, { weeks, champions, tab = 'weekly', tournaments = {
     body: html`
       <a class="back" href="/contest">← This week's contest</a>
       <h1>Winners wall</h1>
-      <p class="lede">${tab === 'tournaments' ? 'The top 3 from every finished tournament, newest first.' : 'The top 3 from every week of the free weekly contest, newest first.'}</p>
-      ${tabs('/winners', ctx.query, 'tab', [['', 'Weekly contest'], ['tournaments', 'Tournaments']])}
-      ${tab === 'tournaments' ? cups : weekly}
+      <p class="lede">${lede}</p>
+      ${tabs('/winners', ctx.query, 'tab', [['', 'Weekly contest'], ['tournaments', 'Tournaments'], ['cup', 'Cup']])}
+      ${tab === 'tournaments' ? cups : tab === 'cup' ? cupYears : weekly}
     `,
   });
 }

@@ -41,7 +41,7 @@ network needed. Log in as `demo@example.com` / `letmein123`.
 - **One record per person.** Groups and sport boards read from the same picks,
   so nobody keeps a separate record per group.
 - **Graded for you.** A timer checks ESPN every 10 minutes for finals on games
-  with open picks. Postponed and canceled games are void. So is a game ESPN
+  with open picks (and Survivor and Pick'em picks). Postponed and canceled games are void. So is a game ESPN
   still shows unfinished three days later, but only on ESPN's word: if the app
   just couldn't reach ESPN, picks wait.
 
@@ -64,8 +64,11 @@ five.
 | `/u/<name>` | A player's public record: a banner (their cover photo, or a band in their colors), their photo, overall, by sport, how often they beat the closing line, and every pick with when it was locked (and its CLV once the game starts), and their city if they picked one. Signed-in players can report a photo or a cover. Your own has your settings: your photo, your cover photo (an Edit cover button on the banner goes to it), your city, a new screen name (once every 30 days; the old one redirects for 90), the app color, and your name on the boards: a color and an icon (saved with a POST to `/nametag`). |
 | `/search` | Find players by the start of their screen name. |
 | `/contest` | The free weekly contest: most units on bets whose games start Monday to Sunday (ET), 5 graded bets to place. Public. |
-| `/winners` | The winners wall: every past week's top 3 and the most weekly wins, and a Tournaments tab with every finished tournament's. Public. |
-| `/tournaments` | Free tournaments: live now, starting soon, player tournaments, finished. Join in one tap; only bets made after joining, on games inside the window and in its sports, count. Public. |
+| `/winners` | The winners wall: every past week's top 3 and the most weekly wins, a Tournaments tab with every finished tournament's, and a Cup tab with each year's top 3. Public. |
+| `/tournaments` | Free tournaments. On top: Survivor (your status, this week's pick, players left, the deadline), then NFL Pick'em, then a Cup banner. Below: live now, starting soon, player tournaments, finished. Join in one tap; only bets made after joining, on games inside the window and in its sports, count. Public. |
+| `/survivor` | NFL Survivor, one free pool per season: join, this week's games with both teams to pick from (used teams and started games off), your picks by week, and the standings (players left, out by week, everyone's picks, hidden until each game starts). `/tournaments/survivor` goes here. |
+| `/pickem/nfl` | NFL Pick'em: every game of the week against the spread, a Best Bet star, one Save button (no JavaScript needed), the week's standings and the season's. Earlier weeks by `?week=`. |
+| `/cup` | The Bookie Bullies Cup: this year's points race (rank, points, wins, podiums), your finishes, and how points work. Earlier years by `?year=`. |
 | `/tournaments/<slug>` | One tournament: rules, countdown, Join or Leave (before the start), standings (while live, "As it stands": games in progress counted at the current score, refreshed every 45 seconds), the chat for players in it, the final podium, and Share for a top-3 finish. A player-made one shows who made it, its maker's invite link and Cancel, and Report. |
 | `/tournaments/new` | Make a free tournament: name, sports, start and end, bets to place, public or private, and optionally a group or local room. Confirmed emails; 2 going at once and 5 a day. |
 | `/t/<code>` | A private tournament's invite link: its page, with Join. |
@@ -89,6 +92,19 @@ Players can make their own too, public or private (by invite link), or just for
 a group or local room; three reports take one off the lists until an admin looks.
 While one is live its page counts games in progress as they stand, and every
 tournament has a chat for the players in it. One straight pick a day can be a **Streak pick**.
+
+Three NFL formats sit at the top of the tournaments hub, all free.
+**Survivor**: each NFL week, pick one team to win outright; each team once a
+season; a loss, a tie or a week with no pick and you're out (a postponed game
+doesn't count); last one standing wins, and everyone out the same week shares
+it. Join any week before its first game. An NFL spread or moneyline slip can
+make its team your Survivor pick in the same tap. **NFL Pick'em**: every game
+of the week against the spread, at the line when you save it, 1 point a win,
+half a push, a Best Bet doubled; its own picks, apart from bets. The
+**Bookie Bullies Cup** adds up the year: points by finish in every tournament
+close (25 for 1st down to 1 for 10th, plus 1 for placing; player-made ones
+need 8 placed), with badges for the top 3 when the year ends. Profiles show
+"Cup: #12 · 84 pts".
 Badges (First win, Hot hand, Weekly winner and more) are worked out from the
 record and show on profiles, with the most notable one on the boards.
 
@@ -239,9 +255,10 @@ There's also a Dockerfile, for any host that runs containers and keeps a disk.
 ## Where things live
 
 ```
-src/server.js     starts everything, checks for finals every 10 minutes, imports official picks every 15,
-                  closes the weekly contest and tournaments and sends reminders and tournament alerts (checked every 5),
-                  badges and new auto tournaments hourly, ESPN's team lists once a day
+src/server.js     starts everything, checks for finals every 10 minutes (then grades Survivor and Pick'em),
+                  imports official picks every 15, closes the weekly contest, tournaments, Pick'em weeks and
+                  Cup years and sends reminders and tournament alerts (checked every 5), badges, new auto
+                  tournaments and the Survivor pool hourly, ESPN's team lists once a day, the Cup backfill at start
 src/app.js        every page and form
 src/espn.js       reads ESPN's scoreboard (games, lines, scores) and game summaries (injuries, last five)
 src/games.js      keeps the games table fresh, and freezes each game's closing line when it starts
@@ -255,6 +272,10 @@ src/contest.js    the free weekly contest: standings and closing for any window,
 src/tournaments.js free tournaments: auto, admin- and player-made ones, joining, live standings,
                   closing once, start reminders and "where you stand" alerts, reports
 src/streak.js     the streak game: Streak picks, current and best streaks, the streak boards
+src/nflweeks.js   NFL weeks: ESPN's week number, or Tuesday-to-Monday windows from the date; the current week
+src/survivor.js   Survivor: the season's pool, joining, picks (page and slip), grading, settling weeks, closing, reminders
+src/pickem.js     NFL Pick'em: picks at the saved line, the Best Bet, grading, week and season standings, closing a week
+src/cup.js        the Bookie Bullies Cup: points per finish, standings, the profile line, closing a year
 src/badges.js     badges: what earns each one, awarding once, the most notable for a board
 src/nametags.js   name colors and icons: the lists, earned icons, checking and saving
 src/teams.js      team logos for icons: ESPN's team lists once a day, stored, with the games table as a fallback
@@ -271,6 +292,6 @@ src/db.js         the schema; add migrations at the end, never edit a shipped on
 src/demo.js       the fake ESPN and players behind npm run demo
 src/themes.js     looks: the presets, the readability guard, team and custom colors, the /theme stylesheet
 src/photos.js     profile and cover photos: checks, metadata stripping, storage, reports, and form uploads (multipart)
-src/views/        the pages (avatar.js: a player's photo, or their initial)
+src/views/        the pages (avatar.js: a player's photo, or their initial; formats.js: Survivor, Pick'em, the Cup)
 public/           styles and a little script that shows times in your own time zone
 ```

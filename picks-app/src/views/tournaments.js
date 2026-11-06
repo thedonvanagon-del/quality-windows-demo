@@ -6,6 +6,7 @@ import {
 } from '../tournaments.js';
 import { icons } from './icons.js';
 import { csrfField, layout } from './layout.js';
+import { cupBanner, pickemFeature, survivorFeature } from './formats.js';
 import { adminTabs } from './local.js';
 import { at, avatar, badgeMark, chatBox, playerName, profileLink, rankCell, recordText, signedPct, units, winShare } from './parts.js';
 
@@ -83,13 +84,18 @@ function section(ctx, title, list, empty, id = null) {
 }
 
 /** The hub: live now, starting soon, player tournaments, and the last few finished. */
-export function hub(ctx, { live, soon, players = [], finished, admin = false }) {
+export function hub(ctx, { live, soon, players = [], finished, admin = false, survivor = null, pickem = null, cup = null }) {
   return layout(ctx, {
     title: 'Tournaments',
     active: 'tournaments',
     description: 'Free Bookie Bullies tournaments: join, make your picks, and play for the top spot.',
     body: html`
       <h1>Tournaments</h1>
+      <div class="features">
+        ${survivorFeature(ctx, survivor)}
+        ${pickemFeature(ctx, pickem)}
+      </div>
+      ${cup ? cupBanner(ctx, cup) : ''}
       <p class="lede">Free to join, one tap. Only bets you make after joining count, on games inside the tournament's window. Most units wins.</p>
       <div class="row tn-make">
         <a class="btn small" href="/tournaments/new">Make a tournament</a>

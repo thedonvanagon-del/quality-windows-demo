@@ -32,8 +32,8 @@ function bets(userId, n, result = 'loss', from = 0) {
 describe('badges', () => {
   test('keys stay put', () => {
     assert.deepEqual(BADGES.map((b) => b.key), [
-      'weekly_winner', 'tournament_champion', 'streak_10', 'hot_hand', 'podium', 'tournament_podium', 'streak_5', 'parlay_hitter',
-      'bets_500', 'recruiter', 'bets_100', 'bets_50', 'first_win',
+      'cup_champion', 'weekly_winner', 'tournament_champion', 'survivor_champion', 'streak_10', 'hot_hand', 'cup_podium', 'podium',
+      'tournament_podium', 'pickem_winner', 'streak_5', 'parlay_hitter', 'bets_500', 'recruiter', 'bets_100', 'bets_50', 'first_win',
     ]);
   });
 

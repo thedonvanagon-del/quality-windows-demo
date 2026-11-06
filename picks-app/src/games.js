@@ -64,8 +64,8 @@ export function createGames({ store, espn, now = () => new Date(), log = console
                               home_name, home_short, home_abbr, home_score, home_logo,
                               away_name, away_short, away_abbr, away_score, away_logo, lines, updated_at,
                               tv, home_record, away_record, home_color, away_color, closing_lines, closing_at,
-                              home_alt_color, away_alt_color)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                              home_alt_color, away_alt_color, season, season_type, week)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
            ON CONFLICT (id) DO UPDATE SET
              start_time = excluded.start_time, state = excluded.state, status = excluded.status,
              detail = excluded.detail, completed = excluded.completed,
@@ -79,6 +79,9 @@ export function createGames({ store, espn, now = () => new Date(), log = console
              away_color = COALESCE(excluded.away_color, games.away_color),
              home_alt_color = COALESCE(excluded.home_alt_color, games.home_alt_color),
              away_alt_color = COALESCE(excluded.away_alt_color, games.away_alt_color),
+             season = COALESCE(excluded.season, games.season),
+             season_type = COALESCE(excluded.season_type, games.season_type),
+             week = COALESCE(excluded.week, games.week),
              -- ESPN drops the odds once a game starts; keep the last ones seen
              -- for display.
              lines = CASE WHEN ? THEN excluded.lines ELSE games.lines END,
@@ -90,7 +93,8 @@ export function createGames({ store, espn, now = () => new Date(), log = console
           g.home.name, g.home.short, g.home.abbr, g.home.score, g.home.logo ?? null,
           g.away.name, g.away.short, g.away.abbr, g.away.score, g.away.logo ?? null, lines, at,
           g.tv ?? null, g.home.record ?? null, g.away.record ?? null, g.home.color ?? null, g.away.color ?? null,
-          closing.lines, closing.at, g.home.alt ?? null, g.away.alt ?? null, replaceLines ? 1 : 0,
+          closing.lines, closing.at, g.home.alt ?? null, g.away.alt ?? null, g.season ?? null, g.seasonType ?? null, g.week ?? null,
+          replaceLines ? 1 : 0,
         );
       }
       // Closing line value for the picks on games that just started.
@@ -204,16 +208,23 @@ export function createGames({ store, espn, now = () => new Date(), log = console
       return row ? toGame(row) : null;
     },
 
-    /** Look for finals on every started game that still has an open pick or parlay leg. */
+    /** Look for finals on every started game that still has an open pick, parlay leg, Survivor pick or Pick'em pick. */
     async checkFinals() {
+      const at = now().toISOString();
       const due = store.all(
         `SELECT g.sport, g.start_time FROM picks p JOIN games g ON g.id = p.game_id
           WHERE p.result IS NULL AND g.start_time <= ?
          UNION
          SELECT g.sport, g.start_time FROM parlay_legs l JOIN parlays x ON x.id = l.parlay_id JOIN games g ON g.id = l.game_id
           WHERE x.result IS NULL AND l.result IS NULL AND g.start_time <= ?
+         UNION
+         SELECT g.sport, g.start_time FROM survivor_picks s JOIN games g ON g.id = s.game_id
+          WHERE s.result IS NULL AND g.start_time <= ?
+         UNION
+         SELECT g.sport, g.start_time FROM pickem_picks k JOIN games g ON g.id = k.game_id
+          WHERE k.result IS NULL AND g.start_time <= ?
          ORDER BY 2`,
-        now().toISOString(), now().toISOString(),
+        at, at, at, at,
       );
       const days = new Map();
       for (const { sport, start_time: start } of due) days.set(`${sport} ${etDay(start)}`, [SPORT[sport], etDay(start)]);
@@ -240,5 +251,8 @@ export function toGame(row) {
     away: { name: row.away_name, short: row.away_short, abbr: row.away_abbr, score: row.away_score, logo: row.away_logo, record: row.away_record ?? null, color: row.away_color ?? null, alt: row.away_alt_color ?? null },
     lines: JSON.parse(row.lines),
     updatedAt: row.updated_at,
+    season: row.season ?? null,
+    seasonType: row.season_type ?? null,
+    week: row.week ?? null,
   };
 }
