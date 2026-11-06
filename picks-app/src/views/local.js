@@ -109,6 +109,7 @@ export function adminTabs(active) {
     <a href="/admin/reports" class="${active === 'reports' ? 'on' : ''}">Reported chat</a>
     <a href="/admin/rooms" class="${active === 'rooms' ? 'on' : ''}">Local rooms</a>
     <a href="/admin/tournaments" class="${active === 'tournaments' ? 'on' : ''}">Tournaments</a>
+    <a href="/admin/bracket" class="${active === 'bracket' ? 'on' : ''}">Bracket</a>
   </nav>`;
 }
 

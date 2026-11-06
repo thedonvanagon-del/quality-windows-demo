@@ -987,3 +987,43 @@ for (const form of document.querySelectorAll('form[data-bb-dismiss]')) {
     fetch(form.action, { method: 'POST', body: new URLSearchParams(new FormData(form)), credentials: 'same-origin', redirect: 'manual' }).catch(() => {});
   });
 }
+
+// The bracket challenge: a tap on a team saves it at once and redraws the
+// bracket, so the next round fills in without a Save. Without JavaScript,
+// each round's Save button does the same.
+const bracketBox = document.querySelector('[data-bracket]');
+if (bracketBox && window.DOMParser && window.fetch) {
+  // Round buttons go; the Final Four's stays for the tiebreaker.
+  const hideSaves = () => {
+    for (const button of bracketBox.querySelectorAll('.bk-save')) button.hidden = !button.form?.querySelector('input[name="tiebreak"]');
+  };
+  hideSaves();
+  let saving = Promise.resolve();
+  bracketBox.addEventListener('change', (event) => {
+    const form = event.target.closest('form[data-bracket-round]');
+    if (!form || event.target.type !== 'radio') return;
+    const body = new URLSearchParams();
+    // Only the tapped game and the form's token and view: other games on the form keep what's saved.
+    for (const [key, value] of new FormData(form)) if (!/^g\d+$/.test(key) || key === event.target.name) body.append(key, value);
+    saving = saving.then(async () => {
+      try {
+        const res = await fetch(form.action, { method: 'POST', body, credentials: 'same-origin', headers: { accept: 'text/html' } });
+        if (!res.ok) throw new Error(String(res.status));
+        const page = new DOMParser().parseFromString(await res.text(), 'text/html');
+        const next = page.querySelector('[data-bracket]');
+        const clock = page.querySelector('.contest-clock');
+        if (next) {
+          const y = window.scrollY;
+          bracketBox.replaceChildren(...[...next.childNodes].map((n) => document.adoptNode(n)));
+          hideSaves();
+          window.scrollTo(0, y);
+        }
+        const here = document.querySelector('.contest-clock');
+        if (clock && here) here.replaceWith(document.adoptNode(clock));
+      } catch {
+        // Fall back to a normal submit, which shows any problem.
+        form.submit();
+      }
+    });
+  });
+}

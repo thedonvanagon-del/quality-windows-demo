@@ -22,6 +22,9 @@ import { cupHistory, cupLine, cupStandings, cupWinners, cupYear, cupYears } from
 import { seasonWeeks } from './nflweeks.js';
 import * as pickem from './pickem.js';
 import * as survivor from './survivor.js';
+import * as bracket from './bracket.js';
+import * as leagues from './leagues.js';
+import * as prizes from './prizes.js';
 import { LOGO_HOST } from './espn.js';
 import { toGame } from './games.js';
 import { countInvite, findInviter, followInviter, inviteCodeOf, inviteStats } from './invites.js';
@@ -53,6 +56,9 @@ import * as play from './views/play.js';
 import * as social from './views/social.js';
 import * as tourneyViews from './views/tournaments.js';
 import * as formats from './views/formats.js';
+import * as bracketViews from './views/bracket.js';
+import * as leagueViews from './views/leagues.js';
+import * as prizeViews from './views/prizes.js';
 
 const PUBLIC_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'public');
 const MAX_BODY = 16 * 1024;
@@ -74,7 +80,7 @@ const SECURITY_HEADERS = {
   'Permissions-Policy': 'camera=(), microphone=(), geolocation=()',
 };
 
-export function createApp({ store, games, config, mailer = createMailer({ log: { log() {} } }), notifier = createNotifier({ store }), push = null, summaries = null, teams = null, now = () => new Date(), log = console }) {
+export function createApp({ store, games, espn = null, config, mailer = createMailer({ log: { log() {} } }), notifier = createNotifier({ store }), push = null, summaries = null, teams = null, now = () => new Date(), log = console }) {
   const assets = loadAssets();
   // Team logos for scoreboard icons. Without one passed in (tests, the demo)
   // it never fetches: it uses what's stored, else the teams in the games table.
@@ -838,12 +844,15 @@ export function createApp({ store, games, config, mailer = createMailer({ log: {
   function tournamentsPage(ctx) {
     const userId = ctx.user?.screenName ? ctx.user.id : null;
     survivor.ensurePool(store, ctx.now);
+    const admin = isAdmin(ctx);
     send(ctx, 200, tourneyViews.hub(ctx, {
-      ...hub(store, ctx.now, userId),
-      admin: isAdmin(ctx),
+      ...hub(store, ctx.now, userId, { admin }),
+      admin,
       survivor: survivor.featured(store, ctx.now, userId),
       pickem: pickem.featured(store, ctx.now, userId),
       cup: cupSummary(ctx),
+      leagues: leagues.leagueLists(store, userId, ctx.now),
+      bracket: bracket.featured(store, ctx.now, userId),
     }));
   }
 
@@ -1040,7 +1049,7 @@ export function createApp({ store, games, config, mailer = createMailer({ log: {
     const code = ctx.form.get('code') || null;
     const t = visibleTournament(ctx, slug, code);
     if (!t) return notFound(ctx);
-    const result = joinTournament(store, t, ctx.user.id, ctx.now, { code });
+    const result = joinTournament(store, t, ctx.user.id, ctx.now, { code, rulesAccepted: ['1', 'on'].includes(ctx.form.get('rules')) });
     flash(ctx, result.error ? 'error' : 'ok', result.error ?? `You're in ${t.name}. Bets you make from now on count.`);
     redirect(ctx, safeNext(ctx.form.get('next')) ?? `/tournaments/${t.slug}`);
   }
@@ -1122,8 +1131,14 @@ export function createApp({ store, games, config, mailer = createMailer({ log: {
   /** Make a tournament, or cancel one before it starts. Anyone who isn't an admin gets a plain 404. */
   function adminTournaments(ctx) {
     if (!isAdmin(ctx)) return notFound(ctx);
-    send(ctx, 200, tourneyViews.admin(ctx, { list: adminList(store, ctx.now), reported: reportedTournaments(store) }));
+    send(ctx, 200, tourneyViews.admin(ctx, { list: adminList(store, ctx.now), reported: reportedTournaments(store), prizes: prizeList() }));
   }
+
+  /** Every prize tournament, newest first, for the admin page. */
+  const prizeList = () => store.all(
+    `SELECT t.*, z.prize, z.reviewed_at, z.published_at, z.sent_at FROM tournaments t JOIN prize_tournaments z ON z.tournament_id = t.id
+      WHERE t.canceled_at IS NULL ORDER BY t.ends_at DESC, t.id DESC LIMIT 50`,
+  );
 
   /** An admin looked at a reported tournament and it's fine: it's listed again. */
   function adminTournamentDismiss(ctx, { slug }) {
@@ -1147,7 +1162,7 @@ export function createApp({ store, games, config, mailer = createMailer({ log: {
       prize: ctx.form.get('prize') ?? '',
     };
     const result = createCustom(store, { ...form, userId: ctx.user.id, now: ctx.now });
-    if (result.error) return send(ctx, 400, tourneyViews.admin(ctx, { list: adminList(store, ctx.now), reported: reportedTournaments(store), error: result.error, form }));
+    if (result.error) return send(ctx, 400, tourneyViews.admin(ctx, { list: adminList(store, ctx.now), reported: reportedTournaments(store), prizes: prizeList(), error: result.error, form }));
     flash(ctx, 'ok', 'Tournament made. It shows on the Tournaments page now.');
     redirect(ctx, `/tournaments/${result.slug}`);
   }
@@ -1160,6 +1175,328 @@ export function createApp({ store, games, config, mailer = createMailer({ log: {
     const result = cancelTournament(store, t, ctx.now, notifier, { anytime: Boolean(hostOf(store, t)) });
     flash(ctx, result.error ? 'error' : 'ok', result.error ?? `${t.name} is canceled.`);
     redirect(ctx, '/admin/tournaments');
+  }
+
+  // ---- prize tournaments --------------------------------------------------------
+
+  /** A prize tournament's official rules. Admins see a banner: drafts until a lawyer reads them. Players only once it's published. */
+  function prizeRules(ctx, { slug }) {
+    const row = findTournament(store, slug);
+    const prize = prizes.prizeOf(store, row);
+    if (!row || !prize) return notFound(ctx);
+    const admin = isAdmin(ctx);
+    if (!admin && (prizes.isDraftPrize(prize) || row.canceled_at)) return notFound(ctx);
+    send(ctx, 200, prizeViews.rulesPage(ctx, { t: cardOf(store, row, null, ctx.now), prize, admin, appName: config.appName, contact }));
+  }
+
+  /** The admin page for one prize tournament (or for making a custom one into one). */
+  function adminPrizePage(ctx, { slug }, extra = {}, status = 200) {
+    if (!isAdmin(ctx)) return notFound(ctx);
+    const row = bySlug(store, slug);
+    if (!row || row.kind !== 'custom' || hostOf(store, row)) return notFound(ctx);
+    const prize = prizes.prizeOf(store, row);
+    send(ctx, status, prizeViews.adminPrize(ctx, {
+      t: cardOf(store, row, null, ctx.now),
+      prize,
+      audit: prize ? prizes.prizeAudit(store, prize) : null,
+      winner: prize ? prizes.prizeWinner(store, row) : null,
+      entrants: entrantCount(store, row),
+      ...extra,
+    }));
+  }
+
+  function adminPrizeSave(ctx, { slug }) {
+    if (!isAdmin(ctx)) return notFound(ctx);
+    const row = bySlug(store, slug);
+    if (!row) return notFound(ctx);
+    const form = Object.fromEntries(['prize', 'value', 'sponsor', 'eligibility', 'delivery'].map((k) => [k, ctx.form.get(k) ?? '']));
+    const result = prizes.savePrize(store, row, form, { userId: ctx.user.id, now: ctx.now, playerMade: Boolean(hostOf(store, row)) });
+    if (result.error) return adminPrizePage(ctx, { slug }, { form, error: result.error }, 400);
+    flash(ctx, 'ok', 'Saved. Players can\'t see it until a lawyer\'s review is recorded and you publish it.');
+    redirect(ctx, `/admin/tournaments/${row.slug}/prize`);
+  }
+
+  function adminPrizeReview(ctx, { slug }) {
+    if (!isAdmin(ctx)) return notFound(ctx);
+    const row = bySlug(store, slug);
+    if (!row) return notFound(ctx);
+    const reviewed = ['1', 'on'].includes(ctx.form.get('reviewed'));
+    const result = prizes.setReviewed(store, row, { reviewed, userId: ctx.user.id, now: ctx.now });
+    flash(ctx, result.error ? 'error' : 'ok', result.error ?? (reviewed ? 'Recorded: a lawyer has reviewed these rules.' : 'Review cleared.'));
+    redirect(ctx, `/admin/tournaments/${row.slug}/prize`);
+  }
+
+  function adminPrizePublish(ctx, { slug }) {
+    if (!isAdmin(ctx)) return notFound(ctx);
+    const row = bySlug(store, slug);
+    if (!row) return notFound(ctx);
+    const result = prizes.publishPrize(store, row, { userId: ctx.user.id, now: ctx.now });
+    flash(ctx, result.error ? 'error' : 'ok', result.error ?? `${row.name} is published. Players can see it and join.`);
+    redirect(ctx, `/admin/tournaments/${row.slug}/prize`);
+  }
+
+  function adminPrizeSent(ctx, { slug }) {
+    if (!isAdmin(ctx)) return notFound(ctx);
+    const row = findTournament(store, slug);
+    if (!row) return notFound(ctx);
+    const result = prizes.markPrizeSent(store, row, { userId: ctx.user.id, now: ctx.now });
+    flash(ctx, result.error ? 'error' : 'ok', result.error ?? 'Marked: prize sent.');
+    redirect(ctx, `/admin/tournaments/${row.slug}/prize`);
+  }
+
+  // ---- leagues ----------------------------------------------------------------
+
+  function leaguesPage(ctx) {
+    const userId = ctx.user?.screenName ? ctx.user.id : null;
+    send(ctx, 200, leagueViews.leaguesPage(ctx, leagues.leagueLists(store, userId, ctx.now)));
+  }
+
+  function leagueNewForm(ctx, extra = {}, status = 200) {
+    if (!signedIn(ctx)) return;
+    const choices = leagues.startChoices(ctx.now);
+    send(ctx, status, leagueViews.newLeague(ctx, {
+      groups: groupChoices(store, ctx.user.id),
+      choices,
+      form: extra.form ?? { startWeek: choices[0].monday, regularWeeks: '5', playoffSize: '4', visibility: 'public', group: ctx.query?.get('group') ?? '' },
+      error: extra.error ?? null,
+    }));
+  }
+
+  function leagueCreate(ctx) {
+    if (!signedIn(ctx)) return;
+    const form = {
+      name: ctx.form.get('name') ?? '',
+      sports: ctx.form.getAll('sports'),
+      startWeek: ctx.form.get('start_week') ?? '',
+      regularWeeks: ctx.form.get('regular_weeks') ?? '',
+      playoffSize: ctx.form.get('playoff_size') ?? '',
+      visibility: ctx.form.get('visibility') ?? '',
+      group: ctx.form.get('group') ?? '',
+    };
+    if (!ctx.user.verified) return leagueNewForm(ctx, { form, error: 'Confirm your email to start a league. The link is in your inbox.' }, 403);
+    const result = leagues.createLeague(store, { ...form, groupId: form.group || null, userId: ctx.user.id, now: ctx.now, limit: !isAdmin(ctx) });
+    if (result.error) return leagueNewForm(ctx, { form, error: result.error }, 400);
+    flash(ctx, 'ok', form.visibility === 'private' ? "League started, and you're in. Copy the invite link below and send it around." : "League started, and you're in. It's listed under Open leagues until Week 1.");
+    redirect(ctx, `/leagues/${result.id}`);
+  }
+
+  function showLeague(ctx, l, code) {
+    const userId = ctx.user?.screenName ? ctx.user.id : null;
+    if (!leagues.canSeeLeague(store, l, { userId, admin: isAdmin(ctx), code })) return notFound(ctx);
+    const view = leagues.leagueView(store, l, userId, ctx.now);
+    const rows = new Map(withLooks(view.members.map((m) => ({ ...m }))).map((r) => [r.id, r]));
+    const isMember = leagues.isMemberOf(store, l, userId);
+    send(ctx, 200, leagueViews.leaguePage(ctx, {
+      l, view, rows, isMember,
+      code: l.visibility === 'private' ? code ?? (isMember ? l.invite_code : null) : null,
+      inviteUrl: isMember ? `${ctx.origin}${l.visibility === 'private' ? `/l/${l.invite_code}` : `/leagues/${l.id}`}` : null,
+    }));
+  }
+
+  function leaguePage(ctx, { id }) {
+    const l = leagues.leagueById(store, id);
+    return l ? showLeague(ctx, l, null) : notFound(ctx);
+  }
+
+  function leagueInvite(ctx, { code }) {
+    const l = leagues.leagueByCode(store, code);
+    return l ? showLeague(ctx, l, l.invite_code) : notFound(ctx);
+  }
+
+  function leagueJoin(ctx, { id }) {
+    if (!signedIn(ctx)) return;
+    const l = leagues.leagueById(store, id);
+    const code = ctx.form.get('code') || null;
+    if (!l || !leagues.canSeeLeague(store, l, { userId: ctx.user.id, admin: isAdmin(ctx), code })) return notFound(ctx);
+    const result = leagues.joinLeague(store, l, ctx.user.id, ctx.now, { code });
+    flash(ctx, result.error ? 'error' : 'ok', result.error ?? `You're in ${l.name}. The schedule comes out when Week 1 starts.`);
+    redirect(ctx, safeNext(ctx.form.get('next')) ?? `/leagues/${l.id}`);
+  }
+
+  function leagueLeave(ctx, { id }) {
+    if (!signedIn(ctx)) return;
+    const l = leagues.leagueById(store, id);
+    if (!l) return notFound(ctx);
+    const result = leagues.leaveLeague(store, l, ctx.user.id, ctx.now);
+    flash(ctx, result.error ? 'error' : 'ok', result.error ?? `You left ${l.name}.`);
+    redirect(ctx, `/leagues/${l.id}`);
+  }
+
+  // ---- the bracket challenge ------------------------------------------------------
+
+  /** Your bracket (or another player's, after the lock), a region at a time, the Final Four, or the standings. */
+  function bracketPage(ctx, notes = [], status = 200) {
+    const userId = ctx.user?.screenName ? ctx.user.id : null;
+    const c = bracket.currentChallenge(store, ctx.now, { drafts: isAdmin(ctx) });
+    if (!c) {
+      const lastYear = store.get('SELECT year FROM bracket_challenges WHERE closed_at IS NOT NULL ORDER BY year DESC LIMIT 1')?.year;
+      const last = lastYear ? { name: bracket.challengeFor(store, lastYear).name, winners: bracket.bracketStandings(store, bracket.challengeFor(store, lastYear)).filter((r) => r.rank === 1).map((r) => r.screen_name) } : null;
+      return send(ctx, status, bracketViews.bracketPage(ctx, { c: null, last }));
+    }
+    const locked = bracket.isLocked(c, ctx.now);
+    let owner = userId != null ? { id: userId, screen_name: ctx.user.screenName } : null;
+    const asked = ctx.query.get('player');
+    if (asked && asked.toLowerCase() !== ctx.user?.screenName?.toLowerCase()) {
+      // Other players' brackets show only once the brackets lock.
+      if (!locked) return notFound(ctx);
+      owner = store.get('SELECT id, screen_name FROM users WHERE screen_name = ? AND email_verified_at IS NOT NULL', asked) ?? null;
+      if (!owner || !bracket.entryOf(store, c.year, owner.id)) return notFound(ctx);
+    }
+    const entry = owner ? bracket.entryOf(store, c.year, owner.id) : null;
+    const results = bracket.resultsOf(store, c.year);
+    const out = bracket.eliminated(results);
+    const picks = entry?.picks ?? {};
+    const raw = ctx.query.get('view');
+    const view = ['0', '1', '2', '3', 'ff', 'standings'].includes(raw) ? raw : locked && !asked ? 'standings' : '0';
+    const rows = view === 'standings' ? withLooks(bracket.bracketStandings(store, c)) : [];
+    send(ctx, status, bracketViews.bracketPage(ctx, {
+      c, field: bracket.fieldOf(store, c.year), picks, tiebreak: entry?.tiebreak ?? null, results, out, view, locked,
+      owner, mine: owner?.id === userId, score: entry ? bracket.scoreBracket(picks, results, out) : null, rows, notes,
+    }));
+  }
+
+  /** Save picks: a round's form, or the whole bracket. Works without JavaScript. */
+  function bracketPost(ctx) {
+    if (!signedIn(ctx)) return;
+    const c = bracket.currentChallenge(store, ctx.now);
+    if (!c) return notFound(ctx);
+    const updates = {};
+    for (const [key, value] of ctx.form) if (/^g\d{1,2}$/.test(key)) updates[Number(key.slice(1))] = value;
+    const view = ['0', '1', '2', '3', 'ff'].includes(ctx.form.get('view')) ? ctx.form.get('view') : '0';
+    const result = bracket.savePicks(store, c, { userId: ctx.user.id, updates, tiebreak: ctx.form.get('tiebreak'), now: ctx.now });
+    if (result.error) {
+      flash(ctx, 'error', result.error);
+      return redirect(ctx, `/bracket?view=${view}`);
+    }
+    flash(ctx, result.notes.length ? 'error' : 'ok', result.notes.length ? result.notes.join(' ') : `Saved. ${result.picked} of ${bracket.GAMES} picked.${result.dropped ? ` ${result.dropped} later ${result.dropped === 1 ? 'pick was' : 'picks were'} cleared: that team no longer gets there.` : ''}`);
+    redirect(ctx, `/bracket?view=${view}`);
+  }
+
+  /** The year the admin page works on: the current challenge's, else this season's (next year's from November). */
+  function bracketYear(ctx) {
+    const c = bracket.currentChallenge(store, ctx.now, { drafts: true });
+    if (c) return c.year;
+    const [y, m] = [+etDay(ctx.now).slice(0, 4), +etDay(ctx.now).slice(4, 6)];
+    return m >= 11 ? y + 1 : y;
+  }
+
+  /** Games whose two teams are known by the results so far, for entering winners by hand. */
+  function manualGames(c) {
+    const results = bracket.resultsOf(store, c.year);
+    const out = [];
+    for (let g = 0; g < bracket.GAMES; g++) {
+      const teams = bracket.participants(g, results);
+      if (teams.every(Boolean)) out.push({ game: g, round: bracket.ROUND_NAMES[bracket.roundOf(g)], region: bracket.regionOf(g), teams });
+    }
+    return out;
+  }
+
+  function adminBracket(ctx, extra = {}, status = 200) {
+    if (!isAdmin(ctx)) return notFound(ctx);
+    const year = bracketYear(ctx);
+    const c = bracket.challengeFor(store, year);
+    send(ctx, status, bracketViews.adminBracket(ctx, {
+      c, year,
+      field: c ? bracket.fieldOf(store, year) : null,
+      results: c ? bracket.resultsOf(store, year) : {},
+      teams: bracket.collegeTeams(store),
+      manual: c?.opened_at ? manualGames(c) : [],
+      ...extra,
+    }));
+  }
+
+  function adminBracketStart(ctx) {
+    if (!isAdmin(ctx)) return notFound(ctx);
+    bracket.ensureChallenge(store, bracketYear(ctx), ctx.now);
+    flash(ctx, 'ok', 'Started. Fill in the field, set the lock, then open it.');
+    redirect(ctx, '/admin/bracket');
+  }
+
+  async function adminBracketEspn(ctx) {
+    if (!isAdmin(ctx)) return notFound(ctx);
+    const c = bracket.challengeFor(store, bracketYear(ctx));
+    if (!c) return notFound(ctx);
+    if (!espn) return adminBracket(ctx, { error: "This server can't reach ESPN. Enter the field by hand." }, 503);
+    try {
+      const draft = await bracket.fetchField(store, espn, c, ctx.now);
+      return adminBracket(ctx, { draft });
+    } catch (err) {
+      log.warn(`bracket field: ${err.message}`);
+      return adminBracket(ctx, { error: "ESPN didn't answer. Try again, or enter the field by hand." }, 503);
+    }
+  }
+
+  function adminBracketOpen(ctx) {
+    if (!isAdmin(ctx)) return notFound(ctx);
+    const c = bracket.challengeFor(store, bracketYear(ctx));
+    if (!c) return notFound(ctx);
+    const result = bracket.openChallenge(store, c, {
+      regions: ctx.form.getAll('region'),
+      locksAt: bracket.lockInstant(ctx.form.get('lock_date'), ctx.form.get('lock_time')),
+      userId: ctx.user.id, now: ctx.now,
+    });
+    if (result.error) return adminBracket(ctx, { error: result.error }, 400);
+    flash(ctx, 'ok', `${c.name} is open. Players can fill their brackets until the lock.`);
+    redirect(ctx, '/admin/bracket');
+  }
+
+  function adminBracketField(ctx) {
+    if (!isAdmin(ctx)) return notFound(ctx);
+    const c = bracket.challengeFor(store, bracketYear(ctx));
+    if (!c) return notFound(ctx);
+    const slots = [];
+    for (let region = 0; region < 4; region++) {
+      for (let seed = 1; seed <= 16; seed++) {
+        const name = String(ctx.form.get(`t_${region}_${seed}`) ?? '').trim();
+        const name2 = String(ctx.form.get(`t2_${region}_${seed}`) ?? '').trim();
+        const one = bracket.teamDetails(store, name);
+        const two = name2 ? bracket.teamDetails(store, name2) : {};
+        slots.push({ region, seed, name, abbr: one.abbr, logo: one.logo, name2: name2 || null, abbr2: two.abbr ?? null, logo2: two.logo ?? null });
+      }
+    }
+    const result = bracket.saveField(store, c, slots, ctx.now);
+    if (result.error) return adminBracket(ctx, { error: result.error }, 400);
+    flash(ctx, 'ok', 'Field saved.');
+    redirect(ctx, '/admin/bracket');
+  }
+
+  function adminBracketPaste(ctx) {
+    if (!isAdmin(ctx)) return notFound(ctx);
+    const c = bracket.challengeFor(store, bracketYear(ctx));
+    if (!c) return notFound(ctx);
+    const text = ctx.form.get('field') ?? '';
+    const parsed = bracket.parsePastedField(text, c.regionNames);
+    if (parsed.error) return adminBracket(ctx, { error: parsed.error, paste: text }, 400);
+    const result = bracket.saveField(store, c, parsed.slots.map((s) => ({ ...s, ...bracket.teamDetails(store, s.name) })), ctx.now);
+    if (result.error) return adminBracket(ctx, { error: result.error, paste: text }, 400);
+    flash(ctx, 'ok', 'Field saved from the pasted list.');
+    redirect(ctx, '/admin/bracket');
+  }
+
+  function adminBracketResults(ctx) {
+    if (!isAdmin(ctx)) return notFound(ctx);
+    const c = bracket.challengeFor(store, bracketYear(ctx));
+    if (!c?.opened_at) return notFound(ctx);
+    const errors = [];
+    for (const [key, value] of ctx.form) {
+      if (key.startsWith('ff_') && value) {
+        const r = bracket.recordFirstFour(store, c, { slot: key.slice(3), winner: value });
+        if (r.error) errors.push(r.error);
+      }
+    }
+    const results = bracket.resultsOf(store, c.year);
+    const total = ctx.form.get('title_total');
+    for (let g = 0; g < bracket.GAMES; g++) {
+      const value = ctx.form.get(`w${g}`);
+      if (!value || results[g] === value) continue;
+      const r = bracket.recordResult(store, c, { game: g, winner: value, source: 'admin', now: ctx.now, replace: true });
+      if (r.error) errors.push(`Game ${g + 1}: ${r.error}`);
+      Object.assign(results, bracket.resultsOf(store, c.year));
+    }
+    if (total) store.run('UPDATE bracket_challenges SET title_total = ? WHERE year = ?', Math.max(0, Math.min(400, Math.round(Number(total) || 0))), c.year);
+    const closed = bracket.closeChallenge(store, bracket.challengeFor(store, c.year), ctx.now, notifier);
+    flash(ctx, errors.length ? 'error' : 'ok', errors.length ? errors.join(' ') : closed ? `Results saved. ${c.name} is final.` : 'Results saved.');
+    redirect(ctx, '/admin/bracket');
   }
 
   /** The streak game: your streak, today's Streak pick, and the streak boards. */
@@ -1907,6 +2244,28 @@ export function createApp({ store, games, config, mailer = createMailer({ log: {
     ['GET', '/pickem/nfl', (ctx) => pickemPage(ctx)],
     ['POST', '/pickem/nfl', pickemPost],
     ['GET', '/cup', cupPage],
+    ['GET', '/leagues', leaguesPage],
+    ['GET', '/leagues/new', (ctx) => leagueNewForm(ctx)],
+    ['POST', '/leagues/new', leagueCreate],
+    ['GET', '/leagues/:id', leaguePage],
+    ['GET', '/l/:code', leagueInvite],
+    ['POST', '/leagues/:id/join', leagueJoin],
+    ['POST', '/leagues/:id/leave', leagueLeave],
+    ['GET', '/bracket', (ctx) => bracketPage(ctx)],
+    ['POST', '/bracket', bracketPost],
+    ['GET', '/admin/bracket', (ctx) => adminBracket(ctx)],
+    ['POST', '/admin/bracket/start', adminBracketStart],
+    ['POST', '/admin/bracket/espn', adminBracketEspn],
+    ['POST', '/admin/bracket/open', adminBracketOpen],
+    ['POST', '/admin/bracket/field', adminBracketField],
+    ['POST', '/admin/bracket/paste', adminBracketPaste],
+    ['POST', '/admin/bracket/results', adminBracketResults],
+    ['GET', '/tournaments/:slug/rules', prizeRules],
+    ['GET', '/admin/tournaments/:slug/prize', (ctx, params) => adminPrizePage(ctx, params)],
+    ['POST', '/admin/tournaments/:slug/prize', adminPrizeSave],
+    ['POST', '/admin/tournaments/:slug/prize/review', adminPrizeReview],
+    ['POST', '/admin/tournaments/:slug/prize/publish', adminPrizePublish],
+    ['POST', '/admin/tournaments/:slug/prize/sent', adminPrizeSent],
     ['POST', '/tournaments/new', tournamentCreate],
     ['GET', '/tournaments/:slug', tournamentPage],
     ['GET', '/t/:code', tournamentInvite],

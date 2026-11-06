@@ -142,7 +142,7 @@ export async function startApp({ time, espn = fakeEspn(), config = {}, teamFetch
   const media = fs.mkdtempSync(path.join(os.tmpdir(), 'bb-media-'));
   const teams = createTeamCatalog({ store, fetch: teamFetch, now: time.now, log: quiet });
   const handler = createApp({
-    store, games, mailer, notifier, push, summaries, teams, now: time.now, log: quiet,
+    store, games, espn, mailer, notifier, push, summaries, teams, now: time.now, log: quiet,
     config: { appName: 'Bookie Bullies', trustProxy: false, appUrl: 'https://app.example.test', mediaDir: media, ...config },
   });
   const server = http.createServer(handler);

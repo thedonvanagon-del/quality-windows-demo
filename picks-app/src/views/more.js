@@ -43,6 +43,7 @@ export function more(ctx, { liveCount, admin = false, reported = 0, reportedCups
         ${row('/invite', icons.invite, 'Invite friends', 'Your own link, and who joined')}
         ${admin ? row('/admin/reports', icons.flag, 'Admin', 'Reported chat and photos', reported ? html`<span class="count">${reported}</span>` : '') : ''}
         ${admin ? row('/admin/tournaments', icons.bracket, 'Admin: tournaments', 'Make a tournament, cancel one, or look at reported ones', reportedCups ? html`<span class="count">${reportedCups}</span>` : '') : ''}
+        ${admin ? row('/admin/bracket', icons.bracket, 'Admin: bracket', 'The March Madness field, the lock, results') : ''}
       </ul>
       <h2>Account</h2>
       <ul class="menu">
