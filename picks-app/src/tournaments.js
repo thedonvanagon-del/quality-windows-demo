@@ -40,6 +40,7 @@ import { checkBadges } from './badges.js';
 import { CONTEST_MIN, closeWindow, cupForWeek, dueToClose, openBetsIn, rankStandings, results, timeLeft, weekBounds, windowStandings } from './contest.js';
 import { cupYear, PLAYER_MADE_MIN, recordCup } from './cup.js';
 import { formatUnits, grade, profit, settleParlay } from './picks.js';
+import { isDraftPrize, prizeOf } from './prizes.js';
 import { SPORT } from './sports.js';
 import { withRates } from './stats.js';
 import { addDays, etDay, etToUtc, HOUR, mondayOf, weekday } from './time.js';
@@ -283,9 +284,13 @@ export function cancelTournament(store, t, now, notifier = null, { anytime = fal
  * player-made one may be for one group's members, and a private one needs
  * its invite `code` (the creator's own is already in).
  */
-export function joinTournament(store, t, userId, now, { code = null } = {}) {
+export function joinTournament(store, t, userId, now, { code = null, rulesAccepted = false } = {}) {
   if (t.kind === 'weekly') return { error: "Everyone's in this one. No need to join." };
   if (t.canceled_at) return { error: 'This one was canceled.' };
+  // A prize tournament: published only, and "I've read the official rules" checked.
+  const prize = prizeOf(store, t);
+  if (isDraftPrize(prize)) return { error: "This one isn't open yet." };
+  if (prize && !rulesAccepted && !entryOf(store, t, userId)) return { error: "Check that you've read the official rules to join." };
   if (store.get('SELECT official FROM users WHERE id = ?', userId)?.official) return { error: "The official account doesn't play in tournaments." };
   if (phase(t, now) === 'finished') return { error: 'This one is over.' };
   const host = hostOf(store, t);
@@ -294,8 +299,8 @@ export function joinTournament(store, t, userId, now, { code = null } = {}) {
     if (problem) return { error: problem };
   }
   const { changes } = store.run(
-    'INSERT OR IGNORE INTO tournament_entries (tournament_id, user_id, joined_at) VALUES (?, ?, ?)',
-    t.id, userId, now.toISOString(),
+    'INSERT OR IGNORE INTO tournament_entries (tournament_id, user_id, joined_at, rules_accepted_at) VALUES (?, ?, ?, ?)',
+    t.id, userId, now.toISOString(), prize ? now.toISOString() : null,
   );
   return { ok: true, joined: changes > 0 };
 }
@@ -547,7 +552,10 @@ export function accessTo(store, t, { userId = null, admin = false, code = null }
   const host = hostOf(store, t);
   const entry = entryOf(store, t, userId);
   const mine = Boolean(host && userId != null && t.created_by === userId);
-  if (admin || mine || entry) return { see: true, host, entry, mine };
+  if (admin) return { see: true, host, entry, mine };
+  // A prize tournament stays with the admins until it's published.
+  if (isDraftPrize(prizeOf(store, t))) return { see: false };
+  if (mine || entry) return { see: true, host, entry, mine };
   if (t.canceled_at) return { see: false };
   if (!host) return { see: true, host, entry };
   if (host.hidden) return { see: false };
@@ -698,7 +706,7 @@ const round2 = (n) => Math.round(n * 100) / 100;
  * live leg losing loses it; every leg won or pushed, live or final, settles
  * it). Returns { user_id, units, game_start, result, profit }. Never written.
  */
-function provisional(store, open) {
+export function provisional(store, open) {
   const out = [];
   const marks = (list) => list.map(() => '?').join(',');
   const picks = open.filter((b) => b.kind === 'pick');
@@ -909,6 +917,7 @@ export function cardOf(store, t, userId, now) {
     me: userId ? statusIn(store, t, userId, now) : null,
     podium: phase(t, now) === 'finished' ? podiumOf(store, t) : null,
     host,
+    prizeInfo: prizeOf(store, t),
     href: host?.visibility === 'private' ? `/t/${host.invite_code}` : `/tournaments/${t.slug}`,
     membersOnly: Boolean(host?.members_only && !isMember(store, host.group_id, userId)),
   };
@@ -924,18 +933,22 @@ const LISTED = `(NOT EXISTS (SELECT 1 FROM player_tournaments h WHERE h.tourname
               WHERE h.tournament_id = t.id AND h.visibility = 'public' AND (h.group_id IS NULL OR g.kind = 'local')
                 AND (SELECT COUNT(*) FROM tournament_reports r WHERE r.tournament_id = t.id AND r.created_at > COALESCE(h.reviewed_at, '')) < ${TOURNAMENT_HIDE_AFTER}))`;
 const PLAYER_MADE = 'EXISTS (SELECT 1 FROM player_tournaments h WHERE h.tournament_id = t.id)';
+/** Prize tournaments nobody has published yet: admins only. */
+const PUBLISHED = 'NOT EXISTS (SELECT 1 FROM prize_tournaments z WHERE z.tournament_id = t.id AND z.published_at IS NULL)';
 
 /**
  * The hub: live now (ending soonest first), starting soon, player
  * tournaments (public player-made ones, live or coming up), and the last few
  * finished.
  */
-export function hub(store, now, userId = null) {
+export function hub(store, now, userId = null, { admin = false } = {}) {
   const at = now.toISOString();
-  const live = store.all(`SELECT * FROM tournaments t WHERE canceled_at IS NULL AND starts_at <= ? AND ends_at > ? AND NOT ${PLAYER_MADE} ORDER BY ends_at, starts_at, id`, at, at);
-  const soon = store.all(`SELECT * FROM tournaments t WHERE canceled_at IS NULL AND starts_at > ? AND NOT ${PLAYER_MADE} ORDER BY starts_at, id`, at);
+  // Admins see unpublished prize tournaments too, marked as drafts.
+  const shown = admin ? '1' : PUBLISHED;
+  const live = store.all(`SELECT * FROM tournaments t WHERE canceled_at IS NULL AND starts_at <= ? AND ends_at > ? AND NOT ${PLAYER_MADE} AND ${shown} ORDER BY ends_at, starts_at, id`, at, at);
+  const soon = store.all(`SELECT * FROM tournaments t WHERE canceled_at IS NULL AND starts_at > ? AND NOT ${PLAYER_MADE} AND ${shown} ORDER BY starts_at, id`, at);
   const players = store.all(`SELECT * FROM tournaments t WHERE canceled_at IS NULL AND ends_at > ? AND ${PLAYER_MADE} AND ${LISTED} ORDER BY starts_at, id`, at);
-  const finished = store.all(`SELECT * FROM tournaments t WHERE canceled_at IS NULL AND ends_at <= ? AND ${LISTED} ORDER BY ends_at DESC, id DESC LIMIT ?`, at, FINISHED_SHOWN);
+  const finished = store.all(`SELECT * FROM tournaments t WHERE canceled_at IS NULL AND ends_at <= ? AND ${LISTED} AND ${shown} ORDER BY ends_at DESC, id DESC LIMIT ?`, at, FINISHED_SHOWN);
   const card = (t) => cardOf(store, t, userId, now);
   return { live: live.map(card), soon: soon.map(card), players: players.map(card), finished: finished.map(card) };
 }
@@ -955,7 +968,7 @@ export function groupTournaments(store, groupId, userId, now) {
 /** For the winners wall: every closed tournament but the weekly ones (those have their own wall) and unlisted player-made ones, newest first, and the most wins. */
 export function tournamentWinners(store, limit = 50) {
   const list = store.all(
-    `SELECT * FROM tournaments t WHERE kind != 'weekly' AND closed_at IS NOT NULL AND ${LISTED} ORDER BY ends_at DESC, id DESC LIMIT ?`,
+    `SELECT * FROM tournaments t WHERE kind != 'weekly' AND closed_at IS NOT NULL AND ${LISTED} AND ${PUBLISHED} ORDER BY ends_at DESC, id DESC LIMIT ?`,
     limit,
   ).map((t) => ({ ...t, window: windowLabel(t), sportList: sportsOf(t), podium: podiumOf(store, t) }));
   const champions = store.all(
@@ -969,5 +982,5 @@ export function tournamentWinners(store, limit = 50) {
 export function adminList(store, now) {
   const at = now.toISOString();
   return store.all('SELECT * FROM tournaments WHERE canceled_at IS NULL AND ends_at > ? ORDER BY starts_at, id', at)
-    .map((t) => ({ ...t, phase: phase(t, now), window: windowLabel(t), sportList: sportsOf(t), entrants: entrantCount(store, t), host: hostOf(store, t) }));
+    .map((t) => ({ ...t, phase: phase(t, now), window: windowLabel(t), sportList: sportsOf(t), entrants: entrantCount(store, t), host: hostOf(store, t), prizeInfo: prizeOf(store, t) }));
 }

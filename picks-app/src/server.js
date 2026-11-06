@@ -2,6 +2,7 @@ import http from 'node:http';
 
 import { createApp } from './app.js';
 import { badgesAfterGrading, checkAllBadges } from './badges.js';
+import { syncBracket } from './bracket.js';
 import { loadConfig } from './config.js';
 import { closeDueWeeks } from './contest.js';
 import { closeCupYears } from './cup.js';
@@ -9,6 +10,7 @@ import { openStore } from './db.js';
 import { createDemoEspn, DEMO_LOGIN, seedDemo } from './demo.js';
 import { createEspn } from './espn.js';
 import { createGames } from './games.js';
+import { runLeagues } from './leagues.js';
 import { createMailer } from './mail.js';
 import { createNotifier } from './notify.js';
 import { createOfficialImporter } from './official.js';
@@ -69,7 +71,7 @@ const summaries = createSummaries({ espn });
 // Team logos players can pick as their icon. The demo has no network, so it
 // uses the teams on its own board.
 const teams = createTeamCatalog({ store, fetch: config.demo ? null : globalThis.fetch });
-const server = http.createServer(createApp({ store, games, config, mailer, notifier, push, summaries, teams }));
+const server = http.createServer(createApp({ store, games, espn, config, mailer, notifier, push, summaries, teams }));
 server.listen(config.port, config.host, () => {
   console.log(`${config.appName} is up on http://localhost:${config.port}`);
   if (config.demo) console.log(`Demo mode. Log in as ${DEMO_LOGIN.email} / ${DEMO_LOGIN.password}`);
@@ -99,6 +101,14 @@ async function checkFinals() {
     console.error('checking finals:', err);
   }
   gradeFormats();
+  // The bracket challenge: ESPN's field as a draft in March, then its finals. Closes it after the title game.
+  try {
+    const { graded, closed } = await syncBracket(store, config.demo ? null : espn, new Date(), { notifier });
+    if (graded) console.log(`graded ${graded} bracket games`);
+    if (closed) console.log(`closed the bracket challenge: ${closed.map((r) => r.screen_name).join(', ')}`);
+  } catch (err) {
+    console.error('bracket:', err);
+  }
 }
 const timer = setInterval(checkFinals, GRADE_EVERY);
 checkFinals();
@@ -143,6 +153,11 @@ async function daily() {
     const survivor = sendSurvivorReminders(store, new Date(), notifier);
     if (survivor) console.log(`sent ${survivor} Survivor reminders`);
     gradeFormats();
+    // Leagues: start or cancel at week 1, settle finished weeks, playoffs, champions, "This week you play".
+    const lg = runLeagues(store, new Date(), notifier);
+    if (lg.started.length || lg.canceled.length || lg.settled || lg.closed.length) {
+      console.log(`leagues: ${lg.started.length} started, ${lg.canceled.length} canceled, ${lg.settled} weeks settled, ${lg.closed.length} final`);
+    }
     // The Bookie Bullies Cup: a year's top 3, once the year is over.
     for (const { year, podium } of closeCupYears(store, new Date(), notifier)) {
       console.log(`closed the ${year} Cup: ${podium.map((r) => r.screen_name).join(', ')}`);

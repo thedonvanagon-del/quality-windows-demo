@@ -167,6 +167,9 @@ export function parseScoreboard(sport, data) {
       away,
       lines: parseLines(sport, firstOdds(comp.odds), home, away),
       ...seasonWeek(event, data),
+      // "Men's Basketball Championship - South Region - 1st Round": how the
+      // bracket challenge (src/bracket.js) finds tournament games.
+      note: gameNote(comp, event),
     });
   }
   return games;
@@ -204,7 +207,29 @@ function team(competitor, state, sport) {
     color: teamColor(t.color),
     // The second color, for "Match my team" when the first doesn't read on the page.
     alt: teamColor(t.alternateColor),
+    // ESPN's team id, and a tournament seed when it sends one: the
+    // competitor's own seed, else its curated rank (which ESPN fills with the
+    // seed in the NCAA tournament; during the season it's the AP rank, so
+    // only the bracket challenge reads it, and only on tournament games).
+    espnId: /^\d{1,8}$/.test(String(t.id ?? '')) ? String(t.id) : null,
+    seed: seedOf(competitor),
   };
+}
+
+/** A whole number from 1 to 16 from competitor.seed or curatedRank.current, else null (99 is ESPN's "unranked"). */
+function seedOf(competitor) {
+  for (const value of [competitor.seed, competitor.curatedRank?.current]) {
+    const n = Number(value);
+    if (Number.isInteger(n) && n >= 1 && n <= 16) return n;
+  }
+  return null;
+}
+
+/** The game's headline note, if any: competitions[0].notes[0].headline, else the event's. */
+function gameNote(comp, event) {
+  const notes = [...(Array.isArray(comp.notes) ? comp.notes : []), ...(Array.isArray(event.notes) ? event.notes : [])];
+  const text = notes.map((n) => n?.headline ?? n?.text).find((h) => typeof h === 'string' && h.trim());
+  return text ? text.trim().slice(0, 160) : null;
 }
 
 /** "e31837" -> "#e31837"; anything else -> null. */
