@@ -13,10 +13,11 @@ import { icons } from './icons.js';
  */
 export function layout(ctx, { title, active, body, description, share }) {
   const { user, flash, app } = ctx;
-  // The launch screen: the crest and BOOKIEBULLIES.COM, once per visit (a
-  // session cookie, set by send() when this page goes out).
-  const splash = ctx.req?.method === 'GET' && !ctx.cookieValues?.bb_splash;
-  if (splash) ctx.splashShown = true;
+  // The launch screen: the crest, LOCKBOX and the motto, whenever the app is
+  // opened after 20 minutes or more away. Every page renews a short-lived
+  // cookie (send() sets it), so moving around inside the app never shows it.
+  const splash = ctx.req?.method === 'GET' && !ctx.cookieValues?.bb_seen;
+  ctx.pageShown = true;
   // A team or custom look comes from its own stylesheet. Players who chose a
   // color that has since been retired get the default.
   const style = user?.style ?? null;
