@@ -24,6 +24,9 @@ import { createTeamCatalog } from './teams.js';
 import { teamAccent, teamsBySport } from './themes.js';
 import { addDays, DAY, etDay, etToUtc, HOUR, mondayOf, weekday } from './time.js';
 import { createNotifier } from './notify.js';
+import { ensureChallenge, GAMES, openChallenge, participants, saveField, savePicks } from './bracket.js';
+import { createLeague, joinLeague, leagueById, runLeagues } from './leagues.js';
+import { publishPrize, savePrize, setReviewed } from './prizes.js';
 import {
   AUTO, backfillCup, closeTournament, createCustom, createPlayerTournament, ensureAutoTournaments, joinTournament, reportTournament, sendMoveAlerts, standingsOf,
 } from './tournaments.js';
@@ -456,6 +459,9 @@ export async function seedDemo({ store, games, espn, now = () => new Date(), med
   await seedTournaments(store, ids, at);
   seedPlayerTournaments(store, ids, at);
   await seedFormats(store, ids, at);
+  seedLeagues(store, at);
+  seedBracket(store, at);
+  seedPrizes(store, ids, at);
   checkAllBadges(store, at);
   seedNametags(store, ids);
   if (dir) seedLooks(store, ids, dir);
@@ -971,4 +977,108 @@ function prng(seed) {
     t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
   };
+}
+
+// ---- leagues, the bracket challenge, prize tournaments ---------------------------
+
+const userId = (store, name) => store.get('SELECT id FROM users WHERE screen_name = ?', name)?.id;
+
+/**
+ * Three leagues: one in its playoffs (a 3-week season that started three
+ * Mondays ago, semifinals this week), one in the middle of its season (6
+ * weeks, started two Mondays ago, 7 players so someone has a bye), and a
+ * public one starting next Monday with room to join. The seasons are played
+ * through the real timer job, on the demo's graded bets.
+ */
+function seedLeagues(store, at) {
+  const monday = mondayOf(at);
+  const make = (name, weeksBack, extra, members) => {
+    const start = addDays(monday, -7 * weeksBack);
+    const madeAt = etToUtc(addDays(start, -3), 12);
+    const made = createLeague(store, { name, startWeek: start, visibility: 'public', userId: userId(store, members[0]), now: madeAt, limit: false, ...extra });
+    if (!made.id) return null;
+    const l = leagueById(store, made.id);
+    members.slice(1).forEach((n, i) => joinLeague(store, l, userId(store, n), new Date(madeAt.getTime() + (i + 1) * 60_000)));
+    // Play it forward a week at a time, as the timer would have.
+    for (let w = weeksBack; w >= 1; w--) runLeagues(store, etToUtc(addDays(monday, -7 * w), 0, 5));
+    runLeagues(store, at);
+    return l;
+  };
+  make('Bully Bowl League', 3, { regularWeeks: 3, playoffSize: 4 },
+    ['ChalkEater', 'SharpShooter', 'BackdoorCover', 'DogLover', 'OverOverOver', 'FadeMe', 'BlitzKing', 'CoverQueen']);
+  make('Sunday Crew League', 2, { regularWeeks: 6, playoffSize: 4, sports: ['nba', 'ncaab', 'nhl', 'mlb', 'nfl', 'ncaaf'] },
+    ['SharpShooter', 'DogLover', 'FadeMe', 'BackdoorCover', 'OverOverOver', 'ChalkEater', 'RedZoneRay']);
+  make('Hoops Heads', 0, { regularWeeks: 4, playoffSize: 2, sports: ['nba', 'ncaab'], startWeek: addDays(monday, 7) },
+    ['BackdoorCover', 'DogLover', 'HailMaryHank']);
+}
+
+// A made-up 68-team field: 64 slots, four of them First Four pairs.
+const FIELD = {
+  East: ['Duke', 'Tennessee', 'Kentucky', 'Arizona', 'Michigan State', 'BYU', 'Saint Mary\'s', 'Mississippi State', 'Baylor', 'Vanderbilt', 'Drake / Xavier', 'McNeese', 'High Point', 'Troy', 'Wofford', 'American / Mount St. Mary\'s'],
+  West: ['Florida', 'St. John\'s', 'Texas Tech', 'Maryland', 'Memphis', 'Missouri', 'Kansas', 'UConn', 'Oklahoma', 'Arkansas', 'Colorado State', 'Grand Canyon', 'UNC Wilmington', 'Lipscomb', 'Omaha', 'Norfolk State'],
+  South: ['Auburn', 'Michigan', 'Iowa State', 'Texas A&M', 'Clemson', 'Ole Miss', 'Marquette', 'Louisville', 'Creighton', 'New Mexico', 'North Carolina / San Diego State', 'UC San Diego', 'Yale', 'Bryant', 'Robert Morris', 'Alabama State / Saint Francis'],
+  Midwest: ['Houston', 'Alabama', 'Wisconsin', 'Purdue', 'Oregon', 'Illinois', 'UCLA', 'Gonzaga', 'Georgia', 'Utah State', 'VCU', 'Liberty', 'Akron', 'Montana', 'Wichita State', 'SIU Edwardsville'],
+};
+
+/**
+ * The bracket challenge, next March's, open now with a made-up field so the
+ * page can be tried: it locks three days from now. Eight players have
+ * brackets (mostly favorites, some upsets); the demo player is part way
+ * through theirs.
+ */
+function seedBracket(store, at) {
+  const year = +etDay(at).slice(0, 4) + 1;
+  const regions = Object.keys(FIELD);
+  let c = ensureChallenge(store, year, at, { source: 'demo', regions });
+  const slots = regions.flatMap((region, r) => FIELD[region].map((team, i) => {
+    const [name, name2] = team.split(' / ');
+    return { region: r, seed: i + 1, name, name2: name2 ?? null };
+  }));
+  if (saveField(store, c, slots, at).error) return;
+  const lock = new Date(Math.ceil((at.getTime() + 3 * DAY) / HOUR) * HOUR);
+  openChallenge(store, c, { regions, locksAt: lock, userId: userId(store, 'SharpShooter'), now: at });
+  c = { ...c, opened_at: at.toISOString(), locks_at: lock.toISOString() };
+  const rand = prng(2027);
+  const fill = (name, upsetRate, games = GAMES, tiebreak = null) => {
+    const updates = {};
+    for (let g = 0; g < games; g++) {
+      const [a, b] = participants(g, updates);
+      const seed = (k) => Number(k.split('-')[1]);
+      const [fav, dog] = seed(a) <= seed(b) ? [a, b] : [b, a];
+      updates[g] = rand() < upsetRate ? dog : fav;
+    }
+    savePicks(store, c, { userId: userId(store, name), updates, tiebreak, now: new Date(at.getTime() - Math.floor(rand() * 36) * HOUR) });
+  };
+  for (const [name, rate, tb] of [['ChalkEater', 0.05, 141], ['DogLover', 0.4, 152], ['BackdoorCover', 0.2, 139], ['OverOverOver', 0.25, 160],
+    ['FadeMe', 0.35, 128], ['BlitzKing', 0.15, 145], ['CoverQueen', 0.2, 137]]) fill(name, rate, GAMES, tb);
+  // The demo player: the Round of 64 and most of the Round of 32 done.
+  fill('SharpShooter', 0.2, 44);
+}
+
+/**
+ * Prize tournaments: one draft (an admin still has to record the lawyer's
+ * review and publish it) and a published copy, both starting tomorrow
+ * evening, the published one with a few players in.
+ */
+function seedPrizes(store, ids, at) {
+  const day = addDays(etDay(at), 1);
+  const dash = `${day.slice(0, 4)}-${day.slice(4, 6)}-${day.slice(6, 8)}`;
+  const admin = ids.SharpShooter;
+  const prize = {
+    prize: 'A bag of Buddha Beans coffee', value: '24', sponsor: 'Buddha Beans Coffee Co.', eligibility: '',
+    delivery: 'Shipped by the Sponsor to the winner\'s US address within 30 days of the close.',
+  };
+  const make = (name) => {
+    const made = createCustom(store, { name, sports: ['nba', 'ncaab'], startDate: dash, startTime: '18:00', endDate: dash, endTime: '23:59', minBets: '2', prize: '', userId: admin, now: at });
+    const t = store.get('SELECT * FROM tournaments WHERE slug = ?', made.slug);
+    savePrize(store, t, prize, { userId: admin, now: at });
+    return t;
+  };
+  make('Buddha Beans Hoops Draft');
+  const live = make('Buddha Beans Hoops Night');
+  setReviewed(store, live, { reviewed: true, userId: admin, now: at });
+  publishPrize(store, live, { userId: admin, now: at });
+  for (const name of ['DogLover', 'ChalkEater', 'FadeMe']) {
+    joinTournament(store, live, ids[name], at, { rulesAccepted: true });
+  }
 }
