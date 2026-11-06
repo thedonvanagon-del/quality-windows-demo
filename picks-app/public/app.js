@@ -388,6 +388,23 @@ async function drawCard(d) {
 
 // Game chat stays current: every 15 seconds while the page is in view, swap in
 // the newest messages. Typing isn't touched; only the list changes.
+// Live games keep their scores current: every 30 seconds while the page is in
+// view, swap in the latest list from the server.
+const liveList = document.querySelector('[data-live-poll]');
+if (liveList && window.DOMParser) {
+  setInterval(async () => {
+    if (document.hidden) return;
+    try {
+      const res = await fetch(window.location.pathname, { credentials: 'same-origin', headers: { accept: 'text/html' } });
+      if (!res.ok || res.redirected) return;
+      const next = new DOMParser().parseFromString(await res.text(), 'text/html').querySelector('[data-live-poll]');
+      if (next) liveList.replaceChildren(...[...next.childNodes].map((n) => document.adoptNode(n)));
+    } catch {
+      // Try again on the next tick.
+    }
+  }, 30_000);
+}
+
 const chatBox = document.querySelector('.chat[data-poll]');
 if (chatBox && window.DOMParser) {
   const list = chatBox.querySelector('.chat-list');

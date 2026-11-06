@@ -51,10 +51,12 @@ export function live(ctx, { list, mine }) {
     body: html`
       <a class="back" href="/more">← More</a>
       <h1>Live games</h1>
-      <p class="lede">Every game in progress, all sports. Scores update each time you open the page.</p>
-      ${list.length
-        ? list.map((g) => liveCard(g, mine.get(g.id) ?? []))
-        : html`<div class="card empty">Nothing on right now. Check back when games kick off.</div>`}
+      <p class="lede">Every game in progress, all sports. Scores update on their own about every 30 seconds.</p>
+      <div class="live-list" data-live-poll>
+        ${list.length
+          ? list.map((g) => liveCard(g, mine.get(g.id) ?? []))
+          : html`<div class="card empty">Nothing on right now. Check back when games kick off.</div>`}
+      </div>
     `,
   });
 }

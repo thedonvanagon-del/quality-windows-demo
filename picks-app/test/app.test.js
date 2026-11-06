@@ -299,7 +299,8 @@ describe('picks', () => {
     const mine = visible((await b.get('/picks')).text);
     assert.match(mine, /2\.5u to win 2\.27u/);
     assert.match(mine, /Starts in 5h 0m/);
-    assert.match((await b.get('/games')).text, /class="badge"[^>]*>1</, 'one open bet on the My bets tab');
+    const tabbar = (await b.get('/games')).text.match(/<nav class="tabbar"[\s\S]*?<\/nav>/)[0];
+    assert.doesNotMatch(tabbar, /class="badge"/, 'no count on the tab bar; new things show on the bell only');
 
     const bob = await player('bob@example.com', 'Bob');
     time.set('2026-10-25T17:05:00.000Z');
@@ -632,6 +633,35 @@ describe('more and live', () => {
     const bob = await player('bob@example.com', 'Bob');
     assert.doesNotMatch(visible((await bob.get('/live')).text), /Your bet/, 'only your own bets');
     assert.match((await app.browser().get('/live')).location, /^\/login/);
+  });
+});
+
+describe('live scores past midnight', () => {
+  test("follow a late game into the next Eastern day, then drop it at the final or when it's stuck", async () => {
+    const ann = await player('ann@example.com', 'Ann');
+    // Tips at 11 PM ET Saturday; seen on the board that evening.
+    const late = event({ id: '77', start: '2026-10-26T03:00:00.000Z', home: ['Lakers', 'LAL'], away: ['Suns', 'PHX'] });
+    app.espn.events.nba.push(late);
+    time.set('2026-10-26T01:00:00.000Z');
+    await ann.get('/games?sport=nba');
+
+    // 1 AM ET Sunday: a new Eastern day, and the game is still on.
+    time.set('2026-10-26T05:00:00.000Z');
+    setLive(late);
+    late.competitions[0].competitors[0].score = '98';
+    late.competitions[0].competitors[1].score = '95';
+    assert.match(visible((await ann.get('/live')).text), /PHX Suns 95 LAL Lakers 98/);
+
+    // A minute later it's final, and it leaves the live list.
+    time.advance(2 * 60_000);
+    setFinal(late, 110, 104);
+    assert.match(visible((await ann.get('/live')).text), /Nothing on right now/);
+
+    // A game we lost track of (still "in progress" 13 hours after its start) isn't shown.
+    app.store.run("UPDATE games SET state = 'in', completed = 0 WHERE id = 'nba:77'");
+    app.espn.down = true;
+    time.set('2026-10-26T16:30:00.000Z');
+    assert.match(visible((await ann.get('/live')).text), /Nothing on right now/);
   });
 });
 

@@ -23,14 +23,14 @@ export function layout(ctx, { title, active, body, description, share }) {
         ['more', '/more', 'More', icons.more],
       ]
     : [['board', '/leaderboard', 'Leaderboard', icons.board]];
-  const count = (key) => (key === 'picks' && ctx.openBets ? html`<b class="badge" aria-label="${ctx.openBets} open">${ctx.openBets > 99 ? '99+' : ctx.openBets}</b>` : '');
+  // No counts on the tab bar (owner's call, 2026-11-06): new things show only on the bell up top.
   // A slim bar over the tab bar while a parlay is being built.
   const draft = playing && ctx.parlay?.legs && ctx.url.pathname !== '/parlay' ? ctx.parlay : null;
   const parlayBar = draft
     ? html`<a class="parlay-bar" href="/parlay"><span><b>Parlay</b> · ${draft.legs} ${draft.legs === 1 ? 'leg' : 'legs'} · <span class="pb-odds">${formatOdds(draft.odds).replace(/^-/, '\u2212')}</span></span><span class="pb-go">Review</span></a>`
     : '';
   const link = ([key, href, label, icon]) =>
-    html`<a href="${href}" class="${key === active ? 'on' : ''}" ${key === active ? html`aria-current="page"` : ''}><span class="ic">${icon}${count(key)}</span><span>${label}</span></a>`;
+    html`<a href="${href}" class="${key === active ? 'on' : ''}" ${key === active ? html`aria-current="page"` : ''}><span class="ic">${icon}</span><span>${label}</span></a>`;
 
   return html`<!doctype html>
 <html lang="en" data-theme="${theme}">
