@@ -8,6 +8,10 @@
 // A week closes once every bet in it is graded, or at Tuesday 6 AM Eastern
 // at the latest (anything still ungraded just doesn't count). Closing writes
 // the top 3 to contest_results exactly once and tells the winners.
+//
+// The standings and closing here work for any window, sport list and
+// entrant list: tournaments (src/tournaments.js) use the same code, and the
+// weekly contest shows there as The Weekly Open.
 
 import { checkBadges } from './badges.js';
 import { formatUnits } from './picks.js';
@@ -26,24 +30,107 @@ export function weekBounds(monday) {
   };
 }
 
-/** This week's (or any week's) standings, numbered. Confirmed players only, like the boards. */
-export function standings(store, monday, limit = 100) {
-  const { start, end } = weekBounds(monday);
-  const rows = store
-    .all(
+/**
+ * Which bets count in a window, as SQL on BETS (aliased p). `sports`, when
+ * given, limits it to those sports: a straight pick by its own sport, a
+ * parlay only when every leg is in the list (the same rule as a sport's
+ * board, where a mixed parlay counts overall only). With `tournamentId`,
+ * only entrants' bets made after they joined count (the entry is aliased e).
+ */
+function counted({ start, end, sports = null, tournamentId = null }) {
+  let sql = 'p.game_start >= ? AND p.game_start < ?';
+  const params = [start.toISOString(), end.toISOString()];
+  if (sports?.length) {
+    const marks = sports.map(() => '?').join(', ');
+    sql += ` AND CASE p.kind WHEN 'pick' THEN p.sport IN (${marks})
+      ELSE NOT EXISTS (SELECT 1 FROM parlay_legs l WHERE l.parlay_id = p.id AND l.sport NOT IN (${marks})) END`;
+    params.push(...sports, ...sports);
+  }
+  if (tournamentId != null) sql += ' AND p.made_at >= e.joined_at';
+  return { sql, params };
+}
+
+/**
+ * Standings for any window: the weekly contest, or a tournament. Units won on
+ * graded bets that count (see counted), numbered; `min` graded bets to place.
+ * Ties go to the better ROI, then to whoever got there first (their last
+ * counted bet started earlier). Confirmed players only, like the boards; the
+ * official account shows but never places. With `tournamentId` every
+ * confirmed entrant is listed, bets or not; without it (the weekly contest,
+ * where everyone's in) everyone with a graded bet in the window is.
+ */
+export function windowStandings(store, window, limit = 100) {
+  const { sql, params } = counted(window);
+  const graded = "p.result IN ('win', 'loss', 'push')";
+  const confirmed = 'u.screen_name IS NOT NULL AND u.email_verified_at IS NOT NULL';
+  const rows = (window.tournamentId != null
+    ? store.all(
+      `SELECT u.id, u.screen_name, u.official, ${TOTALS}, MAX(p.game_start) AS last_start
+         FROM tournament_entries e JOIN users u ON u.id = e.user_id
+         LEFT JOIN ${BETS} p ON p.user_id = e.user_id AND ${graded} AND ${sql}
+        WHERE e.tournament_id = ? AND ${confirmed}
+        GROUP BY u.id`,
+      ...params, window.tournamentId,
+    )
+    : store.all(
       `SELECT u.id, u.screen_name, u.official, ${TOTALS}, MAX(p.game_start) AS last_start
          FROM ${BETS} p JOIN users u ON u.id = p.user_id
-        WHERE p.result IN ('win', 'loss', 'push') AND p.game_start >= ? AND p.game_start < ?
-          AND u.screen_name IS NOT NULL AND u.email_verified_at IS NOT NULL
+        WHERE ${graded} AND ${sql} AND ${confirmed}
         GROUP BY u.id`,
-      start.toISOString(), end.toISOString(),
-    )
+      ...params,
+    ))
     .map(withRates);
-  const placed = (r) => r.graded >= CONTEST_MIN;
+  const min = window.min ?? CONTEST_MIN;
+  const placed = (r) => r.graded >= min;
   rows.sort((a, b) =>
     placed(b) - placed(a) || b.units - a.units || (b.roi ?? -Infinity) - (a.roi ?? -Infinity)
-    || a.last_start.localeCompare(b.last_start) || a.id - b.id);
+    || (a.last_start ?? '').localeCompare(b.last_start ?? '') || a.id - b.id);
   return rows.slice(0, limit).map(numbered(placed));
+}
+
+/** How many bets that would count in a window still wait on a grade. */
+export function ungradedIn(store, window) {
+  const { sql, params } = counted(window);
+  return window.tournamentId != null
+    ? store.get(
+      `SELECT COUNT(*) AS n FROM tournament_entries e JOIN ${BETS} p ON p.user_id = e.user_id
+        WHERE e.tournament_id = ? AND p.result IS NULL AND ${sql}`,
+      window.tournamentId, ...params,
+    ).n
+    : store.get(`SELECT COUNT(*) AS n FROM ${BETS} p WHERE p.result IS NULL AND ${sql}`, ...params).n;
+}
+
+/** Whether a finished window can close: every counted bet graded, or the deadline passed. */
+export function dueToClose(store, window, deadline, now) {
+  return now >= window.end && (now >= deadline || !ungradedIn(store, window));
+}
+
+/** "5-0", "4-1-1" */
+export const recordOf = (r) => `${r.wins}-${r.losses}${r.pushes ? `-${r.pushes}` : ''}`;
+
+/**
+ * Close a window once: `claim()` marks it closed and says whether this call
+ * did it; then the top 3 are worked out and handed to `save(row, record)`,
+ * all in one transaction. Returns the top 3, or null if it was already closed.
+ */
+export function closeWindow(store, window, { claim, save }) {
+  return store.tx(() => {
+    if (!claim()) return null;
+    const top = windowStandings(store, window).filter((r) => r.ranked).slice(0, PODIUM);
+    for (const r of top) save(r, recordOf(r));
+    return top;
+  });
+}
+
+/** This week's (or any week's) standings, numbered. Confirmed players only, like the boards. */
+export function standings(store, monday, limit = 100) {
+  return windowStandings(store, weekWindow(monday), limit);
+}
+
+/** A week as a standings window: every sport, everyone in. */
+export function weekWindow(monday) {
+  const { start, end } = weekBounds(monday);
+  return { start, end, min: CONTEST_MIN };
 }
 
 /** "1 day, 4 hours left", "3 hours, 12 minutes left", "8 minutes left" */
@@ -65,32 +152,28 @@ export function results(store, monday) {
   );
 }
 
-/** How many bets in the week still wait on a grade. */
-function ungraded(store, monday) {
-  const { start, end } = weekBounds(monday);
-  return store.get(
-    `SELECT COUNT(*) AS n FROM ${BETS} WHERE result IS NULL AND game_start >= ? AND game_start < ?`,
-    start.toISOString(), end.toISOString(),
-  ).n;
-}
-
 /**
  * Close one week: record its top 3 and tell them, once. Returns the podium,
- * or null if the week was already closed.
+ * or null if the week was already closed. The week's tournament (The Weekly
+ * Open, when the timer made one) is marked closed with it.
  */
 export function closeWeek(store, monday, now, { notifier = null, lastWeek = true } = {}) {
-  const podium = store.tx(() => {
-    const { changes } = store.run('INSERT OR IGNORE INTO contest_weeks (week, closed_at) VALUES (?, ?)', monday, now.toISOString());
-    if (!changes) return null;
-    const top = standings(store, monday).filter((r) => r.ranked).slice(0, PODIUM);
-    for (const r of top) {
-      const record = `${r.wins}-${r.losses}${r.pushes ? `-${r.pushes}` : ''}`;
-      store.run(
-        'INSERT INTO contest_results (week, place, user_id, units, record) VALUES (?, ?, ?, ?, ?)',
-        monday, r.rank, r.id, r.units, record,
-      );
-    }
-    return top;
+  const window = weekWindow(monday);
+  const podium = closeWindow(store, window, {
+    claim: () => {
+      const { changes } = store.run('INSERT OR IGNORE INTO contest_weeks (week, closed_at) VALUES (?, ?)', monday, now.toISOString());
+      if (changes) {
+        store.run(
+          "UPDATE tournaments SET closed_at = ? WHERE kind = 'weekly' AND starts_at = ? AND closed_at IS NULL",
+          now.toISOString(), window.start.toISOString(),
+        );
+      }
+      return changes > 0;
+    },
+    save: (r, record) => store.run(
+      'INSERT INTO contest_results (week, place, user_id, units, record) VALUES (?, ?, ?, ?, ?)',
+      monday, r.rank, r.id, r.units, record,
+    ),
   });
   if (!podium) return null;
   const which = lastWeek ? "last week's contest" : `the ${weekLabel(monday)} contest`;
@@ -120,9 +203,7 @@ export function closeDueWeeks(store, now, notifier = null) {
   const closed = [];
   for (let week = since; week < current; week = addDays(week, 7)) {
     if (store.get('SELECT 1 AS x FROM contest_weeks WHERE week = ?', week)) continue;
-    const { end, deadline } = weekBounds(week);
-    if (now < end) continue;
-    if (now < deadline && ungraded(store, week)) continue;
+    if (!dueToClose(store, weekWindow(week), weekBounds(week).deadline, now)) continue;
     const podium = closeWeek(store, week, now, { notifier, lastWeek: week === addDays(current, -7) });
     if (podium) closed.push({ week, podium });
   }

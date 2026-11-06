@@ -6,7 +6,7 @@ import { MIN_RANKED } from '../stats.js';
 import { dateLabel, joined, when } from '../time.js';
 import { icons, trustMark } from './icons.js';
 import { csrfField, layout } from './layout.js';
-import { betItem, boardTable, chatBox, minus, officialTag, pickItem, periodTabs, pct, profileLink, rankCell, recordText, signedPct, sportTabs, units } from './parts.js';
+import { betItem, boardTable, chatBox, minus, officialTag, pickItem, periodTabs, pct, profileLink, rankCell, recordText, signedPct, sportTabs, tabs, units } from './parts.js';
 
 /** Find a player by the start of their screen name. */
 function searchBox(q = '') {
@@ -483,26 +483,39 @@ export function contest(ctx, { week, rows, badges, me, left, min, last }) {
   });
 }
 
-/** Every closed week's top 3, newest first, and who has won the most weeks. */
-export function winners(ctx, { weeks, champions }) {
-  return layout(ctx, {
-    title: 'Winners wall',
-    active: 'board',
-    description: 'Every week\'s top 3 in the free Bookie Bullies weekly contest.',
-    body: html`
-      <a class="back" href="/contest">← This week's contest</a>
-      <h1>Winners wall</h1>
-      <p class="lede">The top 3 from every week of the free weekly contest, newest first.</p>
-      ${champions.length
-        ? html`<h2>Most weekly wins</h2>
-          <p class="chips-row">${champions.map((c) => html`<a class="chip" href="/u/${encodeURIComponent(c.screen_name)}">${c.screen_name} · ${c.wins} ${c.wins === 1 ? 'win' : 'wins'}</a>`)}</p>`
-        : ''}
+/**
+ * The winners wall, in two tabs: every closed week's top 3 (and who has won
+ * the most weeks), and every closed tournament's.
+ */
+export function winners(ctx, { weeks, champions, tab = 'weekly', tournaments = { list: [], champions: [] } }) {
+  const chips = (list) => html`<p class="chips-row">${list.map((c) => html`<a class="chip" href="/u/${encodeURIComponent(c.screen_name)}">${c.screen_name} · ${c.wins} ${c.wins === 1 ? 'win' : 'wins'}</a>`)}</p>`;
+  const weekly = html`
+      ${champions.length ? html`<h2>Most weekly wins</h2>${chips(champions)}` : ''}
       ${weeks.length
         ? weeks.map((w) => html`<section class="card week-card">
             <h3>${w.label}</h3>
             ${w.podium.length ? podium(w.podium) : html`<p class="muted small">Nobody had enough graded bets to place.</p>`}
           </section>`)
-        : html`<div class="card empty">No weeks closed yet. The first winners go up once this week ends. <a href="/contest">See this week's standings</a>.</div>`}
+        : html`<div class="card empty">No weeks closed yet. The first winners go up once this week ends. <a href="/contest">See this week's standings</a>.</div>`}`;
+  const cups = html`
+      ${tournaments.champions.length ? html`<h2>Most tournament wins</h2>${chips(tournaments.champions)}` : ''}
+      ${tournaments.list.length
+        ? tournaments.list.map((t) => html`<section class="card week-card">
+            <h3><a href="/tournaments/${t.slug}">${t.name}</a></h3>
+            <p class="muted small">${t.window}</p>
+            ${t.podium.length ? podium(t.podium) : html`<p class="muted small">Nobody had enough graded bets to place.</p>`}
+          </section>`)
+        : html`<div class="card empty">No tournaments finished yet. <a href="/tournaments">See what's on</a>.</div>`}`;
+  return layout(ctx, {
+    title: 'Winners wall',
+    active: 'board',
+    description: "Every week's top 3 in the free Bookie Bullies weekly contest, and every tournament's.",
+    body: html`
+      <a class="back" href="/contest">← This week's contest</a>
+      <h1>Winners wall</h1>
+      <p class="lede">${tab === 'tournaments' ? 'The top 3 from every finished tournament, newest first.' : 'The top 3 from every week of the free weekly contest, newest first.'}</p>
+      ${tabs('/winners', ctx.query, 'tab', [['', 'Weekly contest'], ['tournaments', 'Tournaments']])}
+      ${tab === 'tournaments' ? cups : weekly}
     `,
   });
 }

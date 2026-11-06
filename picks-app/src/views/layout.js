@@ -18,6 +18,7 @@ export function layout(ctx, { title, active, body, description, share }) {
     ? [
         ['games', '/games', 'Games', icons.games],
         ['picks', '/picks', 'My bets', icons.picks],
+        ['tournaments', '/tournaments', 'Tournaments', icons.bracket],
         ['board', '/leaderboard', 'Leaderboard', icons.board],
         ['groups', '/groups', 'Groups', icons.groups],
         ['more', '/more', 'More', icons.more],
@@ -111,13 +112,16 @@ ${active === 'install' ? '' : html`<div class="ios-install" data-ios-install hid
   </div>
 </footer>
 ${playing
-  ? html`<div class="dock">${parlayBar}<nav class="tabbar" aria-label="Main">${[...nav.filter(([key]) => key !== 'more'), ['me', profile, 'Profile', icons.me], ['more', '/more', 'More', icons.more]]
-    // Six tabs share a phone's width, so the longest label gets a shorter name.
-    .map(([key, href, label, icon]) => link([key, href, key === 'board' ? 'Leaders' : label, icon]))}</nav></div>`
+  ? html`<div class="dock">${parlayBar}<nav class="tabbar" aria-label="Main">${nav
+    // Six tabs share a phone's width, so the longest labels get shorter names.
+    // Profile isn't a tab (2026-11-06): it's the avatar up top, and first in More.
+    .map(([key, href, label, icon]) => link([key, href, TAB_LABEL[key] ?? label, icon]))}</nav></div>`
   : ''}
 </body>
 </html>`;
 }
+
+const TAB_LABEL = { board: 'Leaders', tournaments: 'Tourneys' };
 
 export function csrfField(ctx) {
   return ctx.session ? html`<input type="hidden" name="_csrf" value="${ctx.session.csrf}">` : '';

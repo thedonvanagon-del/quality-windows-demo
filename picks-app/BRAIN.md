@@ -204,6 +204,77 @@ not dollars, and nothing is paid out.
   as "Name · 47-31 · +17.5u" with the crest.
 - **2026-10-25:** Profiles have a short bio, up to 160 characters.
 
+### Tournaments
+- **2026-11-06: Tournaments** (owner approved), a tab of their own
+  (`/tournaments`, `src/tournaments.js`). **Free, every one of them.**
+  - **What counts:** units won on graded bets (picks and parlays, through
+    `BETS`) made **after you joined**, on games that **start inside the
+    window**, in the tournament's sports. A parlay counts for a sport list
+    only when every leg is in it (NBA + college hoops counts in Hoops Night);
+    its date is its first leg's start, as everywhere else. A minimum of graded
+    bets to place; ties to the better ROI, then whose last counted bet started
+    first. Entrants under the minimum show below with "N more bets to place".
+  - **Reuse:** the weekly contest's standings and closing were generalized in
+    `src/contest.js` (`windowStandings`, `ungradedIn`, `dueToClose`,
+    `closeWindow`) for any window, sport list and entrant list; `/contest`
+    and `/winners` run on the same code, unchanged.
+  - **Joining:** one tap, until the end. Leave only before the start. The
+    official account can't join. Unconfirmed emails can join but show on the
+    standings only once confirmed, like the boards.
+  - **The Weekly Open** is the weekly contest as a tournament (kind
+    `weekly`, slug `weekly-open-YYYY-MM-DD`): everyone's in, no joining, the
+    same standings as `/contest`, and it closes with the week (`closeWeek`
+    marks it closed; its podium is `contest_results`). Its winners keep the
+    Weekly winner and Podium badges and the contest's own note; no second
+    badge or note for the same finish.
+  - **Auto tournaments**, made by an hourly timer up to two days ahead, once
+    each (by slug): **NFL Sunday** (NFL, min 3), **College Saturday** (college
+    football, min 3), **Hoops Night** (every day, NBA and college hoops, min 2).
+    One whose sports have **no games that day isn't made**, so the off-season
+    stays empty; it's made later if games show up. Each starts at its day's
+    first game (so "starts in 1 hour" means the first kickoff; it follows the
+    schedule until it starts) and ends at midnight ET.
+  - **Custom:** admins make them at `/admin/tournaments` (name, sports, start
+    and end in ET, min bets, prize text) and can cancel one before it starts;
+    entrants hear about it. A canceled auto tournament isn't made again.
+    Everyone else gets a 404.
+  - **Closing:** at most once, after the end, when every counted bet is
+    graded, or 30 hours after the end at the latest (anything ungraded doesn't
+    count). The top 3 go in `tournament_results` once and hear "You finished
+    #1 in NFL Sunday (+4.2u)."; everyone else who joined hears who won.
+    Badges: **Tournament champion** (each 1st, kept apart by slug) and
+    **Tournament podium** (top 3, once), next to Weekly winner and Podium on
+    the boards.
+  - **Notes:** "NFL Sunday starts in 1 hour." once per entrant, with a new
+    setting (on by default) next to the other reminders. Results always go.
+  - **Pages:** the hub (Live now, Starting soon, the last 10 Finished, a
+    link to the winners wall), each card with name, sport chips, window ("Sun,
+    Nov 8, 1:00 PM – 11:59 PM ET"), entrants, prize, a **Free** chip and your
+    status (Join, Joined, "You're #4"). A tournament's page has the rules in
+    plain words, the countdown, Join/Leave, standings with your row lit up,
+    and the final podium. `/winners` has a Tournaments tab.
+  - **Decided differently from the brief:** the sport column is a list
+    (`sports`, comma-separated keys, null for all) instead of `sport` plus a
+    second list column, since Hoops Night needs two sports; and a
+    `canceled_at` column, so canceling keeps a record and an auto one isn't
+    made again.
+- **2026-11-06: Buy-ins wait.** Every tournament is free, and the database
+  enforces it: `entry_fee_cents INTEGER NOT NULL DEFAULT 0 CHECK
+  (entry_fee_cents = 0)`. No coins, no payments, no "coming soon" money
+  anywhere in the app. Before any paid entry, all of these first:
+  1. **A gaming lawyer.** Paying to enter a contest for a prize is a paid
+     fantasy or sweepstakes question, not a pick'em one.
+  2. **State-by-state rules.** Some states ban paid contests; most need a
+     license or registration; some set age and prize limits. Entries would
+     have to be blocked where it isn't legal.
+  3. **Apple's real-money gaming rules** for the App Store version: a license
+     in each place it runs, geo-restriction to those places, the app free to
+     download, and **no in-app purchase for entries** (entries can't be sold
+     through Apple's payments).
+  4. **A payment processor** that allows real-money contests, plus payouts,
+     refunds and tax forms. Changing the CHECK means a new migration that
+     rebuilds the table, on purpose.
+
 ### Weekly contest, streak game, badges, invites, reminders
 - **2026-11-05: Free weekly contest** (`/contest`, "This week's contest" on the
   leaderboard and in More). No entry, no money, everyone's in. A week runs
@@ -243,8 +314,9 @@ not dollars, and nothing is paid out.
   invite counts, and hourly for everyone. A new one sends "New badge: Hot
   hand." The official account earns none. Profiles show chips (hover or
   screen reader gives the date); leaderboard and contest rows show the one
-  most notable (Weekly winner > Streak 10 > Hot hand > Podium > Streak 5 >
-  Parlay hitter > 500 bets > Recruiter > 100 bets > 50 bets). **First win
+  most notable (Weekly winner > Tournament champion > Streak 10 > Hot hand >
+  Podium > Tournament podium > Streak 5 > Parlay hitter > 500 bets > Recruiter
+  > 100 bets > 50 bets; the two tournament badges added 2026-11-06). **First win
   stays off the boards**: nearly everyone has it, so it says nothing there.
 - **2026-11-05: Invite friends** (`/invite`, in More and on your profile).
   Each player gets a link, `/i/<code>` (8 characters, made the first time it's
@@ -269,6 +341,11 @@ not dollars, and nothing is paid out.
     so restarts never double up. The official account gets nothing.
 
 ### Following, streaks, splits, notifications
+- **2026-11-06: The tab bar is Games · My bets · Tourneys · Leaders · Groups ·
+  More.** Tournaments gets a tab (a bracket icon); "Tournaments" needs 71px
+  and a tab has 64px at 390px wide, so it reads "Tourneys". **Profile left the
+  tab bar:** it's the avatar at the top right (checked on a 390px phone) and
+  "Your profile" at the top of More. Replaces the 2026-10-25 bar (under Look).
 - **2026-11-06: No counts on the tab bar** (owner's call). The My bets tab
   no longer shows an open-bet number; anything new shows only on the bell at
   the top right.
@@ -441,6 +518,9 @@ Launch log:
   same 5u caps, graded with picks, one bet on every record and board
 - A free weekly contest with a winners wall, the streak game, badges, invite
   links, and the Lines are up and Streak reminders
+- Free tournaments: a Tourneys tab, NFL Sunday, College Saturday, Hoops Night
+  and the Weekly Open made on their own, admin-made ones, start reminders,
+  champion and podium badges, and a Tournaments tab on the winners wall
 - Group chat with unread counts on the Groups list; closing line value on
   straight picks and profiles; injuries and recent form on game pages
 - Demo mode: `npm run demo`, log in as demo@example.com / letmein123
@@ -496,7 +576,8 @@ In rough order of value:
    changes state by state: some states ban paid contests, most need a license or
    registration, and coins that buy entries for cash prizes count as money.
    Free tournaments with bragging rights (or sponsor prizes) can ship anytime.
-   (~~A free weekly contest~~ built 2026-11-05; the paid kind still waits on the lawyer.)
+   (~~A free weekly contest~~ built 2026-11-05; ~~free tournaments~~ built
+   2026-11-06; the paid kind still waits on the list under Tournaments.)
 3. **Paid picks in the app.** Cappers set a monthly price, subscribers see their
    picks before games start, Bookie Bullies keeps 10 to 20% and Stripe Connect
    pays out the rest. Needs payouts, refunds and tax forms; Apple takes up to

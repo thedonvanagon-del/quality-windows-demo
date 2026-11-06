@@ -1,12 +1,12 @@
 // Badges, worked out from the record, never handed out by hand. Each one is
 // stored once (with the date it was earned), so it can't be won twice and
 // never goes away. A check runs after every grading, after the weekly contest
-// closes, when an invite counts, and once an hour for everyone as a backstop.
+// or a tournament closes, when an invite counts, and once an hour for everyone as a backstop.
 // The official account earns none.
 
 import { BETS, lastTen } from './stats.js';
 import { streakOf } from './streak.js';
-import { weekLabel } from './time.js';
+import { dateLabel, weekLabel } from './time.js';
 
 export const RECRUITER_GOAL = 3;
 export const HOT_HAND_WINS = 8;
@@ -18,9 +18,11 @@ const BET_COUNTS = [50, 100, 500];
  */
 export const BADGES = [
   { key: 'weekly_winner', label: 'Weekly winner', short: 'Winner', about: 'Won a weekly contest' },
+  { key: 'tournament_champion', label: 'Tournament champion', short: 'Champion', about: 'Won a tournament' },
   { key: 'streak_10', label: 'Streak 10', short: 'Streak 10', about: '10 Streak picks won in a row' },
   { key: 'hot_hand', label: 'Hot hand', short: 'Hot hand', about: `Won ${HOT_HAND_WINS} or more of their last 10 bets` },
   { key: 'podium', label: 'Podium', short: 'Podium', about: 'Finished top 3 in a weekly contest' },
+  { key: 'tournament_podium', label: 'Tournament podium', short: 'Top 3', about: 'Finished top 3 in a tournament' },
   { key: 'streak_5', label: 'Streak 5', short: 'Streak 5', about: '5 Streak picks won in a row' },
   { key: 'parlay_hitter', label: 'Parlay hitter', short: 'Parlay', about: 'Won a parlay of 4 legs or more' },
   { key: 'bets_500', label: '500 bets', short: '500 bets', about: '500 graded bets' },
@@ -50,6 +52,15 @@ function qualifies(store, userId) {
   const places = store.all('SELECT week, place FROM contest_results WHERE user_id = ? ORDER BY week', userId);
   for (const p of places) if (p.place === 1) add('weekly_winner', p.week, weekLabel(p.week));
   if (places.length) add('podium', '', `#${places[0].place}, ${weekLabel(places[0].week)}`);
+  // Tournaments (the weekly one has the two above): one champion badge per
+  // win, kept apart by the tournament's slug, and the podium once.
+  const finishes = store.all(
+    `SELECT r.place, t.slug, t.name, t.starts_at FROM tournament_results r JOIN tournaments t ON t.id = r.tournament_id
+      WHERE r.user_id = ? ORDER BY t.ends_at, t.id`,
+    userId,
+  );
+  for (const f of finishes) if (f.place === 1) add('tournament_champion', f.slug, `${f.name}, ${dateLabel(f.starts_at)}`);
+  if (finishes.length) add('tournament_podium', '', `#${finishes[0].place}, ${finishes[0].name}, ${dateLabel(finishes[0].starts_at)}`);
   const parlay = store.get(
     `SELECT MAX(n) AS legs FROM (SELECT COUNT(*) AS n FROM parlays x JOIN parlay_legs l ON l.parlay_id = x.id
       WHERE x.user_id = ? AND x.result = 'win' GROUP BY x.id)`,

@@ -8,11 +8,15 @@
 // since its legs aren't bets of their own. On a sport's board it counts only
 // when every leg is in that sport.
 
-/** Straight picks and parlays as one list of bets. A parlay's date is its first leg's start. */
+/**
+ * Straight picks and parlays as one list of bets. A parlay's date is its
+ * first leg's start. `kind` tells them apart (their ids overlap), and
+ * made_at is when the bet went in (tournaments count bets made after joining).
+ */
 export const BETS = `(
-  SELECT id, user_id, sport, units, profit, result, game_start FROM picks
+  SELECT id, 'pick' AS kind, user_id, sport, units, profit, result, game_start, made_at FROM picks
   UNION ALL
-  SELECT id, user_id, sport, units, profit, result, first_start AS game_start FROM parlays
+  SELECT id, 'parlay' AS kind, user_id, sport, units, profit, result, first_start AS game_start, made_at FROM parlays
 )`;
 
 export const PERIODS = [
