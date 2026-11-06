@@ -728,13 +728,12 @@ Beta launch checklist (2026-10-27). The app code is merged; these get it online.
    per sport (NFL, college football, NBA, college hoops, MLB, NHL) and check
    that the sections fill in. If ESPN's shape differs, the sections just stay
    hidden; nothing breaks.
-10. **Check team logos against live ESPN** (2026-11-06). The session that built
-   team icons couldn't reach ESPN either, so `parseTeams` in `src/teams.js`
-   was tested on made-up lists in ESPN's documented shape. On the server,
-   `sqlite3 /var/lib/bookie-bullies-app/bookiebullies.db "SELECT source,
-   COUNT(*) FROM team_catalog GROUP BY source"` should show about 32 NFL, 30
-   NBA, 30 MLB, 32 NHL and about 50 college a day after deploying. If a
-   league is missing, the picker keeps using the teams on the board.
+10. ~~**Check team logos against live ESPN**~~ Done 2026-11-06: right after
+   deploying, the server's `team_catalog` held NFL 32, NBA 30, MLB 30, NHL 32,
+   college basketball 50 and college football 47 (schools like Gonzaga and
+   Villanova have no FBS team, as expected), so `parseTeams` reads ESPN's real
+   lists. sqlite3 isn't on the server; check with
+   `sudo node -e` and `node:sqlite` (read-only) instead.
 
 ## Ideas, not built yet
 
