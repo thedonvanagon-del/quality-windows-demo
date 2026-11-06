@@ -1027,3 +1027,6 @@ if (bracketBox && window.DOMParser && window.fetch) {
     });
   });
 }
+// The launch screen fades on its own; a tap skips it.
+const splashScreen = document.querySelector('[data-splash]');
+if (splashScreen) splashScreen.addEventListener('click', () => splashScreen.remove());

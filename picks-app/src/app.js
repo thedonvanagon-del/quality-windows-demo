@@ -159,6 +159,8 @@ export function createApp({ store, games, espn = null, config, mailer = createMa
 
   function send(ctx, status, page) {
     const body = String(page);
+    // The launch screen showed on this page: don't show it again this visit.
+    if (ctx.splashShown) ctx.cookies.push(['bb_splash=1', 'Path=/', 'HttpOnly', 'SameSite=Lax', ...(secure(ctx) ? ['Secure'] : [])].join('; '));
     ctx.res.writeHead(status, headers(ctx, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store', 'Content-Length': Buffer.byteLength(body) }));
     ctx.res.end(body);
   }

@@ -13,6 +13,10 @@ import { icons } from './icons.js';
  */
 export function layout(ctx, { title, active, body, description, share }) {
   const { user, flash, app } = ctx;
+  // The launch screen: the crest and BOOKIEBULLIES.COM, once per visit (a
+  // session cookie, set by send() when this page goes out).
+  const splash = ctx.req?.method === 'GET' && !ctx.cookieValues?.bb_splash;
+  if (splash) ctx.splashShown = true;
   // A team or custom look comes from its own stylesheet. Players who chose a
   // color that has since been retired get the default.
   const style = user?.style ?? null;
@@ -67,9 +71,10 @@ ${style ? html`<link rel="stylesheet" href="${sheetPath(style)}">` : ''}
 <script src="${app.assets.js}" defer></script>
 </head>
 <body class="${[playing ? 'signed-in' : '', draft ? 'has-parlay' : ''].filter(Boolean).join(' ')}">
+${splash ? html`<div class="splash" aria-hidden="true" data-splash><img class="splash-logo" src="${app.assets.logo}" alt="" width="132" height="132"><b class="splash-site">BOOKIEBULLIES.COM</b></div>` : ''}
 <header class="top">
   <div class="wrap">
-    <a class="brand" href="/"><img class="brand-logo" src="${app.assets.logo}" alt="" width="34" height="34">${app.name}</a>
+    <a class="brand" href="/"><img class="brand-logo" src="${app.assets.logo}" alt="" width="34" height="34"><span class="brand-name">${app.name}<span class="brand-tld">.com</span></span></a>
     <nav class="nav" aria-label="Main">${nav.map(link)}</nav>
     <div class="top-right">
       ${active === 'install' ? '' : html`<a class="get-app" href="/install" data-get-app>${icons.download}<span>Get the app</span></a>`}

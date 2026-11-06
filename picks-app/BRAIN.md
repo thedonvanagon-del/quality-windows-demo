@@ -36,6 +36,15 @@ not dollars, and nothing is paid out.
   bookie-bullies repo) for the header, the browser tab and the phone icons.
 
 ### Look
+- **2026-11-06: Launch screen and ".com" (owner's ask, to promote the
+  site).** The first page of each visit shows the crest with
+  BOOKIEBULLIES.COM in gold for about a second, then fades (pure CSS, a tap
+  skips it, shorter with reduced motion; a session cookie `bb_splash` keeps it
+  to once per visit and a redirect doesn't use it up). The header reads
+  "BOOKIE BULLIES.com" with a small muted ".com"; on phones the name steps
+  down a size so the bell and avatar stay on screen. The installed app's name
+  (manifest `name`, shown on Android's launch screen) is "BookieBullies.com";
+  the home screen label stays "Bookie Bullies".
 - **2026-11-06: Name colors and scoreboard icons** (owner's ask: "be able to
   change your name color for the scoreboard and your icon for the scoreboard").
   On your own profile, under App color, a **Your name on the boards** card: a
