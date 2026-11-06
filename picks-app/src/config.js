@@ -10,6 +10,9 @@ export const THEMES = ['scoreboard', 'market', 'ember', 'ice', 'royal', 'crimson
 
 export const OFFICIAL_PICKS_URL = 'https://www.bookiebullies.com/picks_log.jsonl';
 
+// The daily picks site the app sends people to (src/site.js builds the links).
+export const SITE_URL = 'https://www.bookiebullies.com';
+
 export function loadConfig(env = process.env) {
   return {
     port: Number(env.PORT) || 3000,
@@ -44,6 +47,9 @@ export function loadConfig(env = process.env) {
     // The site's picks log, imported every 15 minutes as the official
     // BookieBullies account. "off" turns the import off.
     officialPicksUrl: env.OFFICIAL_PICKS_URL === 'off' ? null : env.OFFICIAL_PICKS_URL || OFFICIAL_PICKS_URL,
+    // The daily picks site: the More row, the BB Pick chips, the Locks card,
+    // the line on the LOCKED ticket and the share image's footer link here.
+    siteUrl: (env.SITE_URL || SITE_URL).replace(/\/+$/, ''),
     // Outgoing email for password resets. For Google Workspace:
     // SMTP_HOST=smtp.gmail.com, SMTP_USER=you@yourdomain, SMTP_PASS=an app password.
     smtp: {

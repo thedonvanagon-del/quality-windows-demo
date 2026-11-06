@@ -53,12 +53,13 @@ five.
 
 | Page | What it does |
 |---|---|
-| `/games` | Upcoming games by sport, with spread, total and moneyline. Tap a number to pick it. |
+| `/games` | Upcoming games by sport, with spread, total and moneyline. Tap a number to pick it. A BB Pick chip marks games the official account picked, and a Today's Locks card up top counts its picks today (× hides it until tomorrow). |
 | `/picks` | My bets: open bets with their units, to-win and a countdown (deletable until the start), and settled ones. A badge on the tab counts what is open. |
 | `/parlay` | The parlay being built: legs added from the pick slip, combined odds, units, Lock parlay. |
 | `/leaderboard` | Everyone, or one sport, over 7 days, 30 days or all time. Public. |
 | `/groups` | Start a group (all sports or one), join with a code, see its board, its picks feed and its members-only chat. The list shows how many chat messages are new in each group. |
 | `/local` | Local rooms: one public room per city, each with its own chat and board. Start one for your city from the list, or join one with a tap. |
+| `/games/<id>/bb` | The official account's picks on one game: what a BB Pick chip on the board opens (in a sheet), with a link to www.bookiebullies.com. |
 | `/games/<id>` | One game: its lines (or score), the public split, injuries and each team's last five before the start, and the game chat. |
 | `/u/<name>` | A player's public record: a banner (their cover photo, or a band in their colors), their photo, overall, by sport, how often they beat the closing line, and every pick with when it was locked (and its CLV once the game starts), and their city if they picked one. Signed-in players can report a photo or a cover. Your own has your settings: your photo, your cover photo (an Edit cover button on the banner goes to it), your city, a new screen name (once every 30 days; the old one redirects for 90), the app color, and your name on the boards: a color and an icon (saved with a POST to `/nametag`). |
 | `/search` | Find players by the start of their screen name. |
@@ -89,6 +90,14 @@ The official **BookieBullies** account posts the site's model picks
 (moneylines and spreads, MLB, NBA and college hoops) at the app's own line,
 before each game, and is graded like anyone. It shows on the boards with an
 Official tag but never takes a rank.
+
+The app points people to www.bookiebullies.com, where the model posts its
+daily picks and Locks: a BB Pick chip on each game the official account picked
+(gold for a Lock), a Today's Locks card on the board, a row at the top of
+More, a line on the LOCKED ticket, and the site on the share image. Every link
+carries `utm_source=app` and where it came from. Players can turn the chips,
+the card and the ticket line off on their profile ("Show Bookie Bullies picks
+on the board").
 
 It looks like a sportsbook: dark, with odds tiles, team logos from ESPN's
 image server, and an app-style tab bar on phones (Games, My bets, Tourneys, Leaders,
@@ -129,6 +138,7 @@ npm start       # the real thing, against ESPN, with the database in data/bookie
 | `TRUST_PROXY` | off | Turn on behind a host's proxy (Fly, Render, Railway) so it reads the real visitor IP and knows the site is on https. |
 | `DEMO` | off | Fake games and players. Never in production. |
 | `ADMIN_EMAILS` | none | Who can open `/admin/reports` (reported chat) and `/admin/tournaments`, comma-separated, any case. Each admin also has to have an account with that email, confirmed. |
+| `SITE_URL` | `https://www.bookiebullies.com` | The daily picks site the app links to (More, the BB Pick chips, the Locks card, the LOCKED ticket, the share image). |
 | `OFFICIAL_PICKS_URL` | `https://www.bookiebullies.com/picks_log.jsonl` | The site's picks log, read every 15 minutes and posted as the official BookieBullies account. `off` turns it off. |
 
 ## Putting it online
@@ -243,6 +253,7 @@ src/reminders.js  the Lines are up and Streak reminders, once a day each
 src/groups.js     friend groups and invite codes, and local rooms (their chat is in chat.js)
 src/cities.js     the cities a local room can be for
 src/official.js   the official BookieBullies account and its picks importer
+src/site.js       www.bookiebullies.com in the app: UTM links, the official picks on the board, the Locks card
 src/names.js      screen name rules, changes and old-name redirects
 src/history.js    pick lists, with open picks hidden from other people
 src/auth.js       passwords, sessions, rate limits

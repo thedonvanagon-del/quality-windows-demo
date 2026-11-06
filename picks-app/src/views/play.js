@@ -1,11 +1,12 @@
 import { html } from '../html.js';
 import { formatOdds, formatSpread, formatUnits, MARKET_NAME, MAX_UNITS, maxUnits, PARLAY_MAX_LEGS, PARLAY_MIN_LEGS, parlayMaxUnits, parlayPrice, parlayToWin, price, selection, toWin, UNIT_CHIPS, UNITS_MIN } from '../picks.js';
 import { draftSignature } from '../parlays.js';
+import { siteHost, siteLink } from '../site.js';
 import { SPORT } from '../sports.js';
 import { dayLabel, dayShort, etDay } from '../time.js';
 import { icons } from './icons.js';
 import { csrfField, layout } from './layout.js';
-import { at, betItem, chatBox, minus, sportTabs, statStrip, tabs, teamLogo } from './parts.js';
+import { at, betItem, chatBox, lockTag, minus, sportTabs, statStrip, tabs, teamLogo } from './parts.js';
 
 /** The id a game's card carries, so a pick can come back to the same spot on the board. */
 export function cardId(gameId) {
@@ -16,7 +17,7 @@ export function cardId(gameId) {
  * `mine` maps game id -> { spread: 'home', total: 'over', ... } for the
  * player's picks; `draft` maps game id -> { market, side } for their parlay legs.
  */
-export function games(ctx, { sport, list, mine, draft = new Map(), chats = new Map(), split = new Map(), problem }) {
+export function games(ctx, { sport, list, mine, draft = new Map(), chats = new Map(), split = new Map(), bb = new Map(), locks = null, problem }) {
   const days = [];
   for (const game of list) {
     const day = etDay(game.start);
@@ -30,18 +31,19 @@ export function games(ctx, { sport, list, mine, draft = new Map(), chats = new M
       <h1>Games</h1>
       <p class="lede">Tap a number to pick it. You get the line on the board right now, and it locks when the game starts.</p>
       ${sportTabs('/games', ctx.query, { all: false })}
+      ${locks ? locksCard(ctx, locks) : ''}
       ${problem ? html`<div class="flash err" role="status">Can't reach live lines right now. Showing the last ones we saw.</div>` : ''}
       ${days.length
         ? days.map(
             (d) => html`<div class="day">${d.label}</div>
-              ${d.games.map((g) => gameCard(g, mine.get(g.id) ?? {}, sport, chats.get(g.id) ?? 0, split.get(g.id), draft.get(g.id)))}`,
+              ${d.games.map((g) => gameCard(g, mine.get(g.id) ?? {}, sport, chats.get(g.id) ?? 0, split.get(g.id), draft.get(g.id), bb.get(g.id)))}`,
           )
         : html`<div class="card empty">No ${sport.name} games on the board in the next ${sport.days} days.</div>`}
     `,
   });
 }
 
-function gameCard(game, mine, sport, chatCount = null, split = null, leg = null) {
+function gameCard(game, mine, sport, chatCount = null, split = null, leg = null, bbPicks = null) {
   const fav = favorite(game);
   const row = (side, totalSide) => html`
     <span class="team">${stripe(game[side].color)}${teamLogo(game[side])}<span class="tname"><span class="tn">${game[side].short}</span>${fav === side || game[side].record ? html`<span class="tsub">${fav === side ? html`<span class="fav">Fav</span>` : ''}${game[side].record ? html`<span class="trec">${game[side].record}</span>` : ''}</span>` : ''}</span></span>
@@ -54,11 +56,90 @@ function gameCard(game, mine, sport, chatCount = null, split = null, leg = null)
       ${row('away', 'over')}
       ${row('home', 'under')}
     </div>
-    ${chatCount == null && !split?.spread ? '' : html`<div class="card-foot">
+    ${chatCount == null && !split?.spread && !bbPicks?.length ? '' : html`<div class="card-foot">
       ${chatCount == null ? '' : html`<a class="card-chat" href="/games/${encodeURIComponent(game.id)}#chat">${icons.chat}<span>${chatCount ? `Chat · ${chatCount}` : 'Chat'}</span></a>`}
+      ${bbPicks?.length ? bbChip(game, bbPicks[0]) : ''}
       ${split?.spread ? html`<span class="lean">${leanText(game, split.spread)}</span>` : ''}
     </div>`}
   </article>`;
+}
+
+// ---- www.bookiebullies.com on the board (src/site.js) -------------------------
+
+/** "Lakers −4.5", "Over 223", "Lakers ML": a pick with true minus signs. */
+function pickText(p, game) {
+  return selection(p.market, p.side, p.line, game).replace(/(^|\s)-(?=\d)/, '$1\u2212');
+}
+
+/**
+ * The official account's pick on a game, as a chip under the board: gold
+ * "🔒 BB Lock · Lakers −4.5" for a site Lock, else "BB Pick · Over 223". It
+ * opens the model's picks on that game (a page; app.js shows it in the sheet).
+ */
+function bbChip(game, p) {
+  return html`<a class="${p.lock ? 'bb-chip lock' : 'bb-chip'}" href="/games/${encodeURIComponent(game.id)}/bb" data-sheet="The Bookie Bullies model's pick">${p.lock ? html`<span aria-hidden="true">🔒</span> BB Lock` : 'BB Pick'} · ${pickText(p, game)}</a>`;
+}
+
+/** Confidence from the site, 1 to 5, as stars. */
+function stars(conf) {
+  const n = Math.max(0, Math.min(5, Math.round(Number(conf) || 0)));
+  if (!n) return '';
+  return html`<span class="bb-stars" role="img" aria-label="Confidence ${n} of 5">${'★'.repeat(n)}<span class="off">${'★'.repeat(5 - n)}</span></span>`;
+}
+
+/** The model's picks on one game: what a BB Pick chip opens. */
+export function sitePicks(ctx, { game, picks }) {
+  const sport = SPORT[game.sport];
+  const name = picks[0]?.name ?? 'BookieBullies';
+  return layout(ctx, {
+    title: 'Bookie Bullies pick',
+    active: 'games',
+    body: html`
+      <div class="narrow">
+        <a class="back" href="/games?sport=${game.sport}#${cardId(game.id)}">← ${sport?.short ?? ''} games</a>
+        <div class="slip bb-slip">
+          <div class="slip-head"><span>Bookie Bullies model</span><span>${game.away.short} @ ${game.home.short} · ${at(game.start)}</span></div>
+          <div class="slip-body">
+            ${picks.length
+              ? html`<ul class="bb-picks">${picks.map((p) => html`<li>
+                  <div>
+                    <div class="pickname">${p.lock ? lockTag : ''}${pickText(p, game)}</div>
+                    <div class="slip-meta">${p.market === 'spread' ? sport?.spread ?? 'Spread' : MARKET_NAME[p.market]} · ${formatUnits(p.units)}${p.conf ? html` · ${stars(p.conf)}` : ''}</div>
+                  </div>
+                  <span class="odds-pill">${minus(formatOdds(p.odds))}</span>
+                </li>`)}</ul>`
+              : html`<p class="muted">No open model picks on this game.</p>`}
+            <p class="muted small">Locked at the app's line before the game, and graded like everyone else's.</p>
+            <a class="btn block gold" href="${siteLink(ctx.app.site, 'bb_chip')}" target="_blank" rel="noopener">See all today's picks on ${siteHost(ctx.app.site)}</a>
+            <a class="bb-profile" href="/u/${encodeURIComponent(name)}">${name}'s record in the app →</a>
+          </div>
+        </div>
+      </div>
+    `,
+  });
+}
+
+/**
+ * "🔒 3 Bookie Bullies Locks today · 8 picks · See them", under the sport
+ * tabs. The × hides it until the next ET day (a form, so it works without
+ * JavaScript; app.js hides it at once).
+ */
+function locksCard(ctx, { picks, locks, name }) {
+  const head = locks
+    ? html`<span aria-hidden="true">🔒</span> ${locks} Bookie Bullies ${locks === 1 ? 'Lock' : 'Locks'} today <span class="sep">·</span> <span class="nw">${picks} ${picks === 1 ? 'pick' : 'picks'}</span>`
+    : html`${picks} Bookie Bullies ${picks === 1 ? 'pick' : 'picks'} today`;
+  return html`<aside class="bb-locks" data-bb-locks aria-label="Bookie Bullies picks today">
+    <img class="bb-crest" src="${ctx.app.assets.logo}" alt="" width="30" height="30">
+    <div class="bb-locks-text">
+      <a class="bb-locks-go" href="${siteLink(ctx.app.site, 'locks_card')}" target="_blank" rel="noopener">${head} <span class="sep">·</span> <span class="see">See them</span></a>
+      <a class="bb-locks-profile" href="/u/${encodeURIComponent(name)}">Their record in the app</a>
+    </div>
+    <form method="post" action="/bb/locks/dismiss" data-bb-dismiss>
+      ${csrfField(ctx)}
+      <input type="hidden" name="next" value="${ctx.url.pathname}${ctx.url.search}">
+      <button class="bb-locks-close" aria-label="Hide until tomorrow" title="Hide until tomorrow">×</button>
+    </form>
+  </aside>`;
 }
 
 /** "64% on KC": where the players lean on the spread. */

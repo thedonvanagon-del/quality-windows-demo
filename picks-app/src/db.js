@@ -515,6 +515,15 @@ export const MIGRATIONS = [
   -- Reports on covers go in the same table; kind says which picture it was.
   ALTER TABLE photo_reports ADD COLUMN kind TEXT NOT NULL DEFAULT 'avatar' CHECK (kind IN ('avatar', 'cover'));
   `,
+  `
+  -- www.bookiebullies.com in the app (src/site.js). show_bb: the official
+  -- account's picks on the board (BB Pick chips, the Locks card, the line on
+  -- the LOCKED ticket), on unless the player turns it off. bb_card_hidden_day:
+  -- the ET day ("20261106") the player closed the Locks card; it shows again
+  -- the next day.
+  ALTER TABLE users ADD COLUMN show_bb INTEGER NOT NULL DEFAULT 1;
+  ALTER TABLE users ADD COLUMN bb_card_hidden_day TEXT;
+  `,
 ];
 
 export function openStore(file) {
