@@ -57,7 +57,7 @@ five.
 | `/picks` | My bets: open bets with their units, to-win and a countdown (deletable until the start), and settled ones. A badge on the tab counts what is open. |
 | `/parlay` | The parlay being built: legs added from the pick slip, combined odds, units, Lock parlay. |
 | `/leaderboard` | Everyone, or one sport, over 7 days, 30 days or all time. Public. |
-| `/groups` | Start a group (all sports or one), join with a code, see its board, its picks feed and its members-only chat. The list shows how many chat messages are new in each group. |
+| `/groups` | Chat Rooms (the tab and page are called that; the address stays `/groups`): start a group (all sports or one), join with a code, see its board, its picks feed and its members-only chat. The list shows how many chat messages are new in each group. |
 | `/local` | Local rooms: one public room per city, each with its own chat and board. Start one for your city from the list, or join one with a tap. |
 | `/games/<id>/bb` | The official account's picks on one game: what a BB Pick chip on the board opens (in a sheet), with a link to www.bookiebullies.com. |
 | `/games/<id>` | One game: its lines (or score), the public split, injuries and each team's last five before the start, and the game chat. |
@@ -68,6 +68,13 @@ five.
 | `/tournaments` | Free tournaments. On top: Survivor (your status, this week's pick, players left, the deadline), then NFL Pick'em, then a Cup banner. Below: live now, starting soon, player tournaments, finished. Join in one tap; only bets made after joining, on games inside the window and in its sports, count. Public. |
 | `/survivor` | NFL Survivor, one free pool per season: join, this week's games with both teams to pick from (used teams and started games off), your picks by week, and the standings (players left, out by week, everyone's picks, hidden until each game starts). `/tournaments/survivor` goes here. |
 | `/pickem/nfl` | NFL Pick'em: every game of the week against the spread, a Best Bet star, one Save button (no JavaScript needed), the week's standings and the season's. Earlier weeks by `?week=`. |
+| `/leagues` | Head-to-head leagues: yours, and open public ones to join. |
+| `/leagues/new` | Start a free league: name, sports, week 1, 3 to 10 regular-season weeks, a playoff of 2, 4 or 8, public or private, optionally for a group or room. Confirmed emails; 2 going at once. |
+| `/leagues/<id>` | One league: this week's matchups (yours first, live at the current score), the playoff bracket once it starts, standings, the schedule, the rules. `/l/<code>` is a private one's invite link. |
+| `/bracket` | The March Madness bracket challenge: your bracket region by region (a form per round, or a tap with JavaScript), the Final Four and the tiebreaker, the standings with possible max. Other players' brackets (`?player=`) after the lock. |
+| `/admin/bracket` | For admins: start the year's challenge, look on ESPN for the field, or enter or paste it; set the Final Four order and the lock and open it; enter First Four and game results. Works without ESPN. |
+| `/tournaments/<slug>/rules` | A prize tournament's official rules, made from its prize, sponsor, eligibility and delivery and a standard template. Admins see a "have a lawyer review" banner. |
+| `/admin/tournaments/<slug>/prize` | For admins: make a custom tournament a prize tournament, record the lawyer review, publish it, and after the close see the winner's email and mark the prize sent. |
 | `/cup` | The Bookie Bullies Cup: this year's points race (rank, points, wins, podiums), your finishes, and how points work. Earlier years by `?year=`. |
 | `/tournaments/<slug>` | One tournament: rules, countdown, Join or Leave (before the start), standings (while live, "As it stands": games in progress counted at the current score, refreshed every 45 seconds), the chat for players in it, the final podium, and Share for a top-3 finish. A player-made one shows who made it, its maker's invite link and Cancel, and Report. |
 | `/tournaments/new` | Make a free tournament: name, sports, start and end, bets to place, public or private, and optionally a group or local room. Confirmed emails; 2 going at once and 5 a day. |
@@ -105,6 +112,18 @@ half a push, a Best Bet doubled; its own picks, apart from bets. The
 close (25 for 1st down to 1 for 10th, plus 1 for placing; player-made ones
 need 8 placed), with badges for the top 3 when the year ends. Profiles show
 "Cup: #12 · 84 pts".
+**Leagues** are head to head: 4 to 16 players, one matchup a week (Monday
+to Sunday ET, most units on graded bets in the league's sports wins), a
+round-robin schedule made when week 1 starts (canceled under 4 players),
+standings by wins then units, then a single-elimination playoff where a
+tie goes to the higher seed. The champion gets a badge and, with 8 or more
+players, everyone gets Cup points. The **bracket challenge** is March
+Madness: pick all 63 games before the first Round of 64 tip (the First Four
+isn't picked: you pick the seed's slot), 10 to 320 points a right pick by
+round, the title game's total as the tiebreaker. **Prize tournaments** are
+admin-made tournaments with a sponsor's prize, still free to enter, with
+official rules; players see one only after an admin records a lawyer's
+review and publishes it, and joining needs "I've read the official rules".
 Badges (First win, Hot hand, Weekly winner and more) are worked out from the
 record and show on profiles, with the most notable one on the boards.
 
@@ -123,7 +142,7 @@ on the board").
 
 It looks like a sportsbook: dark, with odds tiles, team logos from ESPN's
 image server, and an app-style tab bar on phones (Games, My bets, Tourneys, Leaders,
-Groups, More; your profile is the avatar at the top right). Players pick their look on
+Chat Rooms, More; your profile is the avatar at the top right). Players pick their look on
 their profile: eight presets (Scoreboard navy and amber, Bull Market black and
 green, Ember orange, Ice, Royal, Crimson, Forest, and Light, a white one), their
 team's colors ("Match my team"), or two colors of their own, on a dark or light
@@ -232,6 +251,10 @@ There's also a Dockerfile, for any host that runs containers and keeps a disk.
   colors reach the page as a stylesheet, `/theme/t1-<d|l>-<accent>-<tint>.css`,
   whose name is checked letter for letter (hex colors only) and which holds
   nothing but those colors.
+- Prize tournaments: only admins make them, players can't see one until
+  an admin records a lawyer's review and publishes it, and the winner's
+  email shows only on the admin page. No entry fee is possible anywhere:
+  every table that could hold one refuses anything but 0.
 - Player-made tournaments: the name is checked (no links, no @ names, nothing
   that passes for the official account), the prize is fixed text, and private
   ones open only from an 8-letter invite code. Three reports hide one.
@@ -256,7 +279,8 @@ There's also a Dockerfile, for any host that runs containers and keeps a disk.
 
 ```
 src/server.js     starts everything, checks for finals every 10 minutes (then grades Survivor and Pick'em),
-                  imports official picks every 15, closes the weekly contest, tournaments, Pick'em weeks and
+                  syncs the bracket challenge with ESPN in March and April, imports official picks every 15,
+                  runs leagues (start, settle weeks, playoffs) every 5, closes the weekly contest, tournaments, Pick'em weeks and
                   Cup years and sends reminders and tournament alerts (checked every 5), badges, new auto
                   tournaments and the Survivor pool hourly, ESPN's team lists once a day, the Cup backfill at start
 src/app.js        every page and form
@@ -276,6 +300,9 @@ src/nflweeks.js   NFL weeks: ESPN's week number, or Tuesday-to-Monday windows fr
 src/survivor.js   Survivor: the season's pool, joining, picks (page and slip), grading, settling weeks, closing, reminders
 src/pickem.js     NFL Pick'em: picks at the saved line, the Best Bet, grading, week and season standings, closing a week
 src/cup.js        the Bookie Bullies Cup: points per finish, standings, the profile line, closing a year
+src/leagues.js    head-to-head leagues: making and joining, the round-robin, weekly matchups, standings, playoffs, notes
+src/bracket.js    the March Madness bracket challenge: the tree, the field (ESPN or admin), picks, results, scoring, closing
+src/prizes.js     prize tournaments: the prize, the lawyer-review and publish gate, the winner, prize sent
 src/badges.js     badges: what earns each one, awarding once, the most notable for a board
 src/nametags.js   name colors and icons: the lists, earned icons, checking and saving
 src/teams.js      team logos for icons: ESPN's team lists once a day, stored, with the games table as a fallback
@@ -292,6 +319,7 @@ src/db.js         the schema; add migrations at the end, never edit a shipped on
 src/demo.js       the fake ESPN and players behind npm run demo
 src/themes.js     looks: the presets, the readability guard, team and custom colors, the /theme stylesheet
 src/photos.js     profile and cover photos: checks, metadata stripping, storage, reports, and form uploads (multipart)
-src/views/        the pages (avatar.js: a player's photo, or their initial; formats.js: Survivor, Pick'em, the Cup)
+src/views/        the pages (avatar.js: a player's photo, or their initial; formats.js: Survivor, Pick'em, the Cup;
+                  leagues.js, bracket.js, prizes.js: leagues, the bracket challenge, prize rules and admin)
 public/           styles and a little script that shows times in your own time zone
 ```
