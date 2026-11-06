@@ -102,3 +102,20 @@ jobs:
       - name: unit and app tests
         working-directory: picks-app
         run: npm test
+
+  studio-app:
+    name: studio booking app tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: unit and app tests
+        working-directory: studio-app
+        run: npm test
+
+      - name: shellcheck the server setup
+        run: shellcheck studio-app/deploy/setup-on-server.sh
