@@ -453,6 +453,35 @@ export const MIGRATIONS = [
   -- Picking it joins (or starts) that city's room.
   ALTER TABLE users ADD COLUMN home_city TEXT;
   `,
+  `
+  -- Looks built from two colors: a team's ("Match my team") or the player's
+  -- own ("Custom"). users.theme is 'custom' for both; theme_team is the team
+  -- ("nfl:KC") when there is one. The accent is stored after the readability
+  -- guard; every color is #rrggbb.
+  ALTER TABLE users ADD COLUMN theme_team TEXT;
+  ALTER TABLE users ADD COLUMN theme_mode TEXT CHECK (theme_mode IN ('dark', 'light'));
+  ALTER TABLE users ADD COLUMN theme_accent TEXT;
+  ALTER TABLE users ADD COLUMN theme_tint TEXT;
+  -- ESPN's second team color, for teams whose first one doesn't read on the page.
+  ALTER TABLE games ADD COLUMN home_alt_color TEXT;
+  ALTER TABLE games ADD COLUMN away_alt_color TEXT;
+
+  -- Profile photos: a file in MEDIA_DIR with a random name. Three reports
+  -- hide one until an admin looks; an admin removing one blocks new uploads
+  -- for a week.
+  ALTER TABLE users ADD COLUMN photo TEXT;
+  ALTER TABLE users ADD COLUMN photo_hidden INTEGER NOT NULL DEFAULT 0;
+  ALTER TABLE users ADD COLUMN photo_blocked_until TEXT;
+  CREATE UNIQUE INDEX users_photo ON users(photo);
+  -- A report is on one photo, so a new photo starts clean.
+  CREATE TABLE photo_reports (
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    photo TEXT NOT NULL,
+    reporter_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    created_at TEXT NOT NULL,
+    PRIMARY KEY (user_id, photo, reporter_id)
+  );
+  `,
 ];
 
 export function openStore(file) {

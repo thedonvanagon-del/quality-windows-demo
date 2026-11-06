@@ -5,7 +5,7 @@ import { when } from '../time.js';
 import { icons } from './icons.js';
 import { csrfField, layout } from './layout.js';
 import { adminTabs } from './local.js';
-import { at, minus, profileLink, teamLogo } from './parts.js';
+import { at, avatar, minus, profileLink, teamLogo } from './parts.js';
 
 /** The menu behind the three dots. New sections get a row here. */
 export function more(ctx, { liveCount, admin = false, reported = 0 }) {
@@ -35,7 +35,7 @@ export function more(ctx, { liveCount, admin = false, reported = 0 }) {
         ${row('/groups', icons.groups, 'Groups', 'Your friends and their boards')}
         ${row('/local', icons.pin, 'Local rooms', 'A chat and a board for your city')}
         ${row('/invite', icons.invite, 'Invite friends', 'Your own link, and who joined')}
-        ${admin ? row('/admin/reports', icons.flag, 'Admin', 'Reported chat messages', reported ? html`<span class="count">${reported}</span>` : '') : ''}
+        ${admin ? row('/admin/reports', icons.flag, 'Admin', 'Reported chat and photos', reported ? html`<span class="count">${reported}</span>` : '') : ''}
         ${admin ? row('/admin/tournaments', icons.bracket, 'Admin: tournaments', 'Make a tournament, or cancel one before it starts') : ''}
       </ul>
       <h2>Account</h2>
@@ -96,7 +96,7 @@ export function chatHub(ctx, { list }) {
 }
 
 // The icon beside each kind of note in the inbox.
-const KIND_ICON = { follow: icons.groups, invite: icons.invite, badge: icons.medal, contest: icons.board, lines: icons.games, streak: icons.flame, tournament: icons.bracket };
+const KIND_ICON = { follow: icons.groups, invite: icons.invite, badge: icons.medal, contest: icons.board, lines: icons.games, streak: icons.flame, tournament: icons.bracket, photo: icons.me };
 
 /** The inbox, what to be told about, and phone notifications. */
 export function notifications(ctx, { list, prefs, phones, pushKey }) {
@@ -108,7 +108,7 @@ export function notifications(ctx, { list, prefs, phones, pushKey }) {
       <h1>Notifications</h1>
       ${list.length
         ? html`<ul class="menu inbox">${list.map((n) => html`<li class="${n.read_at ? '' : 'unread'}"><a href="${n.url}">
-            <span class="icon">${KIND_ICON[n.kind] ?? icons.picks}</span>
+            ${n.face ? html`<span class="icon face">${avatar(n.face)}</span>` : html`<span class="icon">${KIND_ICON[n.kind] ?? icons.picks}</span>`}
             <span class="text">${n.text}<small><time datetime="${n.created_at}" data-local="long">${when(n.created_at)}</time></small></span>
           </a></li>`)}</ul>`
         : html`<div class="card empty">Nothing yet. You'll hear here when your bets settle and when players you follow make picks.</div>`}
@@ -192,10 +192,13 @@ export function install(ctx) {
   });
 }
 
-/** Reported chat, for admins: put a message back or delete it for good. */
-export function adminReports(ctx, { list, hideAfter }) {
+/**
+ * Reports, for admins: chat messages (put one back or delete it for good)
+ * and profile photos (keep one, or remove it).
+ */
+export function adminReports(ctx, { list, hideAfter, photos = [], photoHideAfter = 3, blockDays = 7 }) {
   return layout(ctx, {
-    title: 'Reported chat',
+    title: 'Reports',
     active: 'more',
     body: html`
       <a class="back" href="/more">← More</a>
@@ -218,6 +221,25 @@ export function adminReports(ctx, { list, hideAfter }) {
             </div>
           </li>`)}</ul>`
         : html`<div class="card empty">Nothing reported right now.</div>`}
+
+      <h2 id="photos">Reported photos</h2>
+      <p class="lede">Profile photos anyone has reported. ${photoHideAfter} reports hide a photo until you look. Remove photo deletes it, tells the player, and stops new photos for ${blockDays} days. Dismiss keeps it and clears its reports.</p>
+      ${photos.length
+        ? html`<ul class="reports">${photos.map((p) => html`<li class="card report photo-report ${p.hidden ? 'is-hidden' : ''}">
+            <img class="report-photo" src="/media/${p.photo}" alt="${p.screen_name}'s photo" width="96" height="96" loading="lazy">
+            <div class="report-main">
+              <div class="report-head">
+                <span>${profileLink(p.screen_name)}</span>
+                <span class="report-count">${p.reports} ${p.reports === 1 ? 'report' : 'reports'}${p.hidden ? ' · Hidden' : ''}</span>
+              </div>
+              <p class="muted small">Last report ${at(p.last_report, 'long')}</p>
+              <div class="row report-actions">
+                <form method="post" action="/admin/photos/${p.id}/dismiss">${csrfField(ctx)}<input type="hidden" name="photo" value="${p.photo}"><button class="btn small ghost">Dismiss</button></form>
+                <form method="post" action="/admin/photos/${p.id}/remove" data-confirm="Remove ${p.screen_name}'s photo?">${csrfField(ctx)}<input type="hidden" name="photo" value="${p.photo}"><button class="btn small danger">Remove photo</button></form>
+              </div>
+            </div>
+          </li>`)}</ul>`
+        : html`<div class="card empty">No reported photos right now.</div>`}
     `,
   });
 }

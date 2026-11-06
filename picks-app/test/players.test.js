@@ -256,7 +256,7 @@ describe('admin', () => {
   test('restore or delete reported messages', async () => {
     const { spam, fine } = await reported();
     const boss = await player('Boss@Example.com', 'Boss');
-    assert.match(visible((await boss.get('/more')).text), /Admin Reported chat messages 2/);
+    assert.match(visible((await boss.get('/more')).text), /Admin Reported chat and photos 2/);
     const list = await boss.get('/admin/reports');
     assert.equal(list.status, 200);
     const text = visible(list.text);

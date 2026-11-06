@@ -15,6 +15,8 @@ import { allRooms, archiveRoom, createGroup, deleteGroup, findByCode, groupFor, 
 import { follow, followCounts, followingAmong, followingList, isFollowing, unfollow } from './follows.js';
 import { followFeed, groupFeed, ownPick, ownPicks, picksOnGames, publicPicks } from './history.js';
 import { THEMES } from './config.js';
+import { clearPhoto, cleanImage, deleteFile, dismissPhoto, MEDIA_NAME, MEDIA_TYPES, mediaDir, parseMultipart, PHOTO_BLOCK_DAYS, PHOTO_HIDE_AFTER, PHOTO_MAX, photosFor, removeReportedPhoto, reportedBy, reportedPhotos, reportPhoto, savePhoto, uploadBlockedUntil } from './photos.js';
+import { cleanHex, customTokens, parseSheet, styleOf, teamAccent, teamByKey, teamsBySport, themeCss } from './themes.js';
 import { CONTEST_MIN, results, standings, timeLeft, weekBounds, winnersWall } from './contest.js';
 import { LOGO_HOST } from './espn.js';
 import { toGame } from './games.js';
@@ -30,7 +32,7 @@ import { deletePick, formatLine, formatOdds, formatUnits, isLocked, makePick, MA
 import { SPORT, SPORTS } from './sports.js';
 import { setStreak, streakBoards, streakOf, streakPickOn } from './streak.js';
 import { adminList, bySlug, cancelTournament, cardOf, createCustom, entrantCount, entryOf, hub, joinTournament, leaveTournament, standingsOf, tournamentWinners } from './tournaments.js';
-import { addDays, etDay, mondayOf, weekLabel } from './time.js';
+import { addDays, dateLabel, etDay, mondayOf, weekLabel } from './time.js';
 import { breakdown, hotStreaks, lastTen, leaderboard, PERIODS, rankOf, record, recordBySport, searchPlayers, splits, unitsSeries } from './stats.js';
 import * as account from './views/account.js';
 import * as legal from './views/legal.js';
@@ -42,6 +44,12 @@ import * as tourneyViews from './views/tournaments.js';
 
 const PUBLIC_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'public');
 const MAX_BODY = 16 * 1024;
+// A photo upload: the photo (1 MB at most) plus room for the form around it.
+const MAX_UPLOAD = PHOTO_MAX + 16 * 1024;
+// A body that's too big is still read to the end (and thrown away) up to
+// these sizes, so the browser hears why. Past them the connection just closes.
+const DRAIN_FORM = 1024 * 1024;
+const DRAIN_UPLOAD = 12 * 1024 * 1024;
 const DEFAULT_SPORT = 'nfl';
 export const BIO_MAX = 160;
 
@@ -56,6 +64,7 @@ const SECURITY_HEADERS = {
 
 export function createApp({ store, games, config, mailer = createMailer({ log: { log() {} } }), notifier = createNotifier({ store }), push = null, summaries = null, now = () => new Date(), log = console }) {
   const assets = loadAssets();
+  const media = mediaDir(config.mediaDir ?? 'data/media');
   const app = {
     name: config.appName,
     theme: config.theme ?? THEMES[0],
@@ -137,6 +146,13 @@ export function createApp({ store, games, config, mailer = createMailer({ log: {
   }
 
   const notFound = (ctx) => send(ctx, 404, account.notFound(ctx));
+
+  /** Put each row's photo on it as `photo` (null if none or hidden), by the player id in `key`. */
+  function withPhotos(rows, key = 'id') {
+    const map = photosFor(store, rows.map((r) => r[key]));
+    for (const r of rows) r.photo = map.get(r[key]) ?? null;
+    return rows;
+  }
 
   /** Signed in with a screen name, or sent where they need to go first. */
   function signedIn(ctx) {
@@ -577,7 +593,7 @@ export function createApp({ store, games, config, mailer = createMailer({ log: {
     const game = games.get(id);
     if (!game) return notFound(ctx);
     const started = isLocked(game, ctx.now);
-    const list = messages(store, { gameId: game.id });
+    const list = withPhotos(messages(store, { gameId: game.id }), 'user_id');
     // Picks show beside names only once the game starts, like everywhere else.
     const picksBy = new Map();
     if (started && list.length) {
@@ -656,7 +672,7 @@ export function createApp({ store, games, config, mailer = createMailer({ log: {
     if (!signedIn(ctx)) return;
     const liveCount = store.get("SELECT COUNT(*) AS n FROM games WHERE state = 'in'").n;
     const admin = isAdmin(ctx);
-    const reported = admin ? reportedMessages(store).length : 0;
+    const reported = admin ? reportedMessages(store).length + reportedPhotos(store).length : 0;
     send(ctx, 200, moreViews.more(ctx, { liveCount, admin, reported }));
   }
 
@@ -685,7 +701,7 @@ export function createApp({ store, games, config, mailer = createMailer({ log: {
   function leaderboardPage(ctx) {
     const sport = SPORT[ctx.query.get('sport')] ?? null;
     const period = periodOf(ctx.query);
-    const rows = leaderboard(store, { sport: sport?.key, period }, ctx.now);
+    const rows = withPhotos(leaderboard(store, { sport: sport?.key, period }, ctx.now));
     send(ctx, 200, social.leaderboard(ctx, { sport, rows, badges: topBadges(store, rows.map((r) => r.id)) }));
   }
 
@@ -694,7 +710,7 @@ export function createApp({ store, games, config, mailer = createMailer({ log: {
   /** This week's free contest: standings, the clock, and last week's top 3. */
   function contestPage(ctx) {
     const week = mondayOf(ctx.now);
-    const rows = standings(store, week);
+    const rows = withPhotos(standings(store, week));
     const lastWeek = addDays(week, -7);
     send(ctx, 200, social.contest(ctx, {
       week: weekLabel(week),
@@ -726,7 +742,7 @@ export function createApp({ store, games, config, mailer = createMailer({ log: {
     if (!row) return notFound(ctx);
     const userId = ctx.user?.screenName ? ctx.user.id : null;
     const t = cardOf(store, row, userId, ctx.now);
-    const rows = standingsOf(store, row);
+    const rows = withPhotos(standingsOf(store, row));
     send(ctx, 200, tourneyViews.detail(ctx, {
       t,
       rows,
@@ -806,7 +822,7 @@ export function createApp({ store, games, config, mailer = createMailer({ log: {
   /** Players by the start of their screen name. */
   function searchPage(ctx) {
     const q = String(ctx.query.get('q') ?? '').trim().slice(0, 40);
-    send(ctx, 200, social.search(ctx, { q, rows: searchPlayers(store, q) }));
+    send(ctx, 200, social.search(ctx, { q, rows: withPhotos(searchPlayers(store, q)) }));
   }
 
   // ---- admin ----------------------------------------------------------------
@@ -814,7 +830,7 @@ export function createApp({ store, games, config, mailer = createMailer({ log: {
   /** Reported chat messages. Anyone who isn't an admin gets a plain 404. */
   function adminReports(ctx) {
     if (!isAdmin(ctx)) return notFound(ctx);
-    send(ctx, 200, moreViews.adminReports(ctx, { list: reportedMessages(store), hideAfter: HIDE_AFTER_REPORTS }));
+    send(ctx, 200, moreViews.adminReports(ctx, { list: reportedMessages(store), hideAfter: HIDE_AFTER_REPORTS, photos: reportedPhotos(store), photoHideAfter: PHOTO_HIDE_AFTER, blockDays: PHOTO_BLOCK_DAYS }));
   }
 
   function adminRestore(ctx, { id }) {
@@ -868,15 +884,15 @@ export function createApp({ store, games, config, mailer = createMailer({ log: {
       const members = store.get('SELECT COUNT(*) AS n FROM group_members WHERE group_id = ?', room.id).n;
       return send(ctx, 200, local.roomPreview(ctx, { room: { ...room, city: CITY[room.city_slug] ?? null }, members }));
     }
-    const rows = leaderboard(store, { groupId: group.id, sport: group.sport, period: periodOf(ctx.query) }, ctx.now);
-    const chat = messages(store, { groupId: group.id });
+    const rows = withPhotos(leaderboard(store, { groupId: group.id, sport: group.sport, period: periodOf(ctx.query) }, ctx.now));
+    const chat = withPhotos(messages(store, { groupId: group.id }), 'user_id');
     // Opening the group (or its chat refreshing) reads everything in it.
     markGroupRead(store, { groupId: group.id, userId: ctx.user.id, now: ctx.now });
     send(ctx, 200, social.group(ctx, {
       group,
       rows,
-      members: membersOf(store, group.id),
-      feed: groupFeed(store, group, ctx.now),
+      members: withPhotos(membersOf(store, group.id)),
+      feed: withPhotos(groupFeed(store, group, ctx.now), 'userId'),
       inviteUrl: group.invite_code ? `${origin(ctx)}/join/${group.invite_code}` : null,
       messages: chat,
       city: group.kind === 'local' ? CITY[group.city_slug] ?? null : null,
@@ -1018,7 +1034,9 @@ export function createApp({ store, games, config, mailer = createMailer({ log: {
 
   function profilePage(ctx, { name }) {
     const player = store.get(
-      'SELECT id, screen_name, created_at, bio, link_url, link_label, first_name, last_name, official, name_changed_at, home_city FROM users WHERE screen_name = ?',
+      `SELECT id, screen_name, created_at, bio, link_url, link_label, first_name, last_name, official, name_changed_at, home_city,
+              theme, theme_team, theme_mode, theme_accent, theme_tint, photo, photo_hidden
+         FROM users WHERE screen_name = ?`,
       name,
     );
     if (!player) {
@@ -1029,8 +1047,23 @@ export function createApp({ store, games, config, mailer = createMailer({ log: {
     }
     if (player.screen_name !== name) return redirect(ctx, `/u/${encodeURIComponent(player.screen_name)}`);
     const { picks, hidden } = publicPicks(store, player.id, { viewerId: ctx.user?.id, now: ctx.now });
+    const own = ctx.user?.id === player.id;
+    // Their look, for the banner and the team badge: a matched team, custom colors, or a preset.
+    const style = styleOf(player);
+    const look = { style, team: style && player.theme_team ? teamByKey(store, player.theme_team) : null, preset: style ? null : player.theme };
+    const photo = {
+      hidden: Boolean(player.photo && player.photo_hidden),
+      reported: reportedBy(store, player.id, player.photo, ctx.user?.id),
+      blockedUntil: own ? uploadBlockedUntil(store, player.id, ctx.now) : null,
+      // Your own, or the official account's for an admin.
+      upload: own ? '/photo' : player.official && isAdmin(ctx) ? '/admin/official/photo' : null,
+      max: PHOTO_MAX,
+    };
     send(ctx, 200, social.profile(ctx, {
-      player,
+      player: { ...player, photo: player.photo_hidden ? null : player.photo },
+      look,
+      photo,
+      teams: own ? teamsBySport(store) : null,
       record: record(store, player.id),
       bySport: recordBySport(store, player.id),
       split: breakdown(store, player.id),
@@ -1089,7 +1122,7 @@ export function createApp({ store, games, config, mailer = createMailer({ log: {
 
   /** Who's on a heater: the best last ten over the past 30 days. */
   function hotPage(ctx) {
-    const rows = hotStreaks(store, ctx.now);
+    const rows = withPhotos(hotStreaks(store, ctx.now));
     const followed = followingAmong(store, ctx.user?.id, rows.map((r) => r.id));
     send(ctx, 200, social.hot(ctx, { rows, followed }));
   }
@@ -1097,7 +1130,7 @@ export function createApp({ store, games, config, mailer = createMailer({ log: {
   /** Picks from everyone the player follows, once each game starts. */
   function followingPage(ctx) {
     if (!signedIn(ctx)) return;
-    send(ctx, 200, social.following(ctx, { feed: followFeed(store, ctx.user.id, ctx.now), people: followingList(store, ctx.user.id) }));
+    send(ctx, 200, social.following(ctx, { feed: withPhotos(followFeed(store, ctx.user.id, ctx.now), 'userId'), people: withPhotos(followingList(store, ctx.user.id)) }));
   }
 
   // ---- notifications ------------------------------------------------------
@@ -1106,6 +1139,14 @@ export function createApp({ store, games, config, mailer = createMailer({ log: {
   function notificationsPage(ctx) {
     if (!signedIn(ctx)) return;
     const list = notifier.list(ctx.user.id);
+    // Notes about a player (a follow, an invite) show that player's photo.
+    const names = [...new Set(list.map((n) => /^\/u\/([^/?#]+)$/.exec(n.url ?? '')?.[1]).filter(Boolean).map((n) => { try { return decodeURIComponent(n); } catch { return null; } }).filter(Boolean))];
+    const faces = new Map();
+    for (const name of names.slice(0, 100)) {
+      const row = store.get('SELECT screen_name, photo FROM users WHERE screen_name = ? AND photo IS NOT NULL AND photo_hidden = 0', name);
+      if (row) faces.set(`/u/${encodeURIComponent(row.screen_name)}`, { screen_name: row.screen_name, photo: row.photo });
+    }
+    for (const n of list) if (n.kind !== 'photo') n.face = faces.get(n.url) ?? null;
     const prefs = store.get('SELECT notify_settled, notify_follows, notify_lines, notify_streak, notify_tournaments FROM users WHERE id = ?', ctx.user.id);
     const phones = store.get('SELECT COUNT(*) AS n FROM push_subscriptions WHERE user_id = ?', ctx.user.id).n;
     notifier.markRead(ctx.user.id, ctx.now);
@@ -1153,11 +1194,175 @@ export function createApp({ store, games, config, mailer = createMailer({ log: {
     ctx.res.end(file.body);
   }
 
+  /**
+   * Pick a look: a preset, a team's colors ("Match my team") or two colors of
+   * your own ("Custom"), on a dark or light background. Team and custom
+   * colors go through the readability guard before they're saved.
+   */
   function themePost(ctx) {
     if (!signedIn(ctx)) return;
     const theme = ctx.form.get('theme');
-    if (THEMES.includes(theme)) store.run('UPDATE users SET theme = ? WHERE id = ?', theme, ctx.user.id);
-    redirect(ctx, `/u/${encodeURIComponent(ctx.user.screenName)}`);
+    const back = `/u/${encodeURIComponent(ctx.user.screenName)}`;
+    const mode = ctx.form.get('mode') === 'light' ? 'light' : 'dark';
+    const save = (team, accent, tint) => store.run(
+      "UPDATE users SET theme = 'custom', theme_team = ?, theme_mode = ?, theme_accent = ?, theme_tint = ? WHERE id = ?",
+      team, mode, accent, tint, ctx.user.id,
+    );
+    if (THEMES.includes(theme)) {
+      store.run('UPDATE users SET theme = ?, theme_team = NULL WHERE id = ?', theme, ctx.user.id);
+    } else if (theme === 'team') {
+      const team = teamByKey(store, ctx.form.get('team'));
+      if (!team) {
+        flash(ctx, 'error', 'Pick a team from the list.');
+        return redirect(ctx, `${back}#color`);
+      }
+      const { accent, how } = teamAccent({ primary: team.color, alternate: team.alt }, mode);
+      save(team.key, accent, team.color);
+      flash(ctx, 'ok', how === 'alternate'
+        ? `${team.name} colors are on. Their main color is hard to read here, so the accent is their other one.`
+        : how ? `${team.name} colors are on, a shade ${how === 'lightened' ? 'lighter' : 'darker'} so they're easy to read.` : `${team.name} colors are on.`);
+      return redirect(ctx, `${back}#color`);
+    } else if (theme === 'custom') {
+      const accent = cleanHex(ctx.form.get('accent'));
+      const tint = cleanHex(ctx.form.get('tint'));
+      if (!accent || !tint) {
+        flash(ctx, 'error', 'Pick both colors with the color boxes.');
+        return redirect(ctx, `${back}#color`);
+      }
+      const readable = customTokens({ mode, accent, tint }).accent;
+      save(null, readable, tint);
+      flash(ctx, 'ok', readable === accent ? 'Your colors are on.' : `Your colors are on. The accent is a shade ${mode === 'light' ? 'darker' : 'lighter'} so it's easy to read.`);
+      return redirect(ctx, `${back}#color`);
+    }
+    redirect(ctx, back);
+  }
+
+  /**
+   * A team or custom look's stylesheet. The colors are its name, matched
+   * letter for letter, so it can be cached forever and can only ever hold
+   * hex colors.
+   */
+  function themeSheet(ctx, { file }) {
+    const style = parseSheet(file);
+    if (!style) return notFound(ctx);
+    const body = themeCss(style, { preview: style.preview });
+    const etag = `"${crypto.createHash('sha256').update(body).digest('hex').slice(0, 16)}"`;
+    const cache = 'public, max-age=31536000, immutable';
+    if (ctx.req.headers['if-none-match'] === etag) {
+      ctx.res.writeHead(304, { ETag: etag, 'Cache-Control': cache });
+      return ctx.res.end();
+    }
+    ctx.res.writeHead(200, {
+      ...SECURITY_HEADERS,
+      'Content-Type': 'text/css; charset=utf-8',
+      'Content-Length': Buffer.byteLength(body),
+      ETag: etag,
+      'Cache-Control': cache,
+    });
+    ctx.res.end(body);
+  }
+
+  // ---- profile photos ---------------------------------------------------------
+
+  /**
+   * A profile photo, by its random name. A name that isn't exactly one of
+   * ours never touches the disk. A photo hidden by reports is for admins only.
+   */
+  function mediaFile(ctx, { name }) {
+    if (!MEDIA_NAME.test(name)) return notFound(ctx);
+    const owner = store.get('SELECT photo_hidden FROM users WHERE photo = ?', name);
+    if (!owner || (owner.photo_hidden && !isAdmin(ctx))) return notFound(ctx);
+    let body;
+    try {
+      body = fs.readFileSync(path.join(media, name));
+    } catch {
+      return notFound(ctx);
+    }
+    ctx.res.writeHead(200, {
+      ...SECURITY_HEADERS,
+      'Content-Type': MEDIA_TYPES[name.split('.').pop()],
+      'Content-Length': body.length,
+      // A new photo gets a new name, so a name never changes what it shows.
+      'Cache-Control': owner.photo_hidden ? 'private, no-store' : 'public, max-age=31536000, immutable',
+    });
+    ctx.res.end(body);
+  }
+
+  /** Store an uploaded photo for `userId` and go back to `back`, saying what happened. */
+  function takePhoto(ctx, userId, back) {
+    if (ctx.tooBig) {
+      flash(ctx, 'error', 'That photo is over 1 MB. Pick a smaller one.');
+      return redirect(ctx, back);
+    }
+    const until = uploadBlockedUntil(store, userId, ctx.now);
+    if (until) {
+      flash(ctx, 'error', `An admin removed your last photo. You can add a new one after ${dateLabel(until)}.`);
+      return redirect(ctx, back);
+    }
+    const image = cleanImage(ctx.files?.get('photo')?.data);
+    if (image.error) {
+      flash(ctx, 'error', image.error);
+    } else {
+      savePhoto(store, media, userId, image);
+      flash(ctx, 'ok', 'Photo saved.');
+    }
+    redirect(ctx, back);
+  }
+
+  function photoPost(ctx) {
+    if (!signedIn(ctx)) return;
+    takePhoto(ctx, ctx.user.id, `/u/${encodeURIComponent(ctx.user.screenName)}#photo`);
+  }
+
+  function photoDelete(ctx) {
+    if (!signedIn(ctx)) return;
+    clearPhoto(store, media, ctx.user.id);
+    flash(ctx, 'ok', 'Photo removed.');
+    redirect(ctx, `/u/${encodeURIComponent(ctx.user.screenName)}#photo`);
+  }
+
+  function photoReportPost(ctx, { name }) {
+    if (!signedIn(ctx)) return;
+    const player = store.get('SELECT id, screen_name FROM users WHERE screen_name = ?', name);
+    if (!player) return notFound(ctx);
+    const result = reportPhoto(store, { ownerId: player.id, reporterId: ctx.user.id, now: ctx.now });
+    flash(ctx, result.error ? 'error' : 'ok', result.error ?? `Thanks. An admin will look at it. ${PHOTO_HIDE_AFTER} reports hide a photo until then.`);
+    redirect(ctx, `/u/${encodeURIComponent(player.screen_name)}`);
+  }
+
+  /** The official account has no login, so only an admin can give it a photo. */
+  function officialTarget(ctx) {
+    if (!isAdmin(ctx)) return null;
+    const id = ensureOfficial(store, ctx.now);
+    return id ? store.get('SELECT id, screen_name FROM users WHERE id = ?', id) : null;
+  }
+
+  function adminOfficialPhoto(ctx) {
+    const official = officialTarget(ctx);
+    if (!official) return notFound(ctx);
+    takePhoto(ctx, official.id, `/u/${encodeURIComponent(official.screen_name)}#photo`);
+  }
+
+  function adminOfficialPhotoDelete(ctx) {
+    const official = officialTarget(ctx);
+    if (!official) return notFound(ctx);
+    clearPhoto(store, media, official.id);
+    flash(ctx, 'ok', 'Photo removed.');
+    redirect(ctx, `/u/${encodeURIComponent(official.screen_name)}#photo`);
+  }
+
+  function adminPhotoRemove(ctx, { id }) {
+    if (!isAdmin(ctx)) return notFound(ctx);
+    const result = removeReportedPhoto(store, media, { userId: Number(id), photo: ctx.form.get('photo') ?? '', now: ctx.now, notifier });
+    flash(ctx, result.error ? 'error' : 'ok', result.error ?? `Photo removed. They've been told, and can't add another for ${PHOTO_BLOCK_DAYS} days.`);
+    redirect(ctx, '/admin/reports#photos');
+  }
+
+  function adminPhotoDismiss(ctx, { id }) {
+    if (!isAdmin(ctx)) return notFound(ctx);
+    const result = dismissPhoto(store, { userId: Number(id), photo: ctx.form.get('photo') ?? '' });
+    flash(ctx, result.error ? 'error' : 'ok', result.error ?? 'Kept. Its reports are cleared.');
+    redirect(ctx, '/admin/reports#photos');
   }
 
   function namePost(ctx) {
@@ -1185,7 +1390,9 @@ export function createApp({ store, games, config, mailer = createMailer({ log: {
     for (const g of store.all('SELECT id FROM friend_groups WHERE owner_id = ?', ctx.user.id)) {
       leaveGroup(store, { groupId: g.id, userId: ctx.user.id });
     }
+    const { photo } = store.get('SELECT photo FROM users WHERE id = ?', ctx.user.id);
     store.run('DELETE FROM users WHERE id = ?', ctx.user.id);
+    deleteFile(media, photo);
     setCookie(ctx, 'sid', '', 0);
     flash(ctx, 'ok', 'Your account and your picks are deleted.');
     redirect(ctx, '/');
@@ -1240,6 +1447,8 @@ export function createApp({ store, games, config, mailer = createMailer({ log: {
     ['GET', '/', home],
     ['GET', '/healthz', health],
     ['GET', '/static/:name', asset],
+    ['GET', '/theme/:file', themeSheet],
+    ['GET', '/media/:name', mediaFile],
     ['GET', '/signup', signupForm],
     ['POST', '/signup', signup],
     ['GET', '/login', loginForm],
@@ -1297,6 +1506,10 @@ export function createApp({ store, games, config, mailer = createMailer({ log: {
     ['GET', '/local/:slug', localCity],
     ['POST', '/groups/:id/join', roomJoin],
     ['POST', '/home-city', homeCityPost],
+    ['POST', '/admin/photos/:id/remove', adminPhotoRemove],
+    ['POST', '/admin/photos/:id/dismiss', adminPhotoDismiss],
+    ['POST', '/admin/official/photo', adminOfficialPhoto, { upload: true }],
+    ['POST', '/admin/official/photo/delete', adminOfficialPhotoDelete],
     ['GET', '/groups', groupsPage],
     ['POST', '/groups', groupCreate],
     ['POST', '/groups/join', groupJoinByCode],
@@ -1309,6 +1522,7 @@ export function createApp({ store, games, config, mailer = createMailer({ log: {
     ['GET', '/u/:name', profilePage],
     ['POST', '/u/:name/follow', followPost],
     ['POST', '/u/:name/unfollow', unfollowPost],
+    ['POST', '/u/:name/photo/report', photoReportPost],
     ['GET', '/following', followingPage],
     ['GET', '/hot', hotPage],
     ['GET', '/notifications', notificationsPage],
@@ -1320,6 +1534,8 @@ export function createApp({ store, games, config, mailer = createMailer({ log: {
     ['GET', '/install', (ctx) => send(ctx, 200, moreViews.install(ctx))],
     ['GET', '/live', livePage],
     ['POST', '/theme', themePost],
+    ['POST', '/photo', photoPost, { upload: true }],
+    ['POST', '/photo/delete', photoDelete],
     ['POST', '/bio', bioPost],
     ['POST', '/link', linkPost],
     ['POST', '/name', namePost],
@@ -1329,10 +1545,10 @@ export function createApp({ store, games, config, mailer = createMailer({ log: {
     ['POST', '/verify/resend', verifyResend],
     ['GET', '/terms', (ctx) => send(ctx, 200, legal.terms(ctx, { contact }))],
     ['GET', '/privacy', (ctx) => send(ctx, 200, legal.privacy(ctx, { contact }))],
-  ].map(([method, pattern, handler]) => {
+  ].map(([method, pattern, handler, { upload = false } = {}]) => {
     const keys = [];
     const regex = new RegExp(`^${pattern.replace(/:(\w+)/g, (_, key) => (keys.push(key), '([^/]+)'))}$`);
-    return { method, regex, keys, handler };
+    return { method, regex, keys, handler, upload };
   });
 
   function match(method, pathname) {
@@ -1342,7 +1558,7 @@ export function createApp({ store, games, config, mailer = createMailer({ log: {
       const m = r.regex.exec(pathname);
       if (!m) continue;
       try {
-        return { handler: r.handler, params: Object.fromEntries(r.keys.map((k, i) => [k, decodeURIComponent(m[i + 1])])) };
+        return { handler: r.handler, upload: r.upload, params: Object.fromEntries(r.keys.map((k, i) => [k, decodeURIComponent(m[i + 1])])) };
       } catch {
         return null;
       }
@@ -1374,14 +1590,24 @@ export function createApp({ store, games, config, mailer = createMailer({ log: {
 
       if (req.method === 'POST') {
         if (!sameOrigin(req, config)) return send(ctx, 403, account.problem(ctx, { status: 403, text: 'That form came from another site.' }));
-        ctx.form = await readForm(req);
-        if (ctx.session && !sameToken(ctx.form.get('_csrf'), ctx.session.csrf)) {
+        // Photo uploads may be bigger, and multipart. One that's too big is
+        // read to the end (so the browser hears back) but not kept, and its
+        // handler only says so: nothing changes, so there's no token to check.
+        const body = await readBody(req, route.upload ? MAX_UPLOAD : MAX_BODY, route.upload ? DRAIN_UPLOAD : DRAIN_FORM);
+        if (body.tooBig && !route.upload) throw Object.assign(new Error('form too large'), { status: 413 });
+        ctx.tooBig = Boolean(body.tooBig);
+        const parsed = body.tooBig ? { fields: new URLSearchParams(), files: new Map() } : parseBody(body.data, req.headers['content-type'], route.upload);
+        ctx.form = parsed.fields;
+        ctx.files = parsed.files;
+        if (!ctx.tooBig && ctx.session && !sameToken(ctx.form.get('_csrf'), ctx.session.csrf)) {
           return send(ctx, 403, account.problem(ctx, { status: 403, text: 'That form was out of date. Go back, reload the page, and try again.' }));
         }
       }
       await route.handler(ctx, route.params);
     } catch (err) {
       if (res.headersSent) return res.destroy(err);
+      // The connection is already gone (a body far too big): nobody to answer.
+      if (err.closed || !req.socket || req.socket.destroyed) return res.destroy();
       if (err.status === 413) return send(ctx, 413, account.problem(ctx, { status: 413, text: 'That was more than a form should send.' }));
       log.error(err);
       send(ctx, 500, account.problem(ctx, {}));
@@ -1411,16 +1637,35 @@ function readFlash(value) {
   }
 }
 
-async function readForm(req) {
+/**
+ * A request body, up to `limit` bytes. Past that, keep reading up to `drain`
+ * bytes without keeping any of it, and say it was too big. Past `drain`,
+ * close the connection.
+ */
+async function readBody(req, limit, drain = 0) {
   const chunks = [];
   let size = 0;
   for await (const chunk of req) {
     size += chunk.length;
-    if (size > MAX_BODY) throw Object.assign(new Error('form too large'), { status: 413 });
+    if (size > limit) {
+      if (size > drain) {
+        req.destroy();
+        throw Object.assign(new Error('body far too large'), { closed: true });
+      }
+      continue;
+    }
     chunks.push(chunk);
   }
-  if (!String(req.headers['content-type'] ?? '').startsWith('application/x-www-form-urlencoded')) return new URLSearchParams();
-  return new URLSearchParams(Buffer.concat(chunks).toString('utf8'));
+  return size > limit ? { tooBig: true } : { data: Buffer.concat(chunks) };
+}
+
+/** Form fields (and, on upload routes, files) from a body. Anything else reads as an empty form. */
+function parseBody(data, contentType = '', upload = false) {
+  const type = String(contentType ?? '');
+  const empty = () => ({ fields: new URLSearchParams(), files: new Map() });
+  if (type.startsWith('application/x-www-form-urlencoded')) return { fields: new URLSearchParams(data.toString('utf8')), files: new Map() };
+  if (upload && type.startsWith('multipart/form-data')) return parseMultipart(data, type) ?? empty();
+  return empty();
 }
 
 /**
