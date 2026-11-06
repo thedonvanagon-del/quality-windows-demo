@@ -585,6 +585,134 @@ export const MIGRATIONS = [
   ALTER TABLE users ADD COLUMN show_bb INTEGER NOT NULL DEFAULT 1;
   ALTER TABLE users ADD COLUMN bb_card_hidden_day TEXT;
   `,
+  `
+  -- NFL formats (2026-11-06): Survivor, NFL Pick'em and the Bookie Bullies
+  -- Cup. Free, like every tournament.
+  --
+  -- The NFL week of a game, from ESPN's scoreboard when it sends one
+  -- (season.year, season.type: 2 is the regular season, week.number).
+  -- src/nflweeks.js works it out from the date when these are empty.
+  ALTER TABLE games ADD COLUMN season INTEGER;
+  ALTER TABLE games ADD COLUMN season_type INTEGER;
+  ALTER TABLE games ADD COLUMN week INTEGER;
+
+  -- Survivor: one pool per NFL season, made on its own. Each week a player
+  -- picks one team to win; a team can be used once a season. start_week is
+  -- the week they joined for. out_week is set when a loss, a tie or a missed
+  -- week ends their run; won_at when the pool closes with them on top.
+  CREATE TABLE survivor_pools (
+    id INTEGER PRIMARY KEY,
+    season INTEGER NOT NULL UNIQUE,
+    name TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    closed_at TEXT,
+    closed_week INTEGER,
+    entry_fee_cents INTEGER NOT NULL DEFAULT 0 CHECK (entry_fee_cents = 0)
+  );
+  CREATE TABLE survivor_entries (
+    pool_id INTEGER NOT NULL REFERENCES survivor_pools(id) ON DELETE CASCADE,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    joined_at TEXT NOT NULL,
+    start_week INTEGER NOT NULL,
+    out_week INTEGER,
+    out_reason TEXT CHECK (out_reason IN ('loss', 'tie', 'missed')),
+    out_team TEXT,
+    won_at TEXT,
+    PRIMARY KEY (pool_id, user_id)
+  );
+  CREATE INDEX survivor_entries_user ON survivor_entries(user_id);
+  -- One pick a week. team is the team's abbreviation; a team counts as used
+  -- unless its pick was voided (a postponed or canceled game), and the
+  -- partial index keeps it to once a season.
+  CREATE TABLE survivor_picks (
+    pool_id INTEGER NOT NULL REFERENCES survivor_pools(id) ON DELETE CASCADE,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    week INTEGER NOT NULL,
+    game_id TEXT NOT NULL REFERENCES games(id),
+    side TEXT NOT NULL CHECK (side IN ('home', 'away')),
+    team TEXT NOT NULL,
+    made_at TEXT NOT NULL,
+    result TEXT CHECK (result IN ('win', 'loss', 'tie', 'void')),
+    graded_at TEXT,
+    PRIMARY KEY (pool_id, user_id, week)
+  );
+  CREATE UNIQUE INDEX survivor_picks_team ON survivor_picks(pool_id, user_id, team) WHERE result IS NULL OR result != 'void';
+  CREATE INDEX survivor_picks_game ON survivor_picks(game_id);
+  -- A week is settled once (missed weeks knocked out, the pool closed if it's done).
+  CREATE TABLE survivor_weeks (
+    pool_id INTEGER NOT NULL REFERENCES survivor_pools(id) ON DELETE CASCADE,
+    week INTEGER NOT NULL,
+    settled_at TEXT NOT NULL,
+    PRIMARY KEY (pool_id, week)
+  );
+
+  -- NFL Pick'em: every game of a week against the spread, at the line when
+  -- the pick was saved. Its own picks, apart from bets: no units, no record.
+  -- One Best Bet a week counts double.
+  CREATE TABLE pickem_picks (
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    game_id TEXT NOT NULL REFERENCES games(id),
+    season INTEGER NOT NULL,
+    week INTEGER NOT NULL,
+    side TEXT NOT NULL CHECK (side IN ('home', 'away')),
+    line REAL NOT NULL,
+    best INTEGER NOT NULL DEFAULT 0,
+    made_at TEXT NOT NULL,
+    result TEXT CHECK (result IN ('win', 'loss', 'push', 'void')),
+    points REAL,
+    graded_at TEXT,
+    PRIMARY KEY (user_id, game_id)
+  );
+  CREATE UNIQUE INDEX pickem_best ON pickem_picks(user_id, season, week) WHERE best = 1;
+  CREATE INDEX pickem_week ON pickem_picks(season, week);
+  CREATE INDEX pickem_game ON pickem_picks(game_id);
+  -- A week closes once, and its top 3 are written once.
+  CREATE TABLE pickem_weeks (
+    season INTEGER NOT NULL,
+    week INTEGER NOT NULL,
+    closed_at TEXT NOT NULL,
+    PRIMARY KEY (season, week)
+  );
+  CREATE TABLE pickem_results (
+    season INTEGER NOT NULL,
+    week INTEGER NOT NULL,
+    place INTEGER NOT NULL,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    points REAL NOT NULL,
+    record TEXT NOT NULL,
+    PRIMARY KEY (season, week, place)
+  );
+  CREATE INDEX pickem_results_user ON pickem_results(user_id);
+
+  -- The Bookie Bullies Cup: points for every finish in every closed
+  -- tournament (source + ref says which), summed per calendar year. Written
+  -- once per player per event, so a backfill can run any number of times.
+  CREATE TABLE cup_points (
+    year INTEGER NOT NULL,
+    source TEXT NOT NULL CHECK (source IN ('tournament', 'weekly', 'survivor', 'pickem')),
+    ref TEXT NOT NULL,
+    label TEXT NOT NULL,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    place INTEGER NOT NULL,
+    points INTEGER NOT NULL,
+    awarded_at TEXT NOT NULL,
+    PRIMARY KEY (source, ref, user_id)
+  );
+  CREATE INDEX cup_points_year ON cup_points(year, user_id);
+  -- A year is closed once, after it ends; its top 3 are written once.
+  CREATE TABLE cup_years (
+    year INTEGER PRIMARY KEY,
+    closed_at TEXT NOT NULL
+  );
+  CREATE TABLE cup_results (
+    year INTEGER NOT NULL REFERENCES cup_years(year),
+    place INTEGER NOT NULL,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    points INTEGER NOT NULL,
+    PRIMARY KEY (year, place)
+  );
+  CREATE INDEX cup_results_user ON cup_results(user_id);
+  `,
 ];
 
 export function openStore(file) {

@@ -17,12 +17,16 @@ const BET_COUNTS = [50, 100, 500];
  * player has. The keys are stored; never rename one.
  */
 export const BADGES = [
+  { key: 'cup_champion', label: 'Cup champion', short: 'Cup champ', about: 'Won the Bookie Bullies Cup for a year' },
   { key: 'weekly_winner', label: 'Weekly winner', short: 'Winner', about: 'Won a weekly contest' },
   { key: 'tournament_champion', label: 'Tournament champion', short: 'Champion', about: 'Won a tournament' },
+  { key: 'survivor_champion', label: 'Survivor champion', short: 'Survivor', about: 'Won a season of Survivor' },
   { key: 'streak_10', label: 'Streak 10', short: 'Streak 10', about: '10 Streak picks won in a row' },
   { key: 'hot_hand', label: 'Hot hand', short: 'Hot hand', about: `Won ${HOT_HAND_WINS} or more of their last 10 bets` },
+  { key: 'cup_podium', label: 'Cup podium', short: 'Cup top 3', about: 'Finished top 3 in the Bookie Bullies Cup for a year' },
   { key: 'podium', label: 'Podium', short: 'Podium', about: 'Finished top 3 in a weekly contest' },
   { key: 'tournament_podium', label: 'Tournament podium', short: 'Top 3', about: 'Finished top 3 in a tournament' },
+  { key: 'pickem_winner', label: "Pick'em winner", short: "Pick'em", about: "Won a week of NFL Pick'em" },
   { key: 'streak_5', label: 'Streak 5', short: 'Streak 5', about: '5 Streak picks won in a row' },
   { key: 'parlay_hitter', label: 'Parlay hitter', short: 'Parlay', about: 'Won a parlay of 4 legs or more' },
   { key: 'bets_500', label: '500 bets', short: '500 bets', about: '500 graded bets' },
@@ -67,6 +71,18 @@ function qualifies(store, userId) {
     userId,
   );
   if (parlay.legs >= 4) add('parlay_hitter', '', `${parlay.legs} legs`);
+  // Survivor (one per season won, shared or not), Pick'em (one per week won), and the Cup (by year).
+  for (const s of store.all(
+    'SELECT p.season, p.name FROM survivor_entries e JOIN survivor_pools p ON p.id = e.pool_id WHERE e.user_id = ? AND e.won_at IS NOT NULL',
+    userId,
+  )) add('survivor_champion', `survivor-${s.season}`, s.name);
+  for (const w of store.all('SELECT season, week, points FROM pickem_results WHERE user_id = ? AND place = 1', userId)) {
+    add('pickem_winner', `pickem-${w.season}-w${w.week}`, `Week ${w.week}, ${w.season} (${w.points} pts)`);
+  }
+  for (const c of store.all('SELECT year, place, points FROM cup_results WHERE user_id = ?', userId)) {
+    if (c.place === 1) add('cup_champion', String(c.year), `${c.year} Cup, ${c.points} pts`);
+    add('cup_podium', String(c.year), `#${c.place}, ${c.year} Cup`);
+  }
   const invited = store.get('SELECT COUNT(*) AS n FROM users WHERE invited_by = ? AND invite_counted_at IS NOT NULL', userId).n;
   if (invited >= RECRUITER_GOAL) add('recruiter', '', `${invited} friends`);
   return out;

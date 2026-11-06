@@ -166,9 +166,29 @@ export function parseScoreboard(sport, data) {
       home,
       away,
       lines: parseLines(sport, firstOdds(comp.odds), home, away),
+      ...seasonWeek(event, data),
     });
   }
   return games;
+}
+
+/**
+ * The season and week ESPN files a game under: { season: 2026, seasonType:
+ * 2, week: 10 } (type 1 is the preseason, 2 the regular season, 3 the
+ * playoffs). The event's own fields first, then the scoreboard's. Anything
+ * missing or odd is null, and src/nflweeks.js works the week out from the date.
+ */
+function seasonWeek(event, data) {
+  const whole = (value, min, max) => {
+    const n = Number(value);
+    return Number.isInteger(n) && n >= min && n <= max ? n : null;
+  };
+  const season = event.season ?? data?.season ?? {};
+  return {
+    season: whole(season.year, 2000, 2100),
+    seasonType: whole(season.type, 1, 4),
+    week: whole(event.week?.number ?? data?.week?.number, 1, 30),
+  };
 }
 
 function team(competitor, state, sport) {

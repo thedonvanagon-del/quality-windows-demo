@@ -37,7 +37,8 @@ import crypto from 'node:crypto';
 
 import { looksOfficial } from './auth.js';
 import { checkBadges } from './badges.js';
-import { CONTEST_MIN, closeWindow, dueToClose, openBetsIn, rankStandings, results, timeLeft, windowStandings } from './contest.js';
+import { CONTEST_MIN, closeWindow, cupForWeek, dueToClose, openBetsIn, rankStandings, results, timeLeft, weekBounds, windowStandings } from './contest.js';
+import { cupYear, PLAYER_MADE_MIN, recordCup } from './cup.js';
 import { formatUnits, grade, profit, settleParlay } from './picks.js';
 import { SPORT } from './sports.js';
 import { withRates } from './stats.js';
@@ -353,6 +354,7 @@ export function closeTournament(store, t, now, notifier = null) {
     ),
   });
   if (!podium) return null;
+  cupForTournament(store, t, now);
   const url = `/tournaments/${t.slug}`;
   const placed = new Set(podium.map((r) => r.id));
   for (const r of podium) {
@@ -367,6 +369,40 @@ export function closeTournament(store, t, now, notifier = null) {
   }
   checkBadges(store, [...placed], now, notifier);
   return podium;
+}
+
+/**
+ * A closed tournament's Cup points: every placed player, by finish. A
+ * player-made one counts only with 8 or more placed. Written once per
+ * player, so it's safe to run again.
+ */
+export function cupForTournament(store, t, now) {
+  const rows = standingsOf(store, t, 100_000).filter((r) => r.rank).map((r) => ({ id: r.id, place: r.rank }));
+  return recordCup(store, {
+    source: 'tournament', ref: t.id, year: cupYear(new Date(new Date(t.ends_at).getTime() - 60_000)), label: t.name, rows, now,
+    minPlaced: hostOf(store, t) ? PLAYER_MADE_MIN : 0,
+  });
+}
+
+/**
+ * Cup points for everything that closed this year before the Cup existed:
+ * tournaments and weekly contests. Idempotent (each player's points for an
+ * event are written once), so it runs at every start.
+ */
+export function backfillCup(store, now) {
+  const year = cupYear(now);
+  const from = etToUtc(`${year}0101`, 0).toISOString();
+  const to = etToUtc(`${year + 1}0101`, 0).toISOString();
+  let added = 0;
+  for (const t of store.all(
+    "SELECT * FROM tournaments WHERE kind != 'weekly' AND closed_at IS NOT NULL AND canceled_at IS NULL AND ends_at > ? AND ends_at <= ? ORDER BY ends_at",
+    from, to,
+  )) added += cupForTournament(store, t, now);
+  for (const { week } of store.all('SELECT week FROM contest_weeks ORDER BY week')) {
+    const end = weekBounds(week).end.toISOString();
+    if (end > from && end <= to) added += cupForWeek(store, week, now);
+  }
+  return added;
 }
 
 /**

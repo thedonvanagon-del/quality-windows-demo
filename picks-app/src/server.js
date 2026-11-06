@@ -4,6 +4,7 @@ import { createApp } from './app.js';
 import { badgesAfterGrading, checkAllBadges } from './badges.js';
 import { loadConfig } from './config.js';
 import { closeDueWeeks } from './contest.js';
+import { closeCupYears } from './cup.js';
 import { openStore } from './db.js';
 import { createDemoEspn, DEMO_LOGIN, seedDemo } from './demo.js';
 import { createEspn } from './espn.js';
@@ -11,11 +12,13 @@ import { createGames } from './games.js';
 import { createMailer } from './mail.js';
 import { createNotifier } from './notify.js';
 import { createOfficialImporter } from './official.js';
+import { closePickemWeeks, gradePickem } from './pickem.js';
 import { createPush } from './push.js';
 import { createReminders } from './reminders.js';
 import { createSummaries } from './summaries.js';
+import { ensurePool, gradeSurvivor, sendSurvivorReminders } from './survivor.js';
 import { createTeamCatalog } from './teams.js';
-import { closeDueTournaments, ensureAutoTournaments, sendFinalHoursAlerts, sendMoveAlerts, sendStartReminders } from './tournaments.js';
+import { backfillCup, closeDueTournaments, ensureAutoTournaments, sendFinalHoursAlerts, sendMoveAlerts, sendStartReminders } from './tournaments.js';
 
 const GRADE_EVERY = 10 * 60_000;
 const IMPORT_EVERY = 15 * 60_000;
@@ -72,7 +75,22 @@ server.listen(config.port, config.host, () => {
   if (config.demo) console.log(`Demo mode. Log in as ${DEMO_LOGIN.email} / ${DEMO_LOGIN.password}`);
 });
 
-// Look for finals on games with open picks.
+// Survivor and NFL Pick'em: grade their picks off the finals, knock out
+// Survivor players, settle and close weeks. Never in the way of anything else.
+function gradeFormats() {
+  try {
+    const survived = gradeSurvivor(store, new Date(), notifier);
+    const picked = gradePickem(store, new Date());
+    if (survived || picked) console.log(`graded ${survived} Survivor and ${picked} Pick'em picks`);
+    for (const { week, podium } of closePickemWeeks(store, new Date(), notifier)) {
+      console.log(`closed NFL Pick'em week ${week}: ${podium.map((r) => r.screen_name).join(', ') || 'nobody placed'}`);
+    }
+  } catch (err) {
+    console.error('Survivor and Pick\'em:', err);
+  }
+}
+
+// Look for finals on games with open picks (Survivor and Pick'em picks too).
 async function checkFinals() {
   try {
     const graded = await games.checkFinals();
@@ -80,6 +98,7 @@ async function checkFinals() {
   } catch (err) {
     console.error('checking finals:', err);
   }
+  gradeFormats();
 }
 const timer = setInterval(checkFinals, GRADE_EVERY);
 checkFinals();
@@ -120,6 +139,14 @@ async function daily() {
     if (moved || final) console.log(`sent ${moved} tournament move and ${final} two-hours-left alerts`);
     const sent = await reminders.run();
     if (sent.lines || sent.streak) console.log(`sent ${sent.lines} lines-up and ${sent.streak} streak reminders`);
+    // Survivor: "Make your pick" 3 hours before the week's first game; weeks settle as they end.
+    const survivor = sendSurvivorReminders(store, new Date(), notifier);
+    if (survivor) console.log(`sent ${survivor} Survivor reminders`);
+    gradeFormats();
+    // The Bookie Bullies Cup: a year's top 3, once the year is over.
+    for (const { year, podium } of closeCupYears(store, new Date(), notifier)) {
+      console.log(`closed the ${year} Cup: ${podium.map((r) => r.screen_name).join(', ')}`);
+    }
   } catch (err) {
     console.error('daily jobs:', err);
   }
@@ -131,12 +158,22 @@ async function tournaments() {
   try {
     const made = await ensureAutoTournaments(store, new Date(), { games });
     if (made.length) console.log(`made tournaments: ${made.join(', ')}`);
+    // This NFL season's Survivor pool, once its games are on the board (the line above refreshed them).
+    ensurePool(store, new Date());
   } catch (err) {
     console.error('tournaments:', err);
   }
 }
 const tournamentsTimer = setInterval(tournaments, TOURNAMENTS_EVERY);
 tournaments().then(daily);
+
+// Cup points for tournaments and weekly contests that closed this year before the Cup. Once per player per event, so every start is safe.
+try {
+  const added = backfillCup(store, new Date());
+  if (added) console.log(`backfilled ${added} Cup results`);
+} catch (err) {
+  console.error('Cup backfill:', err);
+}
 
 // Badges are checked after every grading; this catches anything else, once an hour.
 function badges() {

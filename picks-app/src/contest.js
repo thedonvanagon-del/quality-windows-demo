@@ -14,6 +14,7 @@
 // weekly contest shows there as The Weekly Open.
 
 import { checkBadges } from './badges.js';
+import { cupYear, recordCup } from './cup.js';
 import { formatUnits } from './picks.js';
 import { BETS, MIN_RANKED, numbered, TOTALS, withRates } from './stats.js';
 import { addDays, etToUtc, mondayOf, weekLabel } from './time.js';
@@ -201,6 +202,7 @@ export function closeWeek(store, monday, now, { notifier = null, lastWeek = true
     ),
   });
   if (!podium) return null;
+  cupForWeek(store, monday, now);
   const which = lastWeek ? "last week's contest" : `the ${weekLabel(monday)} contest`;
   for (const r of podium) {
     notifier?.tell(r.id, {
@@ -211,6 +213,20 @@ export function closeWeek(store, monday, now, { notifier = null, lastWeek = true
   }
   checkBadges(store, podium.map((r) => r.id), now, notifier);
   return podium;
+}
+
+/**
+ * A closed week's Cup points: every placed player, by finish (the Weekly
+ * Open is a tournament like the rest). Written once per player, so it's
+ * safe to run again.
+ */
+export function cupForWeek(store, monday, now) {
+  const window = weekWindow(monday);
+  const rows = windowStandings(store, window, 100_000).filter((r) => r.rank).map((r) => ({ id: r.id, place: r.rank }));
+  return recordCup(store, {
+    source: 'weekly', ref: monday, year: cupYear(new Date(window.end.getTime() - 60_000)),
+    label: `The Weekly Open, ${weekLabel(monday)}`, rows, now,
+  });
 }
 
 /**

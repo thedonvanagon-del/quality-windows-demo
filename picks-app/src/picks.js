@@ -172,8 +172,11 @@ export function gradeFinished(store, now, { staleAfterMs = 3 * 86_400_000, onGra
   return done.length + parlaysDone.length;
 }
 
-/** win, loss, push or void for one bet on a game that's over, or null while it's still to be decided. */
-function outcome(row, staleAfterMs) {
+/**
+ * win, loss, push or void for one bet on a game that's over, or null while
+ * it's still to be decided. Survivor and Pick'em grade with this too.
+ */
+export function outcome(row, staleAfterMs = 3 * 86_400_000) {
   const checkedLate = new Date(row.updated_at) - new Date(row.start_time) >= staleAfterMs;
   if (row.state === 'post' && row.completed && row.home_score != null && row.away_score != null) {
     return grade(row, row.home_score, row.away_score);
