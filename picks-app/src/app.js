@@ -88,6 +88,8 @@ export function createApp({ store, games, espn = null, config, mailer = createMa
   const media = mediaDir(config.mediaDir ?? 'data/media');
   const app = {
     name: config.appName,
+    shortName: config.appShortName ?? config.appName,
+    motto: 'Made to show the true skill of real handicappers with nothing to hide.',
     theme: config.theme ?? THEMES[0],
     // www.bookiebullies.com, for links to the site (src/site.js).
     site: config.siteUrl ?? SITE_URL,

@@ -265,7 +265,7 @@ for (const button of document.querySelectorAll('[data-share-image]')) {
       const file = new File([blob], name, { type: 'image/png' });
       if (navigator.canShare?.({ files: [file] })) {
         try {
-          await navigator.share({ files: [file], title: `${card.dataset.name} on Bookie Bullies` });
+          await navigator.share({ files: [file], title: `${card.dataset.name} on LockBox Picks` });
         } catch (err) {
           if (err.name !== 'AbortError') throw err;
         }
@@ -351,7 +351,7 @@ async function drawWinCard(d) {
   if (crest?.complete && crest.naturalWidth) c.drawImage(crest, 80, 80, 110, 110);
   c.fillStyle = v('--ink');
   c.font = `800 60px ${cond}`;
-  c.fillText('BOOKIE BULLIES', 214, 142);
+  c.fillText('LOCKBOX PICKS', 214, 142);
   c.fillStyle = gold;
   c.font = `800 32px ${cond}`;
   c.fillText('✓ TRUST YOUR BETS', 216, 184);
@@ -427,7 +427,7 @@ async function drawCard(d) {
   if (crest?.complete && crest.naturalWidth) c.drawImage(crest, 80, 84, 120, 120);
   c.fillStyle = v('--ink');
   c.font = `800 64px ${cond}`;
-  c.fillText('BOOKIE BULLIES', 224, 150);
+  c.fillText('LOCKBOX PICKS', 224, 150);
   c.fillStyle = v('--gold') || '#ffd257';
   c.font = `800 34px ${cond}`;
   c.fillText('✓ TRUST YOUR BETS', 226, 196);

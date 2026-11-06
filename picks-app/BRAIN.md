@@ -36,6 +36,18 @@ not dollars, and nothing is paid out.
   bookie-bullies repo) for the header, the browser tab and the phone icons.
 
 ### Look
+- **2026-11-06: The app is "LockBox Picks", by BOOKIEBULLIES.COM** (owner's
+  call). Motto: "Made to show the true skill of real handicappers with nothing
+  to hide." The header reads LOCKBOX PICKS with "BY BOOKIEBULLIES.COM" in gold
+  under it (replacing the ".com"); the launch screen shows the crest, the name,
+  the byline and the motto; the home screen label is "LockBox" (iPhone cuts
+  long labels) and the installed app's full name is "LockBox Picks by
+  BookieBullies.com". The LOCKED ticket adds "Once it's in, it's on the
+  record." Bookie Bullies stays the brand behind it: the official account, the
+  Bookie Bullies Cup, the model's Locks, the crest and the website keep the
+  name. Settings: `APP_NAME`, `APP_SHORT_NAME`. Chosen over "LockBox" alone so
+  the name says what it is and shows up in "picks" searches; check the App
+  Store, Google Play and USPTO for conflicts before submitting.
 - **2026-11-06: Launch screen and ".com" (owner's ask, to promote the
   site).** The first page of each visit shows the crest with
   BOOKIEBULLIES.COM in gold for about a second, then fades (pure CSS, a tap

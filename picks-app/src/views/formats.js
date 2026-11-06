@@ -134,7 +134,7 @@ export function survivorPage(ctx, { state, entry, board, history, table, canJoin
   return layout(ctx, {
     title,
     active: 'tournaments',
-    description: 'Free NFL Survivor on Bookie Bullies: pick one team to win each week, use each team once, last one standing wins.',
+    description: 'Free NFL Survivor on LockBox Picks: pick one team to win each week, use each team once, last one standing wins.',
     body: html`
       <a class="back" href="/tournaments">← Tournaments</a>
       <div class="tn-title"><h1>${title}</h1>${free}</div>
@@ -252,7 +252,7 @@ export function pickemPage(ctx, { week, board, rows, season, results, weeks, vie
   return layout(ctx, {
     title: "NFL Pick'em",
     active: 'tournaments',
-    description: "Free NFL Pick'em on Bookie Bullies: pick every game against the spread each week.",
+    description: "Free NFL Pick'em on LockBox Picks: pick every game against the spread each week.",
     body: html`
       <a class="back" href="/tournaments">← Tournaments</a>
       <div class="tn-title"><h1>NFL Pick'em</h1>${free}</div>

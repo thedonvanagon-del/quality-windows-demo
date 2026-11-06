@@ -64,17 +64,17 @@ export function layout(ctx, { title, active, body, description, share }) {
 <link rel="manifest" href="${app.assets.manifest}">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-title" content="${app.name}">
+<meta name="apple-mobile-web-app-title" content="${app.shortName ?? app.name}">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
 <link rel="stylesheet" href="${app.assets.css}">
 ${style ? html`<link rel="stylesheet" href="${sheetPath(style)}">` : ''}
 <script src="${app.assets.js}" defer></script>
 </head>
 <body class="${[playing ? 'signed-in' : '', draft ? 'has-parlay' : ''].filter(Boolean).join(' ')}">
-${splash ? html`<div class="splash" aria-hidden="true" data-splash><img class="splash-logo" src="${app.assets.logo}" alt="" width="132" height="132"><b class="splash-site">BOOKIEBULLIES.COM</b></div>` : ''}
+${splash ? html`<div class="splash" aria-hidden="true" data-splash><img class="splash-logo" src="${app.assets.logo}" alt="" width="132" height="132"><b class="splash-name">${app.name}</b><span class="splash-by">by BOOKIEBULLIES.COM</span>${app.motto ? html`<span class="splash-motto">${app.motto}</span>` : ''}</div>` : ''}
 <header class="top">
   <div class="wrap">
-    <a class="brand" href="/"><img class="brand-logo" src="${app.assets.logo}" alt="" width="34" height="34"><span class="brand-name">${app.name}<span class="brand-tld">.com</span></span></a>
+    <a class="brand" href="/"><img class="brand-logo" src="${app.assets.logo}" alt="" width="34" height="34"><span class="brand-name"><span class="brand-word">${app.name}</span><small class="brand-by">by BOOKIEBULLIES.COM</small></span></a>
     <nav class="nav" aria-label="Main">${nav.map(link)}</nav>
     <div class="top-right">
       ${active === 'install' ? '' : html`<a class="get-app" href="/install" data-get-app>${icons.download}<span>Get the app</span></a>`}
@@ -96,14 +96,14 @@ ${user && !user.verified
 ${active === 'install' ? '' : html`<div class="app-banner" data-app-banner hidden>
   <div class="wrap">
     <img src="${app.assets.touchIcon}" alt="" width="36" height="36">
-    <a class="btn app-banner-go" href="/install" data-get-app>Get Bookie Bullies App</a>
+    <a class="btn app-banner-go" href="/install" data-get-app>Get the ${app.shortName ?? app.name} App</a>
     <button type="button" class="app-banner-close" data-banner-close aria-label="Not now">×</button>
   </div>
 </div>`}
 ${active === 'install' ? '' : html`<div class="ios-install" data-ios-install hidden>
   <div class="ios-card" role="dialog" aria-modal="true" aria-labelledby="ios-install-title">
     <button type="button" class="ios-close" data-ios-close aria-label="Close">×</button>
-    <div class="ios-head"><img src="${app.assets.touchIcon}" alt="" width="52" height="52"><div><b id="ios-install-title">Add Bookie Bullies to your Home Screen</b><small>Free. About ten seconds.</small></div></div>
+    <div class="ios-head"><img src="${app.assets.touchIcon}" alt="" width="52" height="52"><div><b id="ios-install-title">Add ${app.shortName ?? app.name} to your Home Screen</b><small>Free. About ten seconds.</small></div></div>
     <ol class="ios-steps">
       <li><span class="step-n">1</span><span>Tap the Share button <svg class="ios-glyph" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12M8 7l4-4 4 4"/><path d="M6 11H5a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-8a1 1 0 0 0-1-1h-1"/></svg> <span data-where="safari">in Safari's bar below<small>On newer iPhones, tap <b>⋯</b>, then <b>Share</b>.</small></span><span data-where="chrome" hidden>next to the address bar, top right</span></span></li>
       <li><span class="step-n">2</span><span>Scroll down and tap <svg class="ios-glyph" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="3.5" width="17" height="17" rx="4"/><path d="M12 8v8M8 12h8"/></svg> <b>Add to Home Screen</b></span></li>
@@ -153,6 +153,7 @@ function lockedTicket(ctx, flash) {
     <span class="stamp">Locked</span>
     <div class="lt-body">
       <b>${flash.text}</b>
+      <span class="lt-motto">Once it's in, it's on the record.</span>
       ${flash.at ? html`<span>On the record <time datetime="${flash.at}" data-local="long">${when(flash.at)}</time>. It can't be edited after the game starts.</span>` : ''}
       ${showsSitePicks(ctx.user) ? html`<a class="lt-site" href="${siteLink(ctx.app.site, 'ticket')}" target="_blank" rel="noopener">Want a second opinion? See the model's picks →</a>` : ''}
     </div>

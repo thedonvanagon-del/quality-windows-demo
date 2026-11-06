@@ -26,7 +26,9 @@ export function loadConfig(env = process.env) {
     mediaDir: env.MEDIA_DIR || (truthy(env.DEMO) || env.DATABASE_PATH === ':memory:'
       ? path.join(os.tmpdir(), 'bookie-bullies-demo-media')
       : path.join(path.dirname(env.DATABASE_PATH || 'data/bookiebullies.db'), 'media')),
-    appName: env.APP_NAME || 'Bookie Bullies',
+    appName: env.APP_NAME || 'LockBox Picks',
+    // Under the name on the home screen, where iPhone cuts long labels.
+    appShortName: env.APP_SHORT_NAME || 'LockBox',
     // The look for visitors and new players: one of THEMES.
     theme: THEMES.includes(env.THEME) ? env.THEME : THEMES[0],
     // Fake games and players, so the app can be clicked through with no
