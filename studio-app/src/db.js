@@ -123,6 +123,10 @@ export const MIGRATIONS = [
     value TEXT NOT NULL
   );
   `,
+  `
+  -- One short line under each service: who it suits ("Sensitive or dull skin").
+  ALTER TABLE services ADD COLUMN best_for TEXT NOT NULL DEFAULT '';
+  `,
 ];
 
 export function openStore(file) {

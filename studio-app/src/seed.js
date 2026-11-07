@@ -24,6 +24,18 @@ const SERVICES = [
   ['full-leg-wax', 'Full Leg Wax', 'Waxing', '', '', 60, 8500],
 ];
 
+// Who each service suits, shown under its name. Plain descriptions, not promises of results.
+const BEST_FOR = {
+  consultation: 'First-timers, or anyone unsure what to book',
+  hydradermabrasion: 'Dull, dehydrated or congested skin, or a glow before an event',
+  microdermabrasion: 'Rough texture and dullness',
+  microneedling: 'Uneven texture, fine lines and the look of acne scars',
+  'enzyme-peel': 'Sensitive, reactive or dull skin',
+  'lash-lift': 'Straight lashes, and anyone tired of curlers',
+  'lash-lift-tint': 'Light or fine lashes',
+  'lash-tint': 'Light lashes and mascara-free mornings',
+};
+
 const ADDONS = [
   ['Brow wax', 'Facials', 15, 2000],
   ['Lip wax', 'Facials', 10, 1000],
@@ -44,6 +56,7 @@ export function seedIfEmpty(store) {
         slug, name, category, description, prep, duration, price, i,
       );
     });
+    for (const [slug, text] of Object.entries(BEST_FOR)) store.run('UPDATE services SET best_for = ? WHERE slug = ?', text, slug);
     ADDONS.forEach(([name, appliesTo, duration, price], i) => {
       store.run('INSERT INTO addons (name, applies_to, duration_min, price_cents, sort) VALUES (?, ?, ?, ?, ?)', name, appliesTo, duration, price, i);
     });

@@ -54,7 +54,7 @@ Everything under **Schedule** after signing in with her email:
 - **Book a client**: for people who text her. Can go outside normal hours;
   can't double-book.
 - **Clients**: search, health form, her private skin notes, visit history.
-- **Menu**: add, edit, hide services and add-ons. Prices, lengths, prep notes.
+- **Menu**: add, edit, hide services and add-ons. Prices, lengths, a "best for" line, prep notes.
 - **Hours**: weekly hours with split days (lunch), plus time off for trips.
 - **Settings**: studio name, tagline, her bio, address, arrival notes, phone,
   Instagram, policies, and the booking rules (notice, how far ahead, cleanup
@@ -64,13 +64,35 @@ The first boot starts with a sample menu and hours (Tue to Sat) so it isn't
 empty. **The names, prices and times are placeholders.** Change all of it in the
 owner pages.
 
+## Photos
+
+The site uses six photos from `public/`. **Right now they are free stock
+placeholders from Unsplash** (free to use under the Unsplash License, no
+credit required). Swap in her own photos by replacing the files with the
+same names, then redeploy:
+
+| File | Where it shows | Best shape |
+|---|---|---|
+| `hero.jpg` | Top of the home page | Landscape, 4:3. Her at work, or the treatment room. |
+| `facials.jpg`, `lashes.jpg`, `waxing.jpg` | The three service cards | Landscape, about 10:7 |
+| `about.jpg` | Next to her bio | Portrait, 4:5. A photo of her. |
+| `first-visit.jpg` | "Your first visit" section | Landscape, 3:2. The room, the entrance or her products. |
+
+Keep each under about 300 KB (1400 px wide is plenty) so the site stays fast on
+phones. Only use client photos (before and after) with written permission.
+
+Sources of the placeholders, for the record: images.unsplash.com photo IDs
+1512290923902-8a9f81dc236c (hero), 1570172619644-dfd03ed5d881 (facials),
+1531746020798-e6953c6e8e04 (lashes), 1540555700478-4be289fbecef (waxing),
+1573461160327-b450ce3d8e7f (about), 1576426863848-c21f53c60b19 (first visit).
+
 ## Not built yet
 
 - **Online payment and deposits.** Everything is paid at the visit. Cards on
   file, deposits and no-show fees are the big GlossGenius feature this lacks.
   Stripe is the usual next step; say the word.
 - Text-message reminders (email only today).
-- Photos / a gallery, gift cards, packages (a 3-session microneedling series).
+- A photo gallery, uploading photos from the owner pages, gift cards, packages (a 3-session microneedling series).
 - Syncing to Google Calendar (the .ics file works one visit at a time).
 - More than one practitioner.
 

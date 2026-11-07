@@ -438,3 +438,43 @@ test('day-before reminders go out once, and only for visits booked well ahead', 
   assert.match(sent[0].subject, /Tomorrow/);
   await app.close();
 });
+
+test('home shows the photos, the first-visit list and a free consultation link', async () => {
+  const app = await makeApp();
+  const c = app.client();
+  const home = await c.get('/');
+  for (const img of ['hero', 'facials', 'lashes', 'waxing', 'about', 'first-visit']) assert.match(home.text, new RegExp(`/static/${img}\\.jpg`), img);
+  assert.match(home.text, /Your first visit/);
+  assert.match(home.text, /href="\/book\/consultation"/);
+  for (const img of ['hero', 'facials', 'about']) {
+    const res = await c.get(`/static/${img}.jpg`);
+    assert.equal(res.status, 200, img);
+    assert.equal(res.headers.get('content-type'), 'image/jpeg');
+  }
+  await app.close();
+});
+
+test('the menu says who each service is best for, and the owner can edit it', async () => {
+  const app = await makeApp();
+  const menu = await app.client().get('/services');
+  assert.match(menu.text, /Best for<\/span> Sensitive, reactive or dull skin/);
+  const book = await app.client().get('/book');
+  assert.match(book.text, /Not sure what to book\?/);
+  assert.match(book.text, /free 20-minute skin consultation/);
+
+  const owner = app.client();
+  await owner.signIn('owner@example.com');
+  const s = app.store.get("SELECT id FROM services WHERE slug = 'enzyme-peel'");
+  await owner.get(`/admin/services/${s.id}`);
+  await owner.post(`/admin/services/${s.id}`, { name: 'Enzyme Peel Facial', category: 'Facials', best_for: 'Skin that hates acids', description: '', prep_note: '', duration_min: '50', price: '110', active: '1' });
+  assert.match((await app.client().get('/services')).text, /Skin that hates acids/);
+  await app.close();
+});
+
+test('first-visit points come from settings, one per line', async () => {
+  const app = await makeApp();
+  app.store.run("INSERT INTO settings (key, value) VALUES ('first_visit', 'Bring water.\n\nWear something comfy.')");
+  const home = await app.client().get('/');
+  assert.match(home.text, /<li>Bring water\.<\/li><li>Wear something comfy\.<\/li>/);
+  await app.close();
+});

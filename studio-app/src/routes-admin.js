@@ -275,6 +275,7 @@ export function registerAdmin(add, deps) {
   <form method="post" action="/admin/services/${s.id || 'new'}" class="stack narrow-form">${csrf(ctx)}
     ${field({ label: 'Name', name: 'name', value: s.name, required: true })}
     ${categoryField(s.category)}
+    ${field({ label: 'Best for (one short line)', name: 'best_for', value: s.best_for ?? '', hint: 'Like: Sensitive, reactive or dull skin' })}
     ${textarea({ label: 'Description', name: 'description', value: s.description, rows: 3 })}
     ${textarea({ label: 'Before-you-come note (prep, who should skip it)', name: 'prep_note', value: s.prep_note, rows: 2 })}
     ${field({ label: 'Length (minutes)', name: 'duration_min', type: 'number', value: s.duration_min, required: true, attrs: ' min="5" max="480" step="5"' })}
@@ -285,7 +286,7 @@ export function registerAdmin(add, deps) {
   const slugify = (name) => name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 60) || 'service';
 
   route('GET', '/admin/services/:id', (ctx) => {
-    if (ctx.params.id === 'new') return serviceForm(ctx, { id: 0, name: '', category: '', description: '', prep_note: '', duration_min: 60, price_cents: 0, active: 1 });
+    if (ctx.params.id === 'new') return serviceForm(ctx, { id: 0, name: '', category: '', best_for: '', description: '', prep_note: '', duration_min: 60, price_cents: 0, active: 1 });
     const s = store.get('SELECT * FROM services WHERE id = ?', Number(ctx.params.id));
     return s ? serviceForm(ctx, s) : ctx.redirect('/admin/services');
   });
@@ -293,19 +294,19 @@ export function registerAdmin(add, deps) {
   route('POST', '/admin/services/:id', (ctx) => {
     const id = ctx.params.id === 'new' ? 0 : Number(ctx.params.id);
     const f = ctx.form;
-    const draft = { id, name: String(f.name ?? '').trim(), category: String(f.category ?? '').trim(), description: String(f.description ?? '').trim(), prep_note: String(f.prep_note ?? '').trim(), duration_min: Number(f.duration_min), price_cents: Math.round(Number(f.price) * 100), active: f.active ? 1 : 0 };
+    const draft = { id, name: String(f.name ?? '').trim(), category: String(f.category ?? '').trim(), best_for: String(f.best_for ?? '').trim().slice(0, 160), description: String(f.description ?? '').trim(), prep_note: String(f.prep_note ?? '').trim(), duration_min: Number(f.duration_min), price_cents: Math.round(Number(f.price) * 100), active: f.active ? 1 : 0 };
     if (!draft.name || !draft.category) return serviceForm(ctx, draft, 'Name and category are needed.');
     if (!Number.isInteger(draft.duration_min) || draft.duration_min < 5 || draft.duration_min > 480) return serviceForm(ctx, draft, 'Length must be between 5 and 480 minutes.');
     if (!Number.isInteger(draft.price_cents) || draft.price_cents < 0 || draft.price_cents > 500_000) return serviceForm(ctx, draft, 'Check the price.');
     if (id) {
-      store.run('UPDATE services SET name = ?, category = ?, description = ?, prep_note = ?, duration_min = ?, price_cents = ?, active = ? WHERE id = ?',
-        draft.name, draft.category, draft.description, draft.prep_note, draft.duration_min, draft.price_cents, draft.active, id);
+      store.run('UPDATE services SET name = ?, category = ?, best_for = ?, description = ?, prep_note = ?, duration_min = ?, price_cents = ?, active = ? WHERE id = ?',
+        draft.name, draft.category, draft.best_for, draft.description, draft.prep_note, draft.duration_min, draft.price_cents, draft.active, id);
     } else {
       let slug = slugify(draft.name);
       for (let n = 2; store.get('SELECT 1 AS x FROM services WHERE slug = ?', slug); n += 1) slug = `${slugify(draft.name)}-${n}`;
       const sort = (store.get('SELECT MAX(sort) AS m FROM services').m ?? 0) + 1;
-      store.run('INSERT INTO services (slug, name, category, description, prep_note, duration_min, price_cents, active, sort) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
-        slug, draft.name, draft.category, draft.description, draft.prep_note, draft.duration_min, draft.price_cents, draft.active, sort);
+      store.run('INSERT INTO services (slug, name, category, best_for, description, prep_note, duration_min, price_cents, active, sort) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+        slug, draft.name, draft.category, draft.best_for, draft.description, draft.prep_note, draft.duration_min, draft.price_cents, draft.active, sort);
     }
     ctx.redirect('/admin/services', 'Menu saved.');
   });

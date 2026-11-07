@@ -91,6 +91,7 @@ export function serviceList(services) {
         ${items.map((s) => html`<li class="menu-item">
           <div class="menu-text">
             <h3>${s.name}</h3>
+            ${s.best_for ? html`<p class="best-for"><span>Best for</span> ${s.best_for}</p>` : ''}
             ${s.description ? html`<p>${s.description}</p>` : ''}
             ${s.prep_note ? html`<p class="prep"><strong>Before you come:</strong> ${s.prep_note}</p>` : ''}
           </div>

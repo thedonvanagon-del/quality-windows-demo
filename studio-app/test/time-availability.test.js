@@ -104,3 +104,22 @@ test('a split day (lunch break) offers no time that straddles the break', () => 
   assert.ok(!starts.includes('19:00'), '11:00 start would run into the break');
   assert.ok(starts.includes('21:00'), '1:00 pm start is fine');
 });
+
+test('an existing database gets the new best-for column on upgrade', async () => {
+  const fs = await import('node:fs');
+  const os = await import('node:os');
+  const path = await import('node:path');
+  const { DatabaseSync } = await import('node:sqlite');
+  const { MIGRATIONS } = await import('../src/db.js');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'studio-'));
+  const file = path.join(dir, 'old.db');
+  const old = new DatabaseSync(file);
+  old.exec(MIGRATIONS[0]);
+  old.exec('PRAGMA user_version = 1');
+  old.exec("INSERT INTO services (slug, name, category, duration_min, price_cents) VALUES ('x', 'X', 'Facials', 30, 100)");
+  old.close();
+  const store = openStore(file);
+  assert.equal(store.get("SELECT best_for FROM services WHERE slug = 'x'").best_for, '');
+  store.close();
+  fs.rmSync(dir, { recursive: true });
+});
