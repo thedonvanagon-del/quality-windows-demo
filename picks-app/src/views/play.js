@@ -588,7 +588,7 @@ function formRecord(list) {
 }
 
 /** One game: its board (or score once it starts), injuries and form before the start, and its chat. */
-export function gamePage(ctx, { game, started, messages, picksBy, mine, leg = null, split = null, insight = null }) {
+export function gamePage(ctx, { game, started, messages, picksBy, mine, leg = null, split = null, insight = null, bell = null }) {
   const sport = SPORT[game.sport];
   const scoreline = (side) => html`<div class="scoreline"><span class="team">${teamLogo(game[side])}<span class="tname"><span class="tn">${game[side].short}</span>${game[side].record ? html`<span class="tsub"><span class="trec">${game[side].record}</span></span>` : ''}</span></span><span class="score">${game[side].score ?? 0}</span></div>`;
   return layout(ctx, {
@@ -596,7 +596,7 @@ export function gamePage(ctx, { game, started, messages, picksBy, mine, leg = nu
     active: 'games',
     body: html`
       <a class="back" href="/games?sport=${sport.key}">← ${sport.short} games</a>
-      <h1>${game.away.short} @ ${game.home.short}</h1>
+      <div class="game-title"><h1>${game.away.short} @ ${game.home.short}</h1>${bell ?? ''}</div>
       ${started
         ? html`<article class="event">
             <div class="live-head">${game.state === 'in' ? html`<span class="live-tag">Live</span>` : ''}<span>${sport.short} · ${game.detail || 'Started'}${game.tv ? ` · ${game.tv}` : ''}</span></div>

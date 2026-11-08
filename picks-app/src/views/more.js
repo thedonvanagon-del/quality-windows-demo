@@ -5,7 +5,9 @@ import { SPORT } from '../sports.js';
 import { when } from '../time.js';
 import { icons } from './icons.js';
 import { csrfField, layout } from './layout.js';
+import { followBell } from './alerts.js';
 import { adminTabs } from './local.js';
+import { cardId } from './play.js';
 import { at, avatar, minus, profileLink, teamLogo } from './parts.js';
 
 /** The menu behind the three dots. New sections get a row here. */
@@ -54,7 +56,7 @@ export function more(ctx, { liveCount, admin = false, reported = 0, reportedCups
 }
 
 /** Every game going on right now. `mine` maps game id to the viewer's picks on it. */
-export function live(ctx, { list, mine }) {
+export function live(ctx, { list, mine, follows = new Set() }) {
   return layout(ctx, {
     title: 'Live games',
     active: 'more',
@@ -64,17 +66,17 @@ export function live(ctx, { list, mine }) {
       <p class="lede">Every game in progress, all sports. Scores update on their own about every 30 seconds.</p>
       <div class="live-list" data-live-poll>
         ${list.length
-          ? list.map((g) => liveCard(g, mine.get(g.id) ?? []))
+          ? list.map((g) => liveCard(ctx, g, mine.get(g.id) ?? [], follows.has(g.id)))
           : html`<div class="card empty">Nothing on right now. Check back when games kick off.</div>`}
       </div>
     `,
   });
 }
 
-function liveCard(g, picks) {
+function liveCard(ctx, g, picks, following = false) {
   const line = (side) => html`<div class="scoreline"><span class="team">${teamLogo(g[side])}<span class="tname">${g[side].short}</span></span><span class="score">${g[side].score ?? 0}</span></div>`;
-  return html`<article class="event">
-    <div class="live-head"><span class="live-tag">Live</span><span>${SPORT[g.sport]?.short} · ${g.detail}</span><a class="chat-link" href="/games/${encodeURIComponent(g.id)}#chat">${icons.chat}Chat</a></div>
+  return html`<article class="event" id="${cardId(g.id)}">
+    <div class="live-head"><span class="live-tag">Live</span><span>${SPORT[g.sport]?.short} · ${g.detail}</span><a class="chat-link" href="/games/${encodeURIComponent(g.id)}#chat">${icons.chat}Chat</a>${followBell(ctx, g.id, { following, next: `/live#${cardId(g.id)}` })}</div>
     ${line('away')}
     ${line('home')}
     ${picks.length
@@ -103,7 +105,7 @@ export function chatHub(ctx, { list }) {
 }
 
 // The icon beside each kind of note in the inbox.
-const KIND_ICON = { follow: icons.groups, invite: icons.invite, badge: icons.medal, contest: icons.board, lines: icons.games, streak: icons.flame, tournament: icons.bracket, photo: icons.me };
+const KIND_ICON = { game: icons.bell, follow: icons.groups, invite: icons.invite, badge: icons.medal, contest: icons.board, lines: icons.games, streak: icons.flame, tournament: icons.bracket, photo: icons.me };
 
 /** The inbox, what to be told about, and phone notifications. */
 export function notifications(ctx, { list, prefs, phones, pushKey }) {

@@ -10,7 +10,7 @@ import { toGame } from './games.js';
 const FOLLOW_QUIET_MS = 30 * 60_000;
 const KEEP = 100;
 
-const settledHead = (r) => ({ win: `Won ${formatUnits(r.profit, { sign: true })}`, loss: `Lost ${formatUnits(r.profit)}`, push: 'Push', void: 'Void' })[r.result];
+export const settledHead = (r) => ({ win: `Won ${formatUnits(r.profit, { sign: true })}`, loss: `Lost ${formatUnits(r.profit)}`, push: 'Push', void: 'Void' })[r.result];
 
 export function createNotifier({ store, push = null, log = console }) {
   function add(userId, { kind, title, text, url }, now) {
@@ -104,6 +104,15 @@ export function createNotifier({ store, push = null, log = console }) {
       if (!user || user.official) return false;
       add(userId, { kind, title: title ?? text, text, url }, now);
       return true;
+    },
+
+    /**
+     * A game alert for a player following the game (src/gamealerts.js):
+     * "Lead change: Warriors up 2 · BOS 88–GS 90 · Q4 6:10", to the inbox and
+     * their phones, opening the game.
+     */
+    gameAlert(userId, { gameId, title, text }, now = new Date()) {
+      add(userId, { kind: 'game', title, text, url: `/games/${encodeURIComponent(gameId)}` }, now);
     },
 
     unread: (userId) => store.get('SELECT COUNT(*) AS n FROM notifications WHERE user_id = ? AND read_at IS NULL', userId).n,

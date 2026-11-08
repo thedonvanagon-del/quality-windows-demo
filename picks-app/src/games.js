@@ -64,8 +64,8 @@ export function createGames({ store, espn, now = () => new Date(), log = console
                               home_name, home_short, home_abbr, home_score, home_logo,
                               away_name, away_short, away_abbr, away_score, away_logo, lines, updated_at,
                               tv, home_record, away_record, home_color, away_color, closing_lines, closing_at,
-                              home_alt_color, away_alt_color, season, season_type, week)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                              home_alt_color, away_alt_color, season, season_type, week, period, clock)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
            ON CONFLICT (id) DO UPDATE SET
              start_time = excluded.start_time, state = excluded.state, status = excluded.status,
              detail = excluded.detail, completed = excluded.completed,
@@ -82,6 +82,7 @@ export function createGames({ store, espn, now = () => new Date(), log = console
              season = COALESCE(excluded.season, games.season),
              season_type = COALESCE(excluded.season_type, games.season_type),
              week = COALESCE(excluded.week, games.week),
+             period = excluded.period, clock = excluded.clock,
              -- ESPN drops the odds once a game starts; keep the last ones seen
              -- for display.
              lines = CASE WHEN ? THEN excluded.lines ELSE games.lines END,
@@ -94,6 +95,7 @@ export function createGames({ store, espn, now = () => new Date(), log = console
           g.away.name, g.away.short, g.away.abbr, g.away.score, g.away.logo ?? null, lines, at,
           g.tv ?? null, g.home.record ?? null, g.away.record ?? null, g.home.color ?? null, g.away.color ?? null,
           closing.lines, closing.at, g.home.alt ?? null, g.away.alt ?? null, g.season ?? null, g.seasonType ?? null, g.week ?? null,
+          g.period ?? null, g.clock ?? null,
           replaceLines ? 1 : 0,
         );
       }
@@ -154,6 +156,22 @@ export function createGames({ store, espn, now = () => new Date(), log = console
         .map(toGame);
     },
     problem: (sportKey) => problems.get(sportKey) ?? null,
+
+    /**
+     * Re-read the Eastern days of these games ([{ sport, start_time }]) from
+     * ESPN, each at most once a minute (the same limit as live()). The game
+     * alerts timer calls it with the followed games that are on or about to start.
+     */
+    async refreshDays(rows) {
+      const t = now().getTime();
+      const days = new Map();
+      for (const { sport, start_time: start } of rows) {
+        if (SPORT[sport]) days.set(`${sport} ${etDay(start)}`, [SPORT[sport], etDay(start)]);
+      }
+      const due = [...days.values()].filter(([sport, day]) => t - lastFetched(sport, day) > LIVE_MAX_AGE);
+      await Promise.all(due.map(([sport, day]) => refresh(sport, day)));
+      return due.length;
+    },
 
     /** Games still to start in the sport's window, freshest lines first fetched if stale. */
     async upcoming(sportKey) {
@@ -254,5 +272,7 @@ export function toGame(row) {
     season: row.season ?? null,
     seasonType: row.season_type ?? null,
     week: row.week ?? null,
+    period: row.period ?? null,
+    clock: row.clock ?? null,
   };
 }

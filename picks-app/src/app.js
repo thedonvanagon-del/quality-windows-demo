@@ -13,6 +13,7 @@ import { chatCounts, chatGames, deleteMessage, HIDE_AFTER_REPORTS, markGroupRead
 import { CITY, cityGroups } from './cities.js';
 import { allRooms, archiveRoom, createGroup, deleteGroup, findByCode, groupFor, groupsOf, joinGroup, joinRoom, leaveGroup, localRooms, membersOf, renameRoom, roomFor, roomsOf, setHomeCity, settleHomeCity, startRoom } from './groups.js';
 import { follow, followCounts, followingAmong, followingList, isFollowing, unfollow } from './follows.js';
+import { alertPrefs, followedGameIds, followGame, GAME_ALERTS, isFollowingGame, saveAlertPrefs, unfollowGame } from './gamealerts.js';
 import { followFeed, groupFeed, ownPick, ownPicks, picksForGames, picksOnGames, publicPicks } from './history.js';
 import { SITE_URL, THEMES } from './config.js';
 import { clearPhoto, cleanImage, deleteFile, dismissPhoto, filesOf, KINDS, kindOf, MEDIA_NAME, MEDIA_TYPES, mediaDir, mediaOwner, parseMultipart, PHOTO_BLOCK_DAYS, PHOTO_HIDE_AFTER, photosFor, removeReportedPhoto, reportedBy, reportedPhotos, reportPhoto, savePhoto, tooBigText, uploadBlockedUntil } from './photos.js';
@@ -49,6 +50,7 @@ import {
 import { addDays, dateLabel, etDay, mondayOf, weekLabel } from './time.js';
 import { breakdown, hotStreaks, lastTen, leaderboard, PERIODS, rankOf, record, recordBySport, searchPlayers, splits, unitsSeries } from './stats.js';
 import * as account from './views/account.js';
+import * as alertViews from './views/alerts.js';
 import * as legal from './views/legal.js';
 import * as local from './views/local.js';
 import * as moreViews from './views/more.js';
@@ -176,6 +178,15 @@ export function createApp({ store, games, espn = null, config, mailer = createMa
   }
 
   const notFound = (ctx) => send(ctx, 404, account.notFound(ctx));
+
+  /** A fetch from app.js that asked for JSON back instead of a redirect. */
+  const wantsJson = (ctx) => /application\/json/.test(ctx.req.headers.accept ?? '');
+
+  function sendJson(ctx, status, data) {
+    const body = JSON.stringify(data);
+    ctx.res.writeHead(status, headers(ctx, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store', 'Content-Length': Buffer.byteLength(body) }));
+    ctx.res.end(body);
+  }
 
   /**
    * Put each row's look on it, by the player id in `key`: `photo` (null if
@@ -496,7 +507,8 @@ export function createApp({ store, games, espn = null, config, mailer = createMa
     const bb = site ? officialOnGames(store, list.map((g) => g.id)) : new Map();
     const locks = site && !locksCardHidden(ctx.user, ctx.now) ? todaysSitePicks(store, ctx.now) : null;
     const problem = sports.some((s) => games.problem(s.key));
-    send(ctx, 200, play.games(ctx, { sport, list, live, mine, draft, chats, split, bb, locks, problem }));
+    const follows = followedGameIds(store, ctx.user.id, ids);
+    send(ctx, 200, play.games(ctx, { sport, list, live, mine, draft, chats, split, bb, locks, problem, follows }));
   }
 
   // ---- www.bookiebullies.com on the board (src/site.js) -----------------------
@@ -721,7 +733,62 @@ export function createApp({ store, games, espn = null, config, mailer = createMa
     const leg = draftOnGames(store, ctx.user.id, [game.id]).get(game.id) ?? null;
     // Injuries and recent form, before the start: from the cache only, never waiting on ESPN.
     const insight = started ? null : summaries?.peek(game) ?? null;
-    send(ctx, 200, play.gamePage(ctx, { game, started, messages: list, picksBy, mine, leg, split: splits(store, [game.id]).get(game.id) ?? null, insight }));
+    // The follow bell by the title: not on a finished game, unless it's still followed (to unfollow).
+    const following = isFollowingGame(store, ctx.user.id, game.id);
+    const bell = game.state !== 'post' || following ? alertViews.followBell(ctx, game.id, { following, next: gamePath(game.id) }) : null;
+    send(ctx, 200, play.gamePage(ctx, { game, started, messages: list, picksBy, mine, leg, split: splits(store, [game.id]).get(game.id) ?? null, insight, bell }));
+  }
+
+  // ---- follow a game (src/gamealerts.js) ----------------------------------------
+
+  /** The bell: follow a game. app.js sends it with fetch and asks for JSON; without JavaScript it redirects to `next`. */
+  function gameFollow(ctx, { id }) {
+    if (!signedIn(ctx)) return;
+    const game = games.get(id);
+    if (!game) return notFound(ctx);
+    const result = followGame(store, { userId: ctx.user.id, game, now: ctx.now });
+    const message = result.error ?? (game.state === 'pre' ? "Following. We'll ping you when it starts." : "Following. We'll ping you as it goes.");
+    if (wantsJson(ctx)) {
+      return sendJson(ctx, result.error ? 409 : 200, { following: !result.error, message, bell: result.error ? null : String(alertViews.followBell(ctx, game.id, { following: true })) });
+    }
+    flash(ctx, result.error ? 'error' : 'ok', message);
+    redirect(ctx, safeNext(ctx.form.get('next')) ?? gamePath(game.id));
+  }
+
+  /** "Unfollow game", from the game alerts page (or sheet). */
+  function gameUnfollow(ctx, { id }) {
+    if (!signedIn(ctx)) return;
+    const game = games.get(id);
+    if (!game) return notFound(ctx);
+    unfollowGame(store, { userId: ctx.user.id, gameId: game.id });
+    const message = 'Unfollowed. No more alerts on this game.';
+    if (wantsJson(ctx)) {
+      // The bell to put back on the page: a follow form (none on a finished game).
+      const bell = game.state === 'post' ? '' : String(alertViews.followBell(ctx, game.id, { following: false, next: gamePath(game.id) }));
+      return sendJson(ctx, 200, { following: false, message, bell });
+    }
+    flash(ctx, 'ok', message);
+    redirect(ctx, safeNext(ctx.form.get('next')) ?? gamePath(game.id));
+  }
+
+  /** What a followed bell opens: the five alerts and Unfollow. A page; app.js shows it in the sheet. */
+  function gameAlertsPage(ctx, { id }) {
+    if (!signedIn(ctx)) return;
+    const game = games.get(id);
+    if (!game) return notFound(ctx);
+    const phones = store.get('SELECT COUNT(*) AS n FROM push_subscriptions WHERE user_id = ?', ctx.user.id).n;
+    send(ctx, 200, alertViews.gameAlertsPage(ctx, {
+      game, following: isFollowingGame(store, ctx.user.id, game.id), prefs: alertPrefs(store, ctx.user.id), phones, pushKey: push?.publicKey() ?? null,
+    }));
+  }
+
+  /** The five game alert settings. Every game the player follows uses them. */
+  function gameAlertsSettings(ctx) {
+    if (!signedIn(ctx)) return;
+    saveAlertPrefs(store, ctx.user.id, Object.fromEntries(GAME_ALERTS.map((a) => [a.key, ctx.form.get(a.key) === 'on'])));
+    if (wantsJson(ctx)) return sendJson(ctx, 200, { saved: true, message: 'Saved.' });
+    flash(ctx, 'ok', 'Saved. These apply to every game you follow.');
+    redirect(ctx, safeNext(ctx.form.get('next')) ?? '/notifications');
   }
 
   /**
@@ -824,7 +891,7 @@ export function createApp({ store, games, espn = null, config, mailer = createMa
       );
       for (const r of legs) mine.set(r.game_id, [...(mine.get(r.game_id) ?? []), r]);
     }
-    send(ctx, 200, moreViews.live(ctx, { list, mine }));
+    send(ctx, 200, moreViews.live(ctx, { list, mine, follows: followedGameIds(store, ctx.user.id, list.map((g) => g.id)) }));
   }
 
   function leaderboardPage(ctx) {
@@ -2242,6 +2309,10 @@ export function createApp({ store, games, espn = null, config, mailer = createMa
     ['GET', '/games', gamesPage],
     ['GET', '/games/:id', gamePage],
     ['GET', '/games/:id/bb', sitePicksPage],
+    ['POST', '/games/:id/follow', gameFollow],
+    ['POST', '/games/:id/unfollow', gameUnfollow],
+    ['GET', '/games/:id/alerts', gameAlertsPage],
+    ['POST', '/settings/game-alerts', gameAlertsSettings],
     ['POST', '/bb/locks/dismiss', locksCardDismiss],
     ['POST', '/bb/settings', sitePicksSetting],
     ['POST', '/games/:id/chat', chatPost],

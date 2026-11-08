@@ -220,9 +220,14 @@ function espnEvent(g, at) {
   const share = done ? 1 : started ? Math.min(0.9, (at - new Date(g.start)) / (3.5 * HOUR)) : 0;
   const state = done ? 'post' : started ? 'in' : 'pre';
   const pro = ['nfl', 'nba', 'mlb', 'nhl'].includes(g.sport);
+  // One team scores early and the other late, so some live games swap the lead (for game alerts).
+  const fast = seed(g.id) % 2 ? 'home' : 'away';
+  const paced = (side) => (done ? 1 : share ** (side === fast ? 0.75 : 1.3));
+  // The quarter (half, period, inning) and clock, the way ESPN reports them.
+  const clock = started && !done ? demoClock(g.sport, (at - new Date(g.start)) / (3.5 * HOUR)) : null;
   const competitor = (side) => ({
     homeAway: side,
-    score: started ? String(Math.round(g.final[side] * share)) : '0',
+    score: started ? String(Math.round(g.final[side] * paced(side))) : '0',
     team: {
       abbreviation: g[side].abbr,
       displayName: g[side].name,
@@ -264,16 +269,40 @@ function espnEvent(g, at) {
       broadcasts: [{ names: [DEMO_TV[g.sport][seed(g.id) % DEMO_TV[g.sport].length]] }],
       competitors: [competitor('home'), competitor('away')],
       status: {
+        ...(clock ? { period: clock.period, displayClock: clock.clock } : {}),
         type: {
           state,
           completed: done,
-          name: done ? 'STATUS_FINAL' : started ? 'STATUS_IN_PROGRESS' : 'STATUS_SCHEDULED',
-          shortDetail: done ? 'Final' : started ? 'In progress' : '',
+          name: done ? 'STATUS_FINAL' : clock ? clock.name : 'STATUS_SCHEDULED',
+          shortDetail: done ? 'Final' : clock ? clock.detail : '',
         },
       },
       odds: state === 'pre' ? [odds] : [],
     }],
   };
+}
+
+// Periods and minutes in each, by sport (baseball: innings).
+const DEMO_PERIODS = { nfl: [4, 15], ncaaf: [4, 15], nba: [4, 12], ncaab: [2, 20], nhl: [3, 20], mlb: [9, 0] };
+const ordinal = (n) => `${n}${n % 100 >= 11 && n % 100 <= 13 ? 'th' : ['th', 'st', 'nd', 'rd'][n % 10] ?? 'th'}`;
+
+/**
+ * Where a demo game is, `p` of the way through its 3.5 hours: { period,
+ * clock, name, detail } like ESPN's status. The start of the period after
+ * the half is halftime, and in hockey the start of each later period is the
+ * intermission ("End of 1st").
+ */
+function demoClock(sport, p) {
+  const [n, minutes] = DEMO_PERIODS[sport];
+  const x = Math.min(0.999, Math.max(0, p)) * n;
+  const period = Math.floor(x) + 1;
+  const f = x - Math.floor(x);
+  if (sport === 'mlb') return { period, clock: '0:00', name: 'STATUS_IN_PROGRESS', detail: `${f < 0.5 ? 'Top' : 'Bot'} ${ordinal(period)}` };
+  if (f < 0.1 && sport === 'nhl' && period > 1) return { period: period - 1, clock: '0:00', name: 'STATUS_END_PERIOD', detail: `End of ${ordinal(period - 1)}` };
+  if (f < 0.1 && sport !== 'nhl' && period === n / 2 + 1) return { period: n / 2, clock: '0:00', name: 'STATUS_HALFTIME', detail: 'Halftime' };
+  const left = Math.round((1 - f) * minutes * 60);
+  const clock = `${Math.floor(left / 60)}:${String(left % 60).padStart(2, '0')}`;
+  return { period, clock, name: 'STATUS_IN_PROGRESS', detail: `${clock} - ${ordinal(period)}${sport === 'ncaab' ? ' Half' : ''}` };
 }
 
 const BIOS = {
