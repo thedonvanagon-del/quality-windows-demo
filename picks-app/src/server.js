@@ -9,6 +9,7 @@ import { closeCupYears } from './cup.js';
 import { openStore } from './db.js';
 import { createDemoEspn, DEMO_LOGIN, seedDemo } from './demo.js';
 import { createEspn } from './espn.js';
+import { alertsDue, checkGameAlerts } from './gamealerts.js';
 import { createGames } from './games.js';
 import { runLeagues } from './leagues.js';
 import { createMailer } from './mail.js';
@@ -31,6 +32,8 @@ const BADGES_EVERY = 60 * 60_000;
 const TOURNAMENTS_EVERY = 60 * 60_000;
 // Team logos for scoreboard icons: checked hourly, fetched from ESPN once a day.
 const TEAMS_EVERY = 60 * 60_000;
+// Alerts on followed games (starts, lead changes, close finishes, breaks, finals).
+const GAME_ALERTS_EVERY = 60_000;
 
 const config = loadConfig();
 const store = openStore(config.databasePath);
@@ -206,6 +209,28 @@ badges();
 const teamsTimer = setInterval(() => teams.refreshIfDue(), TEAMS_EVERY);
 teams.refreshIfDue();
 
+// Followed games: about once a minute, when a followed game is on or starts
+// within a couple of minutes, re-read just those games' days from ESPN (each
+// at most once a minute, shared with the live page), then send what's due.
+// No followed game near or under way: no ESPN call at all. The check itself
+// is a database read, and also catches finals a board refresh saw first.
+let alertsRunning = false;
+async function gameAlerts() {
+  if (alertsRunning) return;
+  alertsRunning = true;
+  try {
+    const due = alertsDue(store, new Date());
+    if (due.length) await games.refreshDays(due);
+    const sent = checkGameAlerts(store, notifier, new Date());
+    if (sent) console.log(`sent ${sent} game alerts`);
+  } catch (err) {
+    console.error('game alerts:', err);
+  } finally {
+    alertsRunning = false;
+  }
+}
+const gameAlertsTimer = setInterval(gameAlerts, GAME_ALERTS_EVERY);
+
 function shutdown() {
   clearInterval(timer);
   clearInterval(importTimer);
@@ -213,6 +238,7 @@ function shutdown() {
   clearInterval(badgesTimer);
   clearInterval(tournamentsTimer);
   clearInterval(teamsTimer);
+  clearInterval(gameAlertsTimer);
   server.close(() => {
     store.close();
     process.exit(0);

@@ -825,6 +825,51 @@ not dollars, and nothing is paid out.
     so restarts never double up. The official account gets nothing.
 
 ### Following, streaks, splits, notifications
+- **2026-11-08: Follow a game** (owner's ask). A 🔔 on a game (game page,
+  Live games, and the board's cards) follows it; alerts go to the inbox and
+  phone like every other note (kind `game`, opening `/games/<id>`).
+  - **Five alerts**, each a setting on the player (`users.alert_start`,
+    `alert_lead`, `alert_close`, `alert_break`, `alert_final`, all on to
+    start) that applies to every game they follow: **Game starts** ("Celtics
+    @ Warriors is on · ESPN"); **Lead changes** ("Lead change: Warriors up 2
+    · BOS 88–GS 90 · Q4 6:10"; one team ahead to the other, a tie in between
+    keeps the last leader; at most one a game a period, none in basketball's
+    first period); **Close finish**, once a game (NFL/CFB within 8 with 5:00
+    or less in the 4th, NBA and college hoops within 5 with 3:00 or less in
+    the 4th / 2nd half, NHL within 1 with 5:00 or less in the 3rd, MLB within
+    1 from the 8th, any overtime within the margin); **Score at the break**
+    (halftime, by ESPN's `STATUS_HALFTIME`, for football and hoops; hockey's
+    end of each period, `STATUS_END_PERIOD`; never baseball); **Final
+    score** ("Final: Celtics 113, Warriors 115").
+  - **One note, not two, on a graded pick:** a follower with a graded straight
+    pick on the game and "My bets settle" on already got "Won +0.91u: Warriors
+    −3.5 (BOS 113, GS 115)", so the final alert skips them; with that setting
+    off, the final alert adds "· Your pick: Lost 1u on Warriors -3.5".
+  - **Never twice:** `game_watch` keeps each followed game's last state
+    (state, period, scores, last leader, the period of the last lead-change
+    alert, the last break told, start/close/final sent), written before
+    anything is sent. A game that started over 6 hours ago that the check
+    wasn't already tracking (the first run, a long restart) sends nothing.
+    Following a game already on doesn't send "it's on".
+  - **When ESPN is read:** a timer every minute (`src/server.js`) asks
+    `alertsDue` for followed games on now or starting within 2 minutes; only
+    then does it re-read those games' days (`games.refreshDays`, each day at
+    most once a minute, the live page's limit). No followed game near or
+    under way, no ESPN call. The check itself (`checkGameAlerts` in
+    `src/gamealerts.js`) is a database read and runs every minute.
+  - **ESPN's period and clock** are kept on games now (`status.period`,
+    `status.displayClock` → `games.period`, `games.clock`). The demo's live
+    games report a quarter, a clock, halftime and hockey intermissions, and
+    one team scores early and the other late, so alerts fire there too.
+  - **Pages:** `POST /games/<id>/follow` and `/unfollow` (a finished game
+    can't be followed; 30 open games at most); `GET /games/<id>/alerts`, the
+    five switches and Unfollow, a page that opens in the sheet from a gold
+    bell; `POST /settings/game-alerts`. With JavaScript the bell follows in
+    place with a toast, settings save as they're switched, and Unfollow
+    closes the sheet and turns the bell off. Without it, plain forms and
+    redirects. `followBell(ctx, gameId, { following, next })` in
+    `src/views/alerts.js` draws the bell; `followedGameIds(store, userId,
+    ids)` says which games on a page are followed.
 - **2026-11-06: Groups reads "Chat Rooms"** (owner's call): the tab bar,
   the top nav, the page's title and heading, More, and the back links to
   it. The page holds private groups and local rooms. URLs and internal names

@@ -881,6 +881,41 @@ export const MIGRATIONS = [
   -- "I've read the official rules", checked when joining a prize tournament.
   ALTER TABLE tournament_entries ADD COLUMN rules_accepted_at TEXT;
   `,
+  `
+  -- Follow a game: the bell on a game card. Alerts go to every follower
+  -- (src/gamealerts.js), by their alert settings below.
+  ALTER TABLE games ADD COLUMN period INTEGER;     -- ESPN's status.period: quarter, half, period, inning
+  ALTER TABLE games ADD COLUMN clock TEXT;         -- ESPN's status.displayClock ("6:10")
+  CREATE TABLE game_follows (
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    game_id TEXT NOT NULL REFERENCES games(id) ON DELETE CASCADE,
+    created_at TEXT NOT NULL,
+    PRIMARY KEY (user_id, game_id)
+  );
+  CREATE INDEX game_follows_game ON game_follows(game_id);
+  -- Which game alerts a player hears, for every game they follow.
+  ALTER TABLE users ADD COLUMN alert_start INTEGER NOT NULL DEFAULT 1;
+  ALTER TABLE users ADD COLUMN alert_lead INTEGER NOT NULL DEFAULT 1;
+  ALTER TABLE users ADD COLUMN alert_close INTEGER NOT NULL DEFAULT 1;
+  ALTER TABLE users ADD COLUMN alert_break INTEGER NOT NULL DEFAULT 1;
+  ALTER TABLE users ADD COLUMN alert_final INTEGER NOT NULL DEFAULT 1;
+  -- The last state the alert check saw for each followed game, and which
+  -- alerts already went, so nothing goes twice (a restart included).
+  CREATE TABLE game_watch (
+    game_id TEXT PRIMARY KEY REFERENCES games(id) ON DELETE CASCADE,
+    state TEXT NOT NULL,
+    period INTEGER,
+    home_score INTEGER,
+    away_score INTEGER,
+    leader TEXT CHECK (leader IN ('home', 'away')),   -- the last team ahead (a tie keeps it)
+    lead_period INTEGER,                              -- the period of the last lead-change alert
+    break_period INTEGER,                             -- the last break (halftime, end of a period) told
+    start_sent INTEGER NOT NULL DEFAULT 0,
+    close_sent INTEGER NOT NULL DEFAULT 0,
+    final_sent INTEGER NOT NULL DEFAULT 0,
+    checked_at TEXT NOT NULL
+  );
+  `,
 ];
 
 export function openStore(file) {

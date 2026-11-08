@@ -150,7 +150,8 @@ export function parseScoreboard(sport, data) {
     const sides = Object.fromEntries((comp.competitors ?? []).map((c) => [c.homeAway, c]));
     const start = new Date(event.date ?? comp.date);
     if (!sides.home || !sides.away || !event.id || Number.isNaN(+start)) continue;
-    const type = (comp.status ?? event.status ?? {}).type ?? {};
+    const status = comp.status ?? event.status ?? {};
+    const type = status.type ?? {};
     const state = ['pre', 'in', 'post'].includes(type.state) ? type.state : 'pre';
     const home = team(sides.home, state, sport);
     const away = team(sides.away, state, sport);
@@ -162,6 +163,9 @@ export function parseScoreboard(sport, data) {
       status: type.name ?? '',
       detail: type.shortDetail ?? type.detail ?? '',
       completed: Boolean(type.completed),
+      // The quarter, half, period or inning, and the game clock ("6:10"), for game alerts.
+      period: state === 'pre' ? null : periodOf(status.period),
+      clock: state === 'pre' ? null : clockOf(status.displayClock),
       tv: broadcast(comp),
       home,
       away,
@@ -173,6 +177,18 @@ export function parseScoreboard(sport, data) {
     });
   }
   return games;
+}
+
+/** ESPN's status.period: a whole number from 1 to 30, else null. */
+function periodOf(value) {
+  const n = Number(value);
+  return Number.isInteger(n) && n >= 1 && n <= 30 ? n : null;
+}
+
+/** ESPN's status.displayClock ("6:10", "45.2", "0:00"), else null. */
+function clockOf(value) {
+  const t = typeof value === 'string' ? value.trim() : '';
+  return /^\d{1,2}(:\d{2})?(\.\d)?$/.test(t) ? t : null;
 }
 
 /**
