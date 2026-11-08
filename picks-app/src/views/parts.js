@@ -77,8 +77,8 @@ export function tabs(base, query, key, options, style = 'tabs') {
   </nav>`;
 }
 
-export function sportTabs(base, query, { all = true } = {}) {
-  return tabs(base, query, 'sport', [...(all ? [['', 'All sports']] : []), ...SPORTS.map((s) => [s.key, s.short])]);
+export function sportTabs(base, query, { all = true, allLabel = 'All sports', style = 'tabs' } = {}) {
+  return tabs(base, query, 'sport', [...(all ? [['', allLabel]] : []), ...SPORTS.map((s) => [s.key, s.short])], style);
 }
 
 export function periodTabs(base, query) {

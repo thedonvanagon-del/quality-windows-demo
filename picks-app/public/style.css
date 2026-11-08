@@ -1785,3 +1785,124 @@ button.sv-team:hover { background: var(--tile-hover); }
 .brand-word { font-family: var(--brand); font-weight: 400; letter-spacing: 0.04em; }
 .splash-name { font-family: var(--brand); font-weight: 400; }
 .locked-ticket .stamp { font-family: var(--brand); font-weight: 400; }
+
+/* ---- The games board, 2026-11-08: sport chips, Live now, big buttons ------ */
+/* One card per game: teams, a Spread / Total / Money switcher (app.js shows
+   one panel at a time), two big buttons with the price and the win chance it
+   implies, the public split, and a LOCKED strip once the player has a pick. */
+
+.sport-chips { display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; margin: 0 -16px 6px; padding: 2px 16px 8px; }
+.sport-chips::-webkit-scrollbar { display: none; }
+.sport-chips a { flex: none; padding: 7px 15px; border-radius: 999px; background: var(--card); border: 1px solid var(--line); font-weight: 700; font-size: 0.9rem; color: var(--muted); white-space: nowrap; }
+.sport-chips a:hover { color: var(--ink); border-color: var(--muted); }
+.sport-chips a.on { background: var(--ink); border-color: var(--ink); color: var(--bg); }
+
+h2.sec { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin: 22px 2px 10px; font-family: var(--cond); font-weight: 800; font-size: 1.25rem; letter-spacing: 0.05em; text-transform: uppercase; color: var(--ink); }
+.sec-side { font-family: Barlow, system-ui, sans-serif; font-size: 0.82rem; font-weight: 600; letter-spacing: 0; text-transform: none; color: var(--muted); }
+
+.gc-list { display: grid; gap: 12px; }
+.gc-list > .event + .event { margin-top: 0; }
+@media (min-width: 761px) { .gc-list { grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); align-items: start; } }
+
+.event.gc { border-radius: 14px; padding: 14px; min-width: 0; }
+.gc-meta { display: flex; align-items: center; gap: 8px; min-height: 32px; margin-bottom: 10px; color: var(--muted); font-size: 0.84rem; font-weight: 600; }
+.gc-when { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.gc-live { color: var(--loss); font-weight: 700; }
+.gc-live b { text-transform: uppercase; letter-spacing: 0.05em; }
+.gc-live::before { content: ""; display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--loss); margin-right: 6px; vertical-align: 1px; }
+@media (prefers-reduced-motion: no-preference) { .gc-live::before { animation: gc-pulse 1.4s ease-in-out infinite; } }
+@keyframes gc-pulse { 50% { opacity: 0.25; } }
+
+/* The follow bell (the follow routes and alerts are their own feature). Gold once followed. */
+.gc .follow { margin: 0; display: flex; flex: none; }
+.gc .bell { width: 32px; height: 32px; flex: none; padding: 0; border: 0; font: inherit; background: var(--raised); color: var(--muted); cursor: pointer; }
+.gc .bell svg { width: 17px; height: 17px; }
+.gc .bell:hover { color: var(--ink); background: var(--tile-hover); }
+.gc .bell.on, .gc .bell.on:hover { background: var(--gold); color: var(--gold-ink); }
+
+.gc-teams { display: grid; gap: 8px; margin-bottom: 12px; }
+.gc-team { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.gc .stripe { height: 36px; }
+.gc .logo { width: 36px; height: 36px; }
+.gc-name { flex: 1; min-width: 0; display: flex; flex-direction: column; line-height: 1.15; }
+.gc-name .tn { font-family: Barlow, system-ui, sans-serif; font-size: 1.06rem; font-weight: 700; }
+.gc-name .tsub { margin-top: 1px; }
+.gc-score { font-family: var(--cond); font-weight: 800; font-size: 1.95rem; line-height: 1; font-variant-numeric: tabular-nums; color: var(--ink); }
+.gc-score.trail { color: var(--muted); }
+
+.mk { display: flex; gap: 4px; margin-bottom: 10px; }
+.mk-tab { font: inherit; font-size: 0.86rem; font-weight: 700; color: var(--muted); background: none; border: 0; padding: 5px 12px; min-height: 32px; border-radius: 999px; cursor: pointer; white-space: nowrap; }
+.mk-tab:hover { color: var(--ink); }
+.mk-tab[aria-pressed="true"] { background: var(--raised); color: var(--ink); }
+.mk-dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--win); margin-left: 6px; vertical-align: 2px; }
+
+.pbtns { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 8px; }
+.pbtn { display: block; min-width: 0; border-radius: 12px; padding: 10px 12px; background: var(--tile); border: 1px solid var(--line); color: var(--ink); transition: transform 0.08s, border-color 0.2s; }
+a.pbtn:hover { background: var(--tile-hover); border-color: color-mix(in srgb, var(--accent) 45%, transparent); }
+a.pbtn:active { transform: scale(0.97); }
+.pb-name { display: block; font-weight: 700; font-size: 1rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pb-row { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; margin-top: 6px; font-size: 0.86rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+.pb-odds { color: var(--accent); font-weight: 700; }
+.pb-pct { color: var(--ink); font-weight: 700; font-size: 1.05rem; }
+.pbtn.mine { background: var(--win-soft); border-color: var(--win); }
+.pbtn.mine .pb-pct, .pbtn.mine .pb-odds { color: var(--win); }
+.pbtn.taken { opacity: 0.38; }
+.pbtn.in-parlay { border-style: dashed; border-color: var(--accent); }
+.pbtn.off { background: transparent; border-style: dashed; color: var(--faint); }
+.pbtn.loading { border-color: var(--accent); animation: cell-pulse 0.9s ease-in-out infinite; }
+.mk-off { margin: 2px 0; color: var(--muted); font-size: 0.9rem; }
+
+.mk-split { margin-top: 10px; }
+.mk-bar { display: block; width: 100%; height: 5px; border-radius: 3px; overflow: hidden; }
+.mk-bar .a { fill: var(--muted); }
+.mk-bar .b { fill: var(--line); }
+.mk-split span { display: block; margin-top: 6px; color: var(--muted); font-size: 0.82rem; font-weight: 600; }
+
+/* The LOCKED strip on a card with a pick; the pick that just went in gets the full ticket in the same colors. */
+.lock-strip, .gc .locked-ticket { display: flex; align-items: center; gap: 10px; margin: 10px 0 0; padding: 9px 12px; border-radius: 12px; border: 1px dashed var(--win); background: var(--win-soft); }
+.lock-strip .stamp, .gc .locked-ticket .stamp { flex: none; font-family: var(--brand); font-weight: 400; font-size: 0.95rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--win); border: 2px solid var(--win); border-radius: 4px; padding: 1px 6px; transform: rotate(-4deg); }
+.ls-body { display: grid; gap: 1px; min-width: 0; }
+.ls-body b { font-size: 0.88rem; font-weight: 700; }
+.lock-strip .lt-motto { color: var(--muted); font-weight: 500; font-size: 0.78rem; }
+.gc .locked-ticket .lt-body b { font-family: Barlow, system-ui, sans-serif; font-size: 0.9rem; font-weight: 700; }
+.gc .locked-ticket .lt-body span, .gc .locked-ticket .lt-site { font-size: 0.78rem; }
+.gc .locked-ticket .lt-motto { color: var(--ink); }
+
+.gc .card-foot { flex-wrap: wrap; }
+.gc .card-foot .card-chat { margin-left: auto; }
+
+/* Live now: the score, then the pick (green winning, red losing) and the chat side by side. */
+.gc-boxes { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 8px; }
+.lbox { display: flex; flex-direction: column; justify-content: space-between; gap: 6px; min-width: 0; border-radius: 12px; padding: 10px 12px; background: var(--tile); border: 1px solid var(--line); color: var(--ink); }
+.lb-top { display: flex; align-items: center; gap: 6px; font-weight: 700; font-size: 0.95rem; line-height: 1.25; min-width: 0; overflow-wrap: anywhere; }
+.lb-top svg { width: 16px; height: 16px; flex: none; color: var(--muted); }
+.lb-row { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; font-size: 0.82rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+.lb-row b { font-size: 1rem; color: var(--ink); white-space: nowrap; }
+.lbox.winning { background: var(--win-soft); border-color: var(--win); }
+.lbox.winning b { color: var(--win); }
+.lbox.losing { background: var(--loss-soft); border-color: var(--loss); }
+.lbox.losing b { color: var(--loss); }
+.lbox.none b { color: var(--muted); }
+a.lbox.chat:hover { border-color: var(--muted); }
+
+/* The header's units pill: the player's all-time record, where Get the app used to be. */
+.units-pill { display: inline-flex; align-items: center; gap: 5px; padding: 6px 12px; border-radius: 999px; background: var(--raised); color: var(--ink); font-weight: 700; font-size: 0.92rem; font-variant-numeric: tabular-nums; white-space: nowrap; flex: none; }
+.units-pill.up { color: var(--win); }
+.units-pill.down { color: var(--loss); }
+.units-pill .arrow { font-size: 0.72em; }
+.units-pill:hover { box-shadow: inset 0 0 0 1px var(--line); }
+@media (max-width: 760px) { .top .wrap { gap: 12px; } .top-right { gap: 6px; } }
+@media (max-width: 420px) { .units-pill { padding: 5px 9px; font-size: 0.86rem; } }
+/* Wider screens: the top nav, the pill, the bell and the avatar share the bar, so it tightens up before it can run off the side. */
+@media (min-width: 761px) and (max-width: 1400px) {
+  .top .wrap { gap: 16px; }
+  .nav a { padding: 0 9px; }
+  .user-chip .name { display: none; }
+  .user-chip { padding: 4px; }
+}
+@media (min-width: 761px) and (max-width: 1100px) {
+  .nav a { gap: 0; padding: 0 8px; }
+  .nav a svg { display: none; }
+}
+@media (min-width: 761px) and (max-width: 900px) { .brand-name { display: none; } }
+.lb-more { margin-top: -4px; color: var(--muted); font-size: 0.78rem; font-weight: 600; }

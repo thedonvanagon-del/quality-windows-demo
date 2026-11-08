@@ -36,6 +36,51 @@ not dollars, and nothing is paid out.
   bookie-bullies repo) for the header, the browser tab and the phone icons.
 
 ### Look
+- **2026-11-08: The new Games board** (owner approved a clickable mockup).
+  - **All is the default** (no `?sport=`; it used to open on the first
+    favorite sport): every sport's games today and tomorrow (ET), merged by
+    start time, each card tagged with its sport. A sport chip keeps that
+    sport's own window (`days`). Chips replace the underlined sport tabs.
+  - **Live now** up top: games under way (`games.live()`, filtered to the
+    chosen sport), with the score (leader bright, trailer muted), "LIVE ·
+    2nd Qtr · NFL · ESPN", the player's first pick on the game with Winning /
+    Losing / Even worked from the score the way grading does (`pickStatus`,
+    green or red box, "+1 more" for others), or "No pick · Locked at start",
+    and a Chat box with the count and the spread lean. It refreshes itself
+    every 30 seconds through the live page's `[data-live-poll]` swap (which
+    now fetches path and query, and with `data-poll-empty` clears once
+    nothing is live).
+  - **Upcoming cards**: time · sport · TV and a follow bell; both teams with
+    record and a Fav tag; a **Spread / Total / Money** switcher (the spread
+    tab reads Run line or Puck line by sport). Every panel is rendered;
+    `app.js` shows one on tap. The default is the market the player has a
+    pick in, else the first with a price. A dot marks a tab with a pick.
+  - **Two big buttons a market**: "Heat +1.5" over the price and the **win
+    chance it implies** (−110 → 52%, +150 → 40%: |o|/(|o|+100) on a
+    favorite, 100/(o+100) on a dog, `impliedPct` in picks.js). The player's
+    side is green with "Locked" (at the number they got); the other side is
+    dimmed; a parlay leg keeps its dashed outline. Under them, the split as a
+    thin bar ("41% of players on the Heat", "58% of players on the Over").
+  - **LOCKED strip** on a card with a pick (stencil stamp, "Suns −1.5 ·
+    −110 · 2u", "Once it's in, it's on the record."). Right after a pick the
+    full LOCKED ticket (time, Streak and Survivor notes, the site link) sits
+    on that card instead of the top of the page (the flash now carries the
+    game id).
+  - **Back to the board you came from**: from All, the slip link carries
+    `board=all` and so does the slip's form, so the pick (or Add to parlay)
+    lands on `/games#g-...`, not the sport's board.
+  - **The header's Get the app button is now a units pill** for players: the
+    all-time record in units ("+12.4u ▲" green, "−3.2u ▼" red), linking to
+    the profile. Visitors still get Get the app; players have it in More and
+    the phone bar. On screens 761–1400px wide the top bar tightens (no name
+    by the avatar, closer nav links, no nav icons under 1100, crest only
+    under 900): it used to run past the right edge at every width up to
+    about 1350.
+  - **Follow bells** are drawn only (the follow routes and alerts are their
+    own feature): a form posting to `/games/<id>/follow`, or, for a game in
+    `follows`, a gold bell linking to `/games/<id>/alerts` in the sheet. Any
+    `a[data-sheet]` whose page has a `.slip` now opens in the sheet.
+  - The game page (`/games/<id>`) still uses the compact six-number card.
 - **2026-11-06: The app is "LockBox", by BOOKIEBULLIES.COM** (owner's call;
   "LockBox Picks" was tried first and dropped). Motto: "Made to show the true
   skill of real handicappers with nothing to hide." The header reads LOCKBOX

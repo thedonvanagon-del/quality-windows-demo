@@ -98,14 +98,26 @@ if (banner && !standalone && device !== 'desktop') {
 }
 
 // After a pick the board comes back at the game that was picked (#g-...), not
-// the top. Move the LOCKED ticket (or an error) next to that game so it's seen.
+// the top. The LOCKED ticket is already on that game's card; anything else
+// (an error, a note) moves next to it so it's seen.
 const pickedCard = window.location.hash.startsWith('#g-') && document.getElementById(window.location.hash.slice(1));
 if (pickedCard) {
   const notice = document.querySelector('.locked-ticket, main .flash');
-  if (notice) pickedCard.before(notice);
-  (notice ?? pickedCard).scrollIntoView({ block: 'start' });
+  if (notice && !pickedCard.contains(notice)) pickedCard.before(notice);
+  (notice && !pickedCard.contains(notice) ? notice : pickedCard).scrollIntoView({ block: 'start' });
   history.replaceState(null, '', window.location.pathname + window.location.search);
 }
+
+// Game cards on the board: Spread / Total / Money. Every market is on the
+// page already; a tap shows its panel and hides the others.
+document.addEventListener('click', (event) => {
+  const tab = event.target.closest('[data-market-tab]');
+  if (!tab) return;
+  const card = tab.closest('.gc');
+  if (!card) return;
+  for (const t of card.querySelectorAll('[data-market-tab]')) t.setAttribute('aria-pressed', String(t === tab));
+  for (const panel of card.querySelectorAll('[data-market-panel]')) panel.hidden = panel.dataset.marketPanel !== tab.dataset.marketTab;
+});
 
 // Ask before anything that can't be undone.
 for (const form of document.querySelectorAll('form[data-confirm]')) {
@@ -174,6 +186,7 @@ window.addEventListener('pageshow', (event) => {
 // On the games board, a tapped line opens its slip in a sheet that slides up
 // over the board instead of a new page. A BB Pick chip opens the model's picks
 // the same way. Anything off and it's a normal link.
+// Links with data-sheet (a followed game's bell, say) open the same way when their page has a .slip.
 const board = document.querySelector('.event') && window.HTMLDialogElement && window.DOMParser;
 if (board) {
   const sheet = document.createElement('dialog');
@@ -194,7 +207,7 @@ if (board) {
     return note;
   };
   document.addEventListener('click', async (event) => {
-    const link = event.target.closest('a.cell[href^="/pick?"], a.bb-chip');
+    const link = event.target.closest('a.cell[href^="/pick?"], a.pbtn[href^="/pick?"], a.bb-chip, a[data-sheet]');
     if (!link || event.metaKey || event.ctrlKey || event.shiftKey) return;
     event.preventDefault();
     if (loading) return;
@@ -541,17 +554,20 @@ async function drawCard(d) {
 // the newest messages. Typing isn't touched; only the list changes.
 // Live games keep their scores current: every 30 seconds while the page is in
 // view, swap in the latest list from the server. A live tournament's "As it
-// stands" does the same every 45 (data-poll-every, in seconds).
+// stands" does the same every 45 (data-poll-every, in seconds). The games
+// board's Live now does it too; with data-poll-empty it empties once the
+// server has no live games left to show.
 const liveList = document.querySelector('[data-live-poll]');
 if (liveList && window.DOMParser) {
   const every = Math.max(15, Number(liveList.dataset.pollEvery) || 30) * 1000;
   setInterval(async () => {
     if (document.hidden) return;
     try {
-      const res = await fetch(window.location.pathname, { credentials: 'same-origin', headers: { accept: 'text/html' } });
+      const res = await fetch(window.location.pathname + window.location.search, { credentials: 'same-origin', headers: { accept: 'text/html' } });
       if (!res.ok || res.redirected) return;
       const next = new DOMParser().parseFromString(await res.text(), 'text/html').querySelector('[data-live-poll]');
       if (next) liveList.replaceChildren(...[...next.childNodes].map((n) => document.adoptNode(n)));
+      else if ('pollEmpty' in liveList.dataset) liveList.replaceChildren();
     } catch {
       // Try again on the next tick.
     }

@@ -273,7 +273,7 @@ describe('picks', () => {
     // Back to the same game on the board, not the top of the page.
     assert.equal(res.location, '/games?sport=nfl#g-nfl-1');
     const board = await b.get(res.location);
-    assert.match(board.text, /<article class="event" id="g-nfl-1"/);
+    assert.match(board.text, /<article class="event gc" id="g-nfl-1"/);
     assert.match(visible(board.text), /Locked Bills \+3\.5 \(-110\), 2u to win 1\.82u Once it's in, it's on the record\. On the record Oct 25, 8:00 AM ET/);
     const [p] = picks();
     assert.equal(p.line, 3.5);
@@ -287,7 +287,7 @@ describe('picks', () => {
 
     await b.post('/picks', { game: 'nfl:1', market: 'total', side: 'over', line: '47.5', odds: '-110', units: '1' });
     assert.equal(picks().length, 2, 'a total on the same game is its own pick');
-    assert.match((await b.get('/games')).text, /cell mine/);
+    assert.match((await b.get('/games')).text, /pbtn mine/);
   });
 
   test('size a pick in units, with "to win" for the bettor', async () => {
@@ -548,7 +548,7 @@ describe('public split', () => {
     await viewer.post('/picks', { ...BILLS_PLUS, side: 'home', line: '-3.5' });
     const page = visible((await viewer.get('/games/nfl%3A1')).text);
     assert.match(page, /Public split BUF 60% Spread · 5 picks 40% KC/);
-    assert.match(visible((await viewer.get('/games')).text), /60% on BUF/);
+    assert.match(visible((await viewer.get('/games')).text), /60% of players on the Bills/);
   });
 });
 

@@ -53,7 +53,7 @@ five.
 
 | Page | What it does |
 |---|---|
-| `/games` | Upcoming games by sport, with spread, total and moneyline. Tap a number to pick it. A BB Pick chip marks games the official account picked, and a Today's Locks card up top counts its picks today (× hides it until tomorrow). |
+| `/games` | The board: All sports (today and tomorrow) or one sport. Live now up top (scores, and whether your pick is winning or losing), then each upcoming game with Spread, Total and Money, two big buttons a market showing the price and the win chance it implies, the public split, and a LOCKED strip on games you picked. Tap a button to pick it. A BB Pick chip marks games the official account picked, and a Today's Locks card up top counts its picks today (× hides it until tomorrow). |
 | `/picks` | My bets: open bets with their units, to-win and a countdown (deletable until the start), and settled ones. A badge on the tab counts what is open. |
 | `/parlay` | The parlay being built: legs added from the pick slip, combined odds, units, Lock parlay. |
 | `/leaderboard` | Everyone, or one sport, over 7 days, 30 days or all time. Public. |

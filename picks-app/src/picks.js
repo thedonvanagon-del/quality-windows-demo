@@ -263,6 +263,16 @@ export function formatOdds(odds) {
   return odds > 0 ? `+${odds}` : `${odds}`;
 }
 
+/**
+ * The win chance a price implies, in whole percent: -110 is 52%, +150 is 40%.
+ * |odds| / (|odds| + 100) for a favorite, 100 / (odds + 100) for an underdog.
+ */
+export function impliedPct(odds) {
+  const o = Number(odds);
+  if (!Number.isFinite(o) || o === 0) return null;
+  return Math.round((o < 0 ? -o / (-o + 100) : 100 / (o + 100)) * 100);
+}
+
 export function formatUnits(units, { sign = false } = {}) {
   const text = `${Number.isInteger(units) ? units : units.toFixed(2).replace(/0$/, '')}u`;
   return sign && units > 0 ? `+${text}` : text;
