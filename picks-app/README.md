@@ -53,7 +53,7 @@ five.
 
 | Page | What it does |
 |---|---|
-| `/games` | Upcoming games by sport, with spread, total and moneyline. Tap a number to pick it. A BB Pick chip marks games the official account picked, and a Today's Locks card up top counts its picks today (× hides it until tomorrow). |
+| `/games` | The board: All sports (today and tomorrow) or one sport. Live now up top (scores, and whether your pick is winning or losing), then each upcoming game with Spread, Total and Money, two big buttons a market showing the price and the win chance it implies, the public split, and a LOCKED strip on games you picked. Tap a button to pick it. A BB Pick chip marks games the official account picked, and a Today's Locks card up top counts its picks today (× hides it until tomorrow). |
 | `/picks` | My bets: open bets with their units, to-win and a countdown (deletable until the start), and settled ones. A badge on the tab counts what is open. |
 | `/parlay` | The parlay being built: legs added from the pick slip, combined odds, units, Lock parlay. |
 | `/leaderboard` | Everyone, or one sport, over 7 days, 30 days or all time. Public. |
@@ -82,7 +82,8 @@ five.
 | `/admin/tournaments` | For admins only: make a tournament, cancel one before it starts (a player-made one any time), and review reported player-made ones (Dismiss or Cancel). |
 | `/streak` | The streak game: your current and best streak, today's Streak pick, the streak boards. |
 | `/invite` | Your invite link (`/i/<code>`), who joined from it, and progress to the Recruiter badge. |
-| `/notifications` | The inbox, and what to hear about: settled bets, players you follow, Lines are up (about 11 AM ET), the Streak reminder (about 5 PM ET), a tournament you joined starting in an hour, and Tournament updates (moving into the top 3, and where you stand with 2 hours left). |
+| `/notifications` | The inbox, and what to hear about: settled bets, players you follow, Lines are up (about 11 AM ET), the Streak reminder (about 5 PM ET), a tournament you joined starting in an hour, and Tournament updates (moving into the top 3, and where you stand with 2 hours left). Games you follow send their own alerts, set on the game alerts page. |
+| `/games/<id>/alerts` | Game alerts, from the gold 🔔 on a followed game (in a sheet): game starts, lead changes, close finish, score at the break, final score, for every game you follow, and Unfollow. The 🔔 on a game (`POST /games/<id>/follow`) follows it, up to 30 open games. |
 | `/setup` | Once, after a new player picks a screen name: favorite sports, players to follow, and their city. |
 | `/admin/reports` | For admins only: reported chat messages, from games, groups, local rooms and tournaments (restore or delete), and reported profile and cover photos (dismiss or remove). |
 | `/admin/rooms` | Local rooms, for admins only: rename, archive or restore. |
@@ -282,7 +283,8 @@ src/server.js     starts everything, checks for finals every 10 minutes (then gr
                   syncs the bracket challenge with ESPN in March and April, imports official picks every 15,
                   runs leagues (start, settle weeks, playoffs) every 5, closes the weekly contest, tournaments, Pick'em weeks and
                   Cup years and sends reminders and tournament alerts (checked every 5), badges, new auto
-                  tournaments and the Survivor pool hourly, ESPN's team lists once a day, the Cup backfill at start
+                  tournaments and the Survivor pool hourly, ESPN's team lists once a day, the Cup backfill at start,
+                  and game alerts every minute (reading ESPN only while a followed game is on or about to start)
 src/app.js        every page and form
 src/espn.js       reads ESPN's scoreboard (games, lines, scores) and game summaries (injuries, last five)
 src/games.js      keeps the games table fresh, and freezes each game's closing line when it starts
@@ -308,6 +310,8 @@ src/nametags.js   name colors and icons: the lists, earned icons, checking and s
 src/teams.js      team logos for icons: ESPN's team lists once a day, stored, with the games table as a fallback
 src/invites.js    invite links: codes, counting a friend once they're confirmed and named
 src/reminders.js  the Lines are up and Streak reminders, once a day each
+src/gamealerts.js follow a game: follows, the five alert settings, and the once-a-minute check that
+                  sends starts, lead changes, close finishes, breaks and finals (never twice)
 src/groups.js     friend groups and invite codes, and local rooms (their chat is in chat.js)
 src/cities.js     the cities a local room can be for
 src/official.js   the official BookieBullies account and its picks importer

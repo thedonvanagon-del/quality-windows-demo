@@ -141,6 +141,19 @@ export function picksOnGames(store, userId, gameIds) {
   return mine;
 }
 
+/** game id -> the player's picks on it (line, price, units), oldest first, for the games board. */
+export function picksForGames(store, userId, gameIds) {
+  const out = new Map();
+  if (!userId || !gameIds.length) return out;
+  const rows = store.all(
+    `SELECT id, game_id, market, side, line, odds, units FROM picks
+      WHERE user_id = ? AND game_id IN (${gameIds.map(() => '?').join(',')}) ORDER BY id`,
+    userId, ...gameIds,
+  );
+  for (const r of rows) out.set(r.game_id, [...(out.get(r.game_id) ?? []), r]);
+  return out;
+}
+
 // ---- Parlays ----------------------------------------------------------------
 
 /** A parlay counts as started once any leg's game has, by the clock or by ESPN. Takes the cutoff time. */

@@ -98,14 +98,26 @@ if (banner && !standalone && device !== 'desktop') {
 }
 
 // After a pick the board comes back at the game that was picked (#g-...), not
-// the top. Move the LOCKED ticket (or an error) next to that game so it's seen.
+// the top. The LOCKED ticket is already on that game's card; anything else
+// (an error, a note) moves next to it so it's seen.
 const pickedCard = window.location.hash.startsWith('#g-') && document.getElementById(window.location.hash.slice(1));
 if (pickedCard) {
   const notice = document.querySelector('.locked-ticket, main .flash');
-  if (notice) pickedCard.before(notice);
-  (notice ?? pickedCard).scrollIntoView({ block: 'start' });
+  if (notice && !pickedCard.contains(notice)) pickedCard.before(notice);
+  (notice && !pickedCard.contains(notice) ? notice : pickedCard).scrollIntoView({ block: 'start' });
   history.replaceState(null, '', window.location.pathname + window.location.search);
 }
+
+// Game cards on the board: Spread / Total / Money. Every market is on the
+// page already; a tap shows its panel and hides the others.
+document.addEventListener('click', (event) => {
+  const tab = event.target.closest('[data-market-tab]');
+  if (!tab) return;
+  const card = tab.closest('.gc');
+  if (!card) return;
+  for (const t of card.querySelectorAll('[data-market-tab]')) t.setAttribute('aria-pressed', String(t === tab));
+  for (const panel of card.querySelectorAll('[data-market-panel]')) panel.hidden = panel.dataset.marketPanel !== tab.dataset.marketTab;
+});
 
 // Ask before anything that can't be undone.
 for (const form of document.querySelectorAll('form[data-confirm]')) {
@@ -174,6 +186,7 @@ window.addEventListener('pageshow', (event) => {
 // On the games board, a tapped line opens its slip in a sheet that slides up
 // over the board instead of a new page. A BB Pick chip opens the model's picks
 // the same way. Anything off and it's a normal link.
+// Links with data-sheet (a followed game's bell, say) open the same way when their page has a .slip.
 const board = document.querySelector('.event') && window.HTMLDialogElement && window.DOMParser;
 if (board) {
   const sheet = document.createElement('dialog');
@@ -187,14 +200,14 @@ if (board) {
   // slow connection never looks like a dead tap. A second tap while one is
   // loading is ignored.
   let loading = null;
-  const loadingNote = () => {
+  const loadingNote = (text = 'Loading the line…') => {
     const note = document.createElement('p');
     note.className = 'sheet-loading';
-    note.textContent = 'Loading the line…';
+    note.textContent = text;
     return note;
   };
   document.addEventListener('click', async (event) => {
-    const link = event.target.closest('a.cell[href^="/pick?"], a.bb-chip');
+    const link = event.target.closest('a.cell[href^="/pick?"], a.pbtn[href^="/pick?"], a.bb-chip, a[data-sheet]');
     if (!link || event.metaKey || event.ctrlKey || event.shiftKey) return;
     event.preventDefault();
     if (loading) return;
@@ -202,7 +215,7 @@ if (board) {
     link.classList.add('loading');
     sheet.setAttribute('aria-label', link.dataset.sheet ?? 'Pick slip');
     try {
-      sheet.replaceChildren(loadingNote());
+      sheet.replaceChildren(loadingNote(link.matches('a.bell') ? 'Loading…' : undefined));
       if (!sheet.open) sheet.showModal();
       const res = await fetch(link.href, { credentials: 'same-origin', headers: { accept: 'text/html' } });
       if (!res.ok || res.redirected) throw new Error('no slip');
@@ -218,6 +231,8 @@ if (board) {
       sheet.replaceChildren(close, document.adoptNode(slip));
       const form = sheet.querySelector('form[data-odds]');
       if (form) initSlip(form);
+      for (const box of sheet.querySelectorAll('[data-push-key]')) initPush(box);
+      hideAlertSaves(sheet);
       localTimes(sheet);
       if (!sheet.open) sheet.showModal();
     } catch {
@@ -541,17 +556,20 @@ async function drawCard(d) {
 // the newest messages. Typing isn't touched; only the list changes.
 // Live games keep their scores current: every 30 seconds while the page is in
 // view, swap in the latest list from the server. A live tournament's "As it
-// stands" does the same every 45 (data-poll-every, in seconds).
+// stands" does the same every 45 (data-poll-every, in seconds). The games
+// board's Live now does it too; with data-poll-empty it empties once the
+// server has no live games left to show.
 const liveList = document.querySelector('[data-live-poll]');
 if (liveList && window.DOMParser) {
   const every = Math.max(15, Number(liveList.dataset.pollEvery) || 30) * 1000;
   setInterval(async () => {
     if (document.hidden) return;
     try {
-      const res = await fetch(window.location.pathname, { credentials: 'same-origin', headers: { accept: 'text/html' } });
+      const res = await fetch(window.location.pathname + window.location.search, { credentials: 'same-origin', headers: { accept: 'text/html' } });
       if (!res.ok || res.redirected) return;
       const next = new DOMParser().parseFromString(await res.text(), 'text/html').querySelector('[data-live-poll]');
       if (next) liveList.replaceChildren(...[...next.childNodes].map((n) => document.adoptNode(n)));
+      else if ('pollEmpty' in liveList.dataset) liveList.replaceChildren();
     } catch {
       // Try again on the next tick.
     }
@@ -586,8 +604,7 @@ if (chatBox && window.DOMParser) {
 
 // Phone notifications: register the service worker, ask permission, and hand
 // the subscription to the server. iPhones only allow it from the Home Screen app.
-const pushBox = document.querySelector('[data-push-key]');
-if (pushBox) {
+function initPush(pushBox) {
   const on = pushBox.querySelector('[data-push-on]');
   const status = pushBox.querySelector('[data-push-status]');
   const supported = 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
@@ -620,6 +637,7 @@ if (pushBox) {
     }
   });
 }
+for (const box of document.querySelectorAll('[data-push-key]')) initPush(box);
 
 // Copy an invite link.
 for (const button of document.querySelectorAll('[data-copy]')) {
@@ -1030,3 +1048,102 @@ if (bracketBox && window.DOMParser && window.fetch) {
 // The launch screen fades on its own; a tap skips it.
 const splashScreen = document.querySelector('[data-splash]');
 if (splashScreen) splashScreen.addEventListener('click', () => splashScreen.remove());
+
+// ---- Follow a game -----------------------------------------------------------
+// A short note at the bottom of the screen that goes away on its own.
+let toastTimer = null;
+function toast(text, bad = false) {
+  if (!text) return;
+  let box = document.querySelector('.toast');
+  if (!box) {
+    box = document.createElement('div');
+    box.className = 'toast';
+    box.setAttribute('role', 'status');
+    document.body.append(box);
+  }
+  box.textContent = text;
+  box.classList.toggle('bad', bad);
+  box.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => box.classList.remove('show'), 3200);
+}
+
+/** Post a form and read JSON back. Anything else (signed out, a redirect, an error page) throws. */
+async function postForJson(form, body = new URLSearchParams(new FormData(form))) {
+  const res = await fetch(form.action, { method: 'POST', body, credentials: 'same-origin', headers: { accept: 'application/json' }, redirect: 'manual' });
+  if (!(res.headers.get('content-type') ?? '').includes('application/json')) throw new Error(String(res.status));
+  return { ok: res.ok, data: await res.json() };
+}
+
+/** The first element in a bit of server-made markup. */
+function fromMarkup(markup) {
+  return document.adoptNode(new DOMParser().parseFromString(markup, 'text/html').body.firstElementChild);
+}
+
+// The bell on a game: following happens in place, the form turns into the
+// gold bell, and a toast says so. Without JavaScript the form posts and the
+// page comes back where it was.
+document.addEventListener('submit', async (event) => {
+  const form = event.target;
+  if (!form.matches?.('form[data-follow]') || !window.fetch || !window.DOMParser) return;
+  event.preventDefault();
+  if (form.dataset.sending) return;
+  form.dataset.sending = '1';
+  try {
+    const { data } = await postForJson(form);
+    if (data.bell) form.replaceWith(fromMarkup(data.bell));
+    toast(data.message, !data.following);
+  } catch {
+    form.submit();
+  } finally {
+    delete form.dataset.sending;
+  }
+});
+
+// "Unfollow game" in the sheet: close it, turn the game's bells back off, and say so.
+document.addEventListener('submit', async (event) => {
+  const form = event.target;
+  const sheet = form.closest?.('dialog.sheet');
+  if (!form.matches?.('form[data-unfollow]') || !sheet || !window.fetch || !window.DOMParser) return;
+  event.preventDefault();
+  try {
+    const { data } = await postForJson(form);
+    const alerts = form.action.replace(/\/unfollow$/, '/alerts');
+    sheet.close();
+    for (const bell of document.querySelectorAll('a.bell[data-sheet]')) {
+      if (bell.href !== alerts) continue;
+      if (!data.bell) {
+        bell.remove();
+        continue;
+      }
+      const back = fromMarkup(data.bell);
+      // Come back to the same card after a follow without JavaScript.
+      const card = bell.closest('[id]');
+      const next = back.querySelector('input[name="next"]');
+      if (next) next.value = window.location.pathname + window.location.search + (card ? `#${card.id}` : '');
+      bell.replaceWith(back);
+    }
+    toast(data.message);
+  } catch {
+    form.submit();
+  }
+});
+
+// Game alert settings save as they're switched; Save stays for no JavaScript.
+function hideAlertSaves(root) {
+  if (!window.fetch) return;
+  for (const button of root.querySelectorAll('[data-alerts-save]')) button.hidden = true;
+}
+hideAlertSaves(document);
+document.addEventListener('change', async (event) => {
+  const form = event.target.closest?.('form[data-game-alerts]');
+  if (!form || !window.fetch) return;
+  const status = form.querySelector('[data-alerts-status]');
+  try {
+    const { ok } = await postForJson(form);
+    if (!ok) throw new Error('not saved');
+    if (status) status.textContent = 'Saved. These apply to every game you follow.';
+  } catch {
+    form.submit();
+  }
+});

@@ -141,7 +141,7 @@ describe('building a parlay', () => {
     const first = await add(ann, 'nfl:1', 'spread', 'away');
     assert.equal(first.location, '/games?sport=nfl#g-nfl-1', 'back to the same game');
     assert.match(visible(first.page.text), /Added Bills \+3\.5 to your parlay\. Add a leg from another game\./);
-    assert.match(first.page.text, /<a class="cell in-parlay" href="\/pick\?game=nfl%3A1&amp;market=spread&amp;side=away" aria-label="Pick Bills \+3\.5 at -110, in your parlay">/);
+    assert.match(first.page.text, /<a class="pbtn in-parlay" href="\/pick\?game=nfl%3A1&amp;market=spread&amp;side=away" aria-label="Pick Bills \+3\.5 at -110, in your parlay, 52% implied">/);
     assert.equal((first.page.text.match(/in-parlay/g) ?? []).length, 1, 'only that one cell');
     assert.match(visible(first.page.text), /Parlay · 1 leg · −110 Review/);
 

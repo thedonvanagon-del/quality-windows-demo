@@ -1,11 +1,11 @@
 import { html } from '../html.js';
-import { formatOdds, formatSpread, formatUnits, MARKET_NAME, MAX_UNITS, maxUnits, PARLAY_MAX_LEGS, PARLAY_MIN_LEGS, parlayMaxUnits, parlayPrice, parlayToWin, price, selection, toWin, UNIT_CHIPS, UNITS_MIN } from '../picks.js';
+import { formatOdds, formatSpread, formatUnits, grade, impliedPct, MARKET_NAME, MARKETS, MAX_UNITS, maxUnits, PARLAY_MAX_LEGS, PARLAY_MIN_LEGS, parlayMaxUnits, parlayPrice, parlayToWin, price, selection, toWin, UNIT_CHIPS, UNITS_MIN } from '../picks.js';
 import { draftSignature } from '../parlays.js';
 import { siteHost, siteLink } from '../site.js';
 import { SPORT } from '../sports.js';
-import { dayLabel, dayShort, etDay } from '../time.js';
+import { addDays, dayLabel, dayShort, etDay } from '../time.js';
 import { icons } from './icons.js';
-import { csrfField, layout } from './layout.js';
+import { csrfField, layout, lockedTicket } from './layout.js';
 import { at, betItem, chatBox, lockTag, minus, sportTabs, statStrip, tabs, teamLogo } from './parts.js';
 
 /** The id a game's card carries, so a pick can come back to the same spot on the board. */
@@ -14,33 +14,199 @@ export function cardId(gameId) {
 }
 
 /**
- * `mine` maps game id -> { spread: 'home', total: 'over', ... } for the
- * player's picks; `draft` maps game id -> { market, side } for their parlay legs.
+ * The games board: sport chips (All first), Live now, then upcoming games
+ * under day headings, one card each with a Spread / Total / Money switcher.
+ *
+ * `sport` is null for All. `live` is the games under way. `mine` maps game id
+ * -> the player's picks on it (oldest first, with line, price and units);
+ * `draft` maps game id -> { market, side } for their parlay leg; `follows` is
+ * the set of game ids they follow (the bell on each card).
  */
-export function games(ctx, { sport, list, mine, draft = new Map(), chats = new Map(), split = new Map(), bb = new Map(), locks = null, problem }) {
+export function games(ctx, { sport = null, list, live = [], mine = new Map(), draft = new Map(), chats = new Map(), split = new Map(), bb = new Map(), locks = null, problem, follows = new Set() }) {
+  const today = etDay(ctx.now);
+  const tomorrow = addDays(today, 1);
   const days = [];
   for (const game of list) {
     const day = etDay(game.start);
     if (days.at(-1)?.day !== day) days.push({ day, label: dayLabel(game.start), games: [] });
     days.at(-1).games.push(game);
   }
+  const near = (day) => day === today || day === tomorrow;
+  const card = { ctx, all: !sport, here: `${ctx.url.pathname}${ctx.url.search}`, mine, draft, chats, split, bb, follows };
   return layout(ctx, {
-    title: `${sport.name} games`,
+    title: sport ? `${sport.name} games` : 'Games',
     active: 'games',
     body: html`
       <h1>Games</h1>
-      <p class="lede">Tap a number to pick it. You get the line on the board right now, and it locks when the game starts.</p>
-      ${sportTabs('/games', ctx.query, { all: false })}
+      <p class="lede">Tap a price to pick it. You get the line on the board right now, and it locks when the game starts.</p>
+      ${sportTabs('/games', ctx.query, { allLabel: 'All', style: 'sport-chips' })}
       ${locks ? locksCard(ctx, locks) : ''}
       ${problem ? html`<div class="flash err" role="status">Can't reach live lines right now. Showing the last ones we saw.</div>` : ''}
+      ${live.length
+        ? html`<section class="live-now" aria-labelledby="live-now" data-live-poll data-poll-every="30" data-poll-empty>
+            <h2 class="sec" id="live-now"><span>Live now</span><span class="sec-side">${live.length} live</span></h2>
+            <div class="gc-list">${live.map((g) => liveCard(g, card))}</div>
+          </section>`
+        : ''}
       ${days.length
         ? days.map(
-            (d) => html`<div class="day">${d.label}</div>
-              ${d.games.map((g) => gameCard(g, mine.get(g.id) ?? {}, sport, chats.get(g.id) ?? 0, split.get(g.id), draft.get(g.id), bb.get(g.id)))}`,
+            (d) => html`<h2 class="sec day"><span>${d.day === today ? 'Today' : d.day === tomorrow ? 'Tomorrow' : d.label}</span>${near(d.day) ? html`<span class="sec-side">${d.label}</span>` : ''}</h2>
+              <div class="gc-list">${d.games.map((g) => upcomingCard(g, card))}</div>`,
           )
-        : html`<div class="card empty">No ${sport.name} games on the board in the next ${sport.days} days.</div>`}
+        : html`<div class="card empty">${sport
+            ? `No ${sport.name} games on the board in the next ${sport.days} days.`
+            : `No ${live.length ? 'more ' : ''}games on the board today or tomorrow.`}</div>`}
     `,
   });
+}
+
+const BOARD_MARKETS = ['spread', 'total', 'ml'];
+// Pro teams read as "the Heat"; college ones as plain "Houston".
+const PRO = new Set(['nfl', 'nba', 'mlb', 'nhl']);
+const STATUS_WORD = { winning: 'Winning', losing: 'Losing', even: 'Even' };
+
+/** How a pick on a live game stands at the current score: winning, losing or even. */
+export function pickStatus(pick, game) {
+  const result = grade(pick, Number(game.home.score ?? 0), Number(game.away.score ?? 0));
+  return result === 'win' ? 'winning' : result === 'loss' ? 'losing' : 'even';
+}
+
+/**
+ * The follow bell on a game card. Not followed: a form that follows it.
+ * Followed: a gold bell that opens the game's alert settings in the sheet.
+ */
+function followBell(ctx, game, here, follows) {
+  const id = encodeURIComponent(game.id);
+  return follows.has(game.id)
+    ? html`<a class="bell on" href="/games/${id}/alerts" data-sheet="Game alerts" aria-pressed="true" aria-label="Following. Change alerts">${icons.bellOn}</a>`
+    : html`<form class="follow" method="post" action="/games/${id}/follow" data-follow>${csrfField(ctx)}<input type="hidden" name="next" value="${here}#${cardId(game.id)}"><button class="bell" aria-pressed="false" aria-label="Follow this game">${icons.bell}</button></form>`;
+}
+
+/** A team on a card: color bar, logo, name, record, and a Fav tag before the start or the score once it's on. */
+function teamRow(game, side, { fav = null, live = false } = {}) {
+  const t = game[side];
+  const other = game[side === 'home' ? 'away' : 'home'];
+  const lead = Number(t.score ?? 0) >= Number(other.score ?? 0);
+  return html`<div class="gc-team">
+    ${stripe(t.color)}${teamLogo(t)}
+    <span class="gc-name"><span class="tn">${t.short}</span>${t.record || fav === side ? html`<span class="tsub">${t.record ? html`<span class="trec">${t.record}</span>` : ''}${fav === side ? html`<span class="fav">Fav</span>` : ''}</span>` : ''}</span>
+    ${live ? html`<span class="gc-score ${lead ? 'lead' : 'trail'}">${t.score ?? 0}</span>` : ''}
+  </div>`;
+}
+
+/** A game under way: the score, how the player's pick stands right now, and its chat. */
+function liveCard(game, { ctx, here, mine, chats, split, follows }) {
+  const picks = mine.get(game.id) ?? [];
+  const first = picks[0];
+  const status = first ? pickStatus(first, game) : null;
+  const lean = split.get(game.id)?.spread;
+  const count = chats.get(game.id) ?? 0;
+  return html`<article class="event gc live" id="${cardId(game.id)}" aria-label="${game.away.name} at ${game.home.name}, live">
+    <div class="gc-meta"><span class="gc-when"><span class="gc-live"><b>Live</b>${game.detail ? ` · ${game.detail}` : ''}</span> · ${SPORT[game.sport]?.short ?? ''}${game.tv ? ` · ${game.tv}` : ''}</span>${followBell(ctx, game, here, follows)}</div>
+    <div class="gc-teams">${teamRow(game, 'away', { live: true })}${teamRow(game, 'home', { live: true })}</div>
+    <div class="gc-boxes">
+      ${first
+        ? html`<div class="lbox ${status}">
+            <span class="lb-top">Your pick · ${pickText(first, game)}</span>
+            ${picks.length > 1 ? html`<span class="lb-more">+${picks.length - 1} more</span>` : ''}
+            <span class="lb-row"><span>${minus(formatOdds(first.odds))} · ${formatUnits(first.units)}</span><b>${STATUS_WORD[status]}</b></span>
+          </div>`
+        : html`<div class="lbox none"><span class="lb-top">No pick</span><span class="lb-row"><span>Locked at start</span><b aria-hidden="true">–</b></span></div>`}
+      <a class="lbox chat" href="/games/${encodeURIComponent(game.id)}#chat">
+        <span class="lb-top">${icons.chat}<span>${count ? `Chat · ${count}` : 'Chat'}</span></span>
+        <span class="lb-row"><span>${lean ? leanText(game, lean) : 'Talk about it'}</span><b aria-hidden="true">›</b></span>
+      </a>
+    </div>
+  </article>`;
+}
+
+/** A game still to start: teams, the market switcher with two big buttons, the split, and the LOCKED strip. */
+function upcomingCard(game, { ctx, all, here, mine, draft, chats, split, bb, follows }) {
+  const sport = SPORT[game.sport];
+  const picks = mine.get(game.id) ?? [];
+  const byMarket = {};
+  for (const p of picks) byMarket[p.market] ??= p;
+  // The pick that just went in (the board came back here after it): its full ticket shows on its market.
+  const just = ctx.flash?.type === 'locked' && ctx.flash.game === game.id && picks.length ? picks.at(-1) : null;
+  const priced = (m) => MARKETS[m].some((side) => price(game, m, side));
+  const shown = just?.market ?? BOARD_MARKETS.find((m) => byMarket[m]) ?? BOARD_MARKETS.find(priced) ?? 'spread';
+  const fav = favorite(game);
+  const leg = draft.get(game.id) ?? null;
+  const bbPicks = bb.get(game.id);
+  const count = chats.get(game.id) ?? 0;
+  const id = cardId(game.id);
+  const label = (m) => (m === 'spread' ? sport.spread : m === 'ml' ? 'Money' : 'Total');
+  return html`<article class="event gc" id="${id}" aria-label="${game.away.name} at ${game.home.name}">
+    <div class="gc-meta"><span class="gc-when">${at(game.start)}${all ? ` · ${sport.short}` : ''}${game.tv ? ` · ${game.tv}` : ''}</span>${followBell(ctx, game, here, follows)}</div>
+    <div class="gc-teams">${teamRow(game, 'away', { fav })}${teamRow(game, 'home', { fav })}</div>
+    <div class="mk" role="group" aria-label="Market">
+      ${BOARD_MARKETS.map((m) => html`<button type="button" class="mk-tab" data-market-tab="${m}" aria-controls="${id}-${m}" aria-pressed="${m === shown ? 'true' : 'false'}">${label(m)}${byMarket[m] ? html`<span class="mk-dot" role="img" aria-label="(your pick)"></span>` : ''}</button>`)}
+    </div>
+    ${BOARD_MARKETS.map((m) => html`<div class="mk-panel" id="${id}-${m}" data-market-panel="${m}" ${m === shown ? '' : html`hidden`}>
+      ${priced(m)
+        ? html`<div class="pbtns">${MARKETS[m].map((side) => pickButton(game, m, side, byMarket[m], leg, all))}</div>
+          ${splitLine(game, m, split.get(game.id)?.[m])}`
+        : html`<p class="mk-off">No ${label(m).toLowerCase()} on the board yet.</p>`}
+      ${byMarket[m] ? (byMarket[m] === just ? justLocked(ctx) : lockStrip(byMarket[m], game)) : ''}
+    </div>`)}
+    <div class="card-foot">
+      ${bbPicks?.length ? bbChip(game, bbPicks[0]) : ''}
+      <a class="card-chat" href="/games/${encodeURIComponent(game.id)}#chat">${icons.chat}<span>${count ? `Chat · ${count}` : 'Chat'}</span></a>
+    </div>
+  </article>`;
+}
+
+/**
+ * One side of a market as a big button: "Heat +1.5" over its price and the
+ * win chance the price implies. The player's own side is green with
+ * "Locked" (at the number they got); the other side of a market they picked
+ * is dimmed. On All, the slip link carries board=all so the pick comes back there.
+ */
+function pickButton(game, market, side, mine, leg, all) {
+  const own = mine?.side === side;
+  const p = own ? { line: mine.line, odds: mine.odds } : price(game, market, side);
+  if (!p) {
+    const short = market === 'total' ? (side === 'over' ? 'Over' : 'Under') : game[side].short;
+    return html`<span class="pbtn off" aria-label="${short}: no price yet"><span class="pb-name">${short}</span><span class="pb-row"><span>No price yet</span></span></span>`;
+  }
+  const name = selection(market, side, p.line, game);
+  const pct = impliedPct(p.odds);
+  const inParlay = leg?.market === market && leg.side === side;
+  const kind = `pbtn${inParlay ? ' in-parlay' : ''}`;
+  const label = `${name} at ${formatOdds(p.odds)}${inParlay ? ', in your parlay' : ''}`;
+  const inner = (right) => html`<span class="pb-name">${trueMinus(name)}</span><span class="pb-row"><span class="pb-odds">${minus(formatOdds(p.odds))}</span><span class="pb-pct">${right}</span></span>`;
+  if (own) return html`<a class="${kind} mine" href="/picks" aria-label="Your pick: ${label}">${inner('Locked')}</a>`;
+  if (mine) return html`<span class="${kind} taken" aria-label="${label}, you took the other side">${inner(`${pct}%`)}</span>`;
+  const query = new URLSearchParams({ game: game.id, market, side });
+  if (all) query.set('board', 'all');
+  return html`<a class="${kind}" href="/pick?${query}" aria-label="Pick ${label}, ${pct}% implied">${inner(`${pct}%`)}</a>`;
+}
+
+/** "41% of players on the Heat" over a thin bar, once a market has enough picks to show. */
+function splitLine(game, market, s) {
+  if (!s) return '';
+  const pa = Math.round(((s[MARKETS[market][0]] ?? 0) / s.total) * 100);
+  const who = market === 'total' ? 'the Over' : `${PRO.has(game.sport) ? 'the ' : ''}${game.away.short}`;
+  return html`<div class="mk-split">
+    <svg class="mk-bar" viewBox="0 0 100 4" preserveAspectRatio="none" aria-hidden="true"><rect width="${pa}" height="4" class="a"></rect><rect x="${pa}" width="${100 - pa}" height="4" class="b"></rect></svg>
+    <span>${pa}% of players on ${who}</span>
+  </div>`;
+}
+
+/** The LOCKED strip on a card the player has a pick on. */
+function lockStrip(p, game) {
+  return html`<div class="lock-strip"><span class="stamp">Locked</span><div class="ls-body"><b>${pickText(p, game)} · ${minus(formatOdds(p.odds))} · ${formatUnits(p.units)}</b><span class="lt-motto">Once it's in, it's on the record.</span></div></div>`;
+}
+
+/** The full ticket for the pick that just went in, on its own card instead of the top of the page. */
+function justLocked(ctx) {
+  ctx.flashShown = true;
+  return lockedTicket(ctx, ctx.flash);
+}
+
+/** "Suns −1.5": a true minus wherever a number is negative. */
+function trueMinus(text) {
+  return String(text).replace(/(^|\s)-(?=\d)/g, '$1−');
 }
 
 function gameCard(game, mine, sport, chatCount = null, split = null, leg = null, bbPicks = null) {
@@ -202,7 +368,7 @@ function cell(game, market, side, mine, leg = null) {
  * The pick slip. `streak` is set when the game's day has no Streak pick yet:
  * { today, day, checked }, and the slip offers to make this one it.
  */
-export function slip(ctx, { game, market, side, current, error, units, streak = null, survivor = null }) {
+export function slip(ctx, { game, market, side, current, error, units, board = null, streak = null, survivor = null }) {
   const most = maxUnits(current.odds);
   units ??= Math.min(1, most);
   const sport = SPORT[game.sport];
@@ -212,7 +378,7 @@ export function slip(ctx, { game, market, side, current, error, units, streak = 
     active: 'games',
     body: html`
       <div class="narrow">
-        <a class="back" href="/games?sport=${sport.key}">← ${sport.short} games</a>
+        <a class="back" href="${board === 'all' ? '/games' : `/games?sport=${board ?? sport.key}`}">← ${board === 'all' ? 'All' : SPORT[board]?.short ?? sport.short} games</a>
         ${error ? html`<div class="flash err" role="alert">${error}</div>` : ''}
         <div class="slip">
           <div class="slip-head"><span>Pick slip</span><span>${sport.short} · ${at(game.start)}</span></div>
@@ -234,6 +400,7 @@ export function slip(ctx, { game, market, side, current, error, units, streak = 
               <input type="hidden" name="side" value="${side}">
               <input type="hidden" name="line" value="${current.line ?? ''}">
               <input type="hidden" name="odds" value="${current.odds}">
+              ${board ? html`<input type="hidden" name="board" value="${board}">` : ''}
               <label class="wager">Units
                 <span class="money-input suffix"><input type="text" name="units" value="${units}" inputmode="decimal" autocomplete="off" required aria-describedby="units-note"><span>u</span></span>
               </label>
@@ -421,7 +588,7 @@ function formRecord(list) {
 }
 
 /** One game: its board (or score once it starts), injuries and form before the start, and its chat. */
-export function gamePage(ctx, { game, started, messages, picksBy, mine, leg = null, split = null, insight = null }) {
+export function gamePage(ctx, { game, started, messages, picksBy, mine, leg = null, split = null, insight = null, bell = null }) {
   const sport = SPORT[game.sport];
   const scoreline = (side) => html`<div class="scoreline"><span class="team">${teamLogo(game[side])}<span class="tname"><span class="tn">${game[side].short}</span>${game[side].record ? html`<span class="tsub"><span class="trec">${game[side].record}</span></span>` : ''}</span></span><span class="score">${game[side].score ?? 0}</span></div>`;
   return layout(ctx, {
@@ -429,7 +596,7 @@ export function gamePage(ctx, { game, started, messages, picksBy, mine, leg = nu
     active: 'games',
     body: html`
       <a class="back" href="/games?sport=${sport.key}">← ${sport.short} games</a>
-      <h1>${game.away.short} @ ${game.home.short}</h1>
+      <div class="game-title"><h1>${game.away.short} @ ${game.home.short}</h1>${bell ?? ''}</div>
       ${started
         ? html`<article class="event">
             <div class="live-head">${game.state === 'in' ? html`<span class="live-tag">Live</span>` : ''}<span>${sport.short} · ${game.detail || 'Started'}${game.tv ? ` · ${game.tv}` : ''}</span></div>

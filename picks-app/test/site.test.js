@@ -58,7 +58,7 @@ async function player(name = 'Ann') {
 }
 
 /** One game's card on a board page. */
-const card = (page, id) => page.match(new RegExp(`<article class="event" id="g-${id.replace(':', '-')}"[\\s\\S]*?</article>`))?.[0] ?? '';
+const card = (page, id) => page.match(new RegExp(`<article class="event gc" id="g-${id.replace(':', '-')}"[\\s\\S]*?</article>`))?.[0] ?? '';
 
 /** Every link to the site on a page. */
 const siteHrefs = (page) => [...page.matchAll(/href="(https:\/\/www\.bookiebullies\.com[^"]*)"/g)].map((m) => m[1].replaceAll('&amp;', '&'));
@@ -156,7 +156,7 @@ describe("Today's Locks card", () => {
     assert.ok(box, 'shown');
     // Under the sport tabs, above the games.
     assert.ok(board.text.indexOf('<aside class="bb-locks"') > board.text.indexOf('aria-label="sport"'));
-    assert.ok(board.text.indexOf('<aside class="bb-locks"') < board.text.indexOf('<article class="event"'));
+    assert.ok(board.text.indexOf('<aside class="bb-locks"') < board.text.indexOf('<article class="event gc"'));
     // Tonight: two NBA picks and one college pick. Tomorrow's doesn't count yet.
     assert.match(visible(box), /🔒 1 Bookie Bullies Lock today · 3 picks · See them Their record in the app/);
     assert.match(box, /href="https:\/\/www\.bookiebullies\.com\/\?utm_source=app&amp;utm_medium=locks_card" target="_blank" rel="noopener"/);

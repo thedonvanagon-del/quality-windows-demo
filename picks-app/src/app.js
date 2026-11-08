@@ -13,7 +13,8 @@ import { chatCounts, chatGames, deleteMessage, HIDE_AFTER_REPORTS, markGroupRead
 import { CITY, cityGroups } from './cities.js';
 import { allRooms, archiveRoom, createGroup, deleteGroup, findByCode, groupFor, groupsOf, joinGroup, joinRoom, leaveGroup, localRooms, membersOf, renameRoom, roomFor, roomsOf, setHomeCity, settleHomeCity, startRoom } from './groups.js';
 import { follow, followCounts, followingAmong, followingList, isFollowing, unfollow } from './follows.js';
-import { followFeed, groupFeed, ownPick, ownPicks, picksOnGames, publicPicks } from './history.js';
+import { alertPrefs, followedGameIds, followGame, GAME_ALERTS, isFollowingGame, saveAlertPrefs, unfollowGame } from './gamealerts.js';
+import { followFeed, groupFeed, ownPick, ownPicks, picksForGames, picksOnGames, publicPicks } from './history.js';
 import { SITE_URL, THEMES } from './config.js';
 import { clearPhoto, cleanImage, deleteFile, dismissPhoto, filesOf, KINDS, kindOf, MEDIA_NAME, MEDIA_TYPES, mediaDir, mediaOwner, parseMultipart, PHOTO_BLOCK_DAYS, PHOTO_HIDE_AFTER, photosFor, removeReportedPhoto, reportedBy, reportedPhotos, reportPhoto, savePhoto, tooBigText, uploadBlockedUntil } from './photos.js';
 import { cleanHex, customTokens, parseSheet, styleOf, teamAccent, teamByKey, teamsBySport, themeCss } from './themes.js';
@@ -49,6 +50,7 @@ import {
 import { addDays, dateLabel, etDay, mondayOf, weekLabel } from './time.js';
 import { breakdown, hotStreaks, lastTen, leaderboard, PERIODS, rankOf, record, recordBySport, searchPlayers, splits, unitsSeries } from './stats.js';
 import * as account from './views/account.js';
+import * as alertViews from './views/alerts.js';
 import * as legal from './views/legal.js';
 import * as local from './views/local.js';
 import * as moreViews from './views/more.js';
@@ -68,7 +70,6 @@ const UPLOAD_ROOM = 16 * 1024;
 // these sizes, so the browser hears why. Past them the connection just closes.
 const DRAIN_FORM = 1024 * 1024;
 const DRAIN_UPLOAD = 12 * 1024 * 1024;
-const DEFAULT_SPORT = 'nfl';
 export const BIO_MAX = 160;
 
 const SECURITY_HEADERS = {
@@ -151,8 +152,9 @@ export function createApp({ store, games, espn = null, config, mailer = createMa
     ctx.cookies.push(parts.join('; '));
   }
 
-  function flash(ctx, type, text, at) {
-    setCookie(ctx, 'flash', Buffer.from(JSON.stringify({ type, text, at })).toString('base64url'), 60);
+  /** A one-time note for the next page. `game` (a LOCKED ticket's game) puts the ticket on that game's card on the board. */
+  function flash(ctx, type, text, at, game) {
+    setCookie(ctx, 'flash', Buffer.from(JSON.stringify({ type, text, at, game })).toString('base64url'), 60);
   }
 
   function headers(ctx, extra) {
@@ -176,6 +178,15 @@ export function createApp({ store, games, espn = null, config, mailer = createMa
   }
 
   const notFound = (ctx) => send(ctx, 404, account.notFound(ctx));
+
+  /** A fetch from app.js that asked for JSON back instead of a redirect. */
+  const wantsJson = (ctx) => /application\/json/.test(ctx.req.headers.accept ?? '');
+
+  function sendJson(ctx, status, data) {
+    const body = JSON.stringify(data);
+    ctx.res.writeHead(status, headers(ctx, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store', 'Content-Length': Buffer.byteLength(body) }));
+    ctx.res.end(body);
+  }
 
   /**
    * Put each row's look on it, by the player id in `key`: `photo` (null if
@@ -474,19 +485,30 @@ export function createApp({ store, games, espn = null, config, mailer = createMa
 
   async function gamesPage(ctx) {
     if (!signedIn(ctx)) return;
-    // No sport asked for: the player's first favorite, then the default.
-    const sport = SPORT[ctx.query.get('sport')] ?? SPORT[ctx.user.favSports[0]] ?? SPORT[DEFAULT_SPORT];
-    ctx.query.set('sport', sport.key);
-    const list = await games.upcoming(sport.key);
-    const mine = picksOnGames(store, ctx.user.id, list.map((g) => g.id));
-    const chats = chatCounts(store, list.map((g) => g.id));
-    const split = splits(store, list.map((g) => g.id));
+    // No sport asked for (or one we don't know): All, every sport's games today and tomorrow (ET).
+    const sport = SPORT[ctx.query.get('sport')] ?? null;
+    if (!sport) ctx.query.delete('sport');
+    const sports = sport ? [sport] : SPORTS;
+    const boards = await Promise.all(sports.map((s) => games.upcoming(s.key)));
+    let list = boards.flat();
+    if (!sport) {
+      const last = addDays(etDay(ctx.now), 1);
+      list = list.filter((g) => etDay(g.start) <= last).sort((a, b) => a.start.localeCompare(b.start) || a.sport.localeCompare(b.sport) || a.home.name.localeCompare(b.home.name));
+    }
+    // Games under way, for Live now (after the boards, so today's read is shared).
+    const live = (await games.live()).filter((g) => !sport || g.sport === sport.key);
+    const ids = [...live, ...list].map((g) => g.id);
+    const mine = picksForGames(store, ctx.user.id, ids);
+    const chats = chatCounts(store, ids);
+    const split = splits(store, ids);
     const draft = draftOnGames(store, ctx.user.id, list.map((g) => g.id));
     // The official account's picks: a chip on each game it picked, and today's count up top.
     const site = showsSitePicks(ctx.user);
     const bb = site ? officialOnGames(store, list.map((g) => g.id)) : new Map();
     const locks = site && !locksCardHidden(ctx.user, ctx.now) ? todaysSitePicks(store, ctx.now) : null;
-    send(ctx, 200, play.games(ctx, { sport, list, mine, draft, chats, split, bb, locks, problem: games.problem(sport.key) }));
+    const problem = sports.some((s) => games.problem(s.key));
+    const follows = followedGameIds(store, ctx.user.id, ids);
+    send(ctx, 200, play.games(ctx, { sport, list, live, mine, draft, chats, split, bb, locks, problem, follows }));
   }
 
   // ---- www.bookiebullies.com on the board (src/site.js) -----------------------
@@ -523,7 +545,8 @@ export function createApp({ store, games, espn = null, config, mailer = createMa
     // against the live line when it's sent.
     const { game } = await games.current(ctx.query.get('game') ?? '', { wait: false });
     if (!game || !MARKETS[market]?.includes(side)) return notFound(ctx);
-    const back = `/games?sport=${game.sport}`;
+    const board = boardOf(ctx.query.get('board'));
+    const back = boardPath(board, game);
     if (isLocked(game, ctx.now)) {
       flash(ctx, 'error', 'That game has started. Picks lock at the start.');
       return redirect(ctx, back);
@@ -533,7 +556,17 @@ export function createApp({ store, games, espn = null, config, mailer = createMa
       flash(ctx, 'error', 'That line is off the board right now.');
       return redirect(ctx, back);
     }
-    send(ctx, 200, play.slip(ctx, { game, market, side, current, streak: streakChoice(ctx, game), survivor: survivorChoice(ctx, game, market, side) }));
+    send(ctx, 200, play.slip(ctx, { game, market, side, current, board, streak: streakChoice(ctx, game), survivor: survivorChoice(ctx, game, market, side) }));
+  }
+
+  /** The board a pick slip came from: 'all', a sport, or null (the game's own sport). */
+  function boardOf(value) {
+    return value === 'all' || SPORT[value] ? value : null;
+  }
+
+  /** Back to the board the player came from: All, or a sport's. */
+  function boardPath(board, game) {
+    return board === 'all' ? '/games' : `/games?sport=${board ?? game.sport}`;
   }
 
   /** Whether the slip offers "Use Chiefs as my Survivor pick for Week 10" (src/survivor.js). */
@@ -561,17 +594,18 @@ export function createApp({ store, games, espn = null, config, mailer = createMa
     if (!game || !MARKETS[market]?.includes(side)) return notFound(ctx);
     const streak = streakChoice(ctx, game, wantsStreak);
     const surv = survivorChoice(ctx, game, market, side, wantsSurvivor);
-    // Back to the same game on the board, not the top of the page.
-    const back = `/games?sport=${game.sport}#${play.cardId(game.id)}`;
+    // Back to the same game on the board it came from, not the top of the page.
+    const board = boardOf(ctx.form.get('board'));
+    const back = `${boardPath(board, game)}#${play.cardId(game.id)}`;
     const current = price(game, market, side);
     if (!isLocked(game, ctx.now) && current && stale) {
-      return send(ctx, 503, play.slip(ctx, { game, market, side, current, units, streak, survivor: surv, error: "Can't reach live lines right now, so picks are paused. Try again in a minute." }));
+      return send(ctx, 503, play.slip(ctx, { game, market, side, current, units, board, streak, survivor: surv, error: "Can't reach live lines right now, so picks are paused. Try again in a minute." }));
     }
     const result = makePick(store, { userId: ctx.user.id, game, market, side, units, seen, now: ctx.now, streak: wantsStreak });
-    if (result.moved) return send(ctx, 409, play.slip(ctx, { game, market, side, current: result.moved, units, streak, survivor: surv, error: result.error }));
+    if (result.moved) return send(ctx, 409, play.slip(ctx, { game, market, side, current: result.moved, units, board, streak, survivor: surv, error: result.error }));
     if (result.error) {
       if (current && !isLocked(game, ctx.now) && !/already/.test(result.error)) {
-        return send(ctx, 400, play.slip(ctx, { game, market, side, current, units: Number.isFinite(units) ? units : undefined, streak, survivor: surv, error: result.error }));
+        return send(ctx, 400, play.slip(ctx, { game, market, side, current, units: Number.isFinite(units) ? units : undefined, board, streak, survivor: surv, error: result.error }));
       }
       flash(ctx, 'error', result.error);
       return redirect(ctx, back);
@@ -583,7 +617,7 @@ export function createApp({ store, games, espn = null, config, mailer = createMa
       const picked = survivor.setSurvivorPick(store, { state: survivor.survivorState(store, ctx.now), userId: ctx.user.id, game, side, now: ctx.now });
       note += picked.error ? `. Survivor pick not saved: ${picked.error.replace(/\.$/, '')}` : `. ${picked.name} is your Week ${picked.week} Survivor pick`;
     }
-    flash(ctx, 'locked', `${formatLine(market, side, current, game)}, ${formatUnits(result.units)} to win ${formatUnits(toWin(current.odds, result.units))}${note}`, ctx.now.toISOString());
+    flash(ctx, 'locked', `${formatLine(market, side, current, game)}, ${formatUnits(result.units)} to win ${formatUnits(toWin(current.odds, result.units))}${note}`, ctx.now.toISOString(), game.id);
     redirect(ctx, back);
   }
 
@@ -631,7 +665,7 @@ export function createApp({ store, games, espn = null, config, mailer = createMa
     if (result.error) flash(ctx, 'error', result.error);
     else if (result.replaced) flash(ctx, 'ok', `Swapped ${result.replaced} for ${result.added} in your parlay. One leg per game.`);
     else flash(ctx, 'ok', `Added ${result.added} to your parlay. ${result.legs < 2 ? 'Add a leg from another game.' : `${result.legs} legs.`}`);
-    redirect(ctx, `/games?sport=${game.sport}#${play.cardId(game.id)}`);
+    redirect(ctx, `${boardPath(boardOf(ctx.form.get('board')), game)}#${play.cardId(game.id)}`);
   }
 
   function parlayLegRemove(ctx, { game }) {
@@ -699,7 +733,62 @@ export function createApp({ store, games, espn = null, config, mailer = createMa
     const leg = draftOnGames(store, ctx.user.id, [game.id]).get(game.id) ?? null;
     // Injuries and recent form, before the start: from the cache only, never waiting on ESPN.
     const insight = started ? null : summaries?.peek(game) ?? null;
-    send(ctx, 200, play.gamePage(ctx, { game, started, messages: list, picksBy, mine, leg, split: splits(store, [game.id]).get(game.id) ?? null, insight }));
+    // The follow bell by the title: not on a finished game, unless it's still followed (to unfollow).
+    const following = isFollowingGame(store, ctx.user.id, game.id);
+    const bell = game.state !== 'post' || following ? alertViews.followBell(ctx, game.id, { following, next: gamePath(game.id) }) : null;
+    send(ctx, 200, play.gamePage(ctx, { game, started, messages: list, picksBy, mine, leg, split: splits(store, [game.id]).get(game.id) ?? null, insight, bell }));
+  }
+
+  // ---- follow a game (src/gamealerts.js) ----------------------------------------
+
+  /** The bell: follow a game. app.js sends it with fetch and asks for JSON; without JavaScript it redirects to `next`. */
+  function gameFollow(ctx, { id }) {
+    if (!signedIn(ctx)) return;
+    const game = games.get(id);
+    if (!game) return notFound(ctx);
+    const result = followGame(store, { userId: ctx.user.id, game, now: ctx.now });
+    const message = result.error ?? (game.state === 'pre' ? "Following. We'll ping you when it starts." : "Following. We'll ping you as it goes.");
+    if (wantsJson(ctx)) {
+      return sendJson(ctx, result.error ? 409 : 200, { following: !result.error, message, bell: result.error ? null : String(alertViews.followBell(ctx, game.id, { following: true })) });
+    }
+    flash(ctx, result.error ? 'error' : 'ok', message);
+    redirect(ctx, safeNext(ctx.form.get('next')) ?? gamePath(game.id));
+  }
+
+  /** "Unfollow game", from the game alerts page (or sheet). */
+  function gameUnfollow(ctx, { id }) {
+    if (!signedIn(ctx)) return;
+    const game = games.get(id);
+    if (!game) return notFound(ctx);
+    unfollowGame(store, { userId: ctx.user.id, gameId: game.id });
+    const message = 'Unfollowed. No more alerts on this game.';
+    if (wantsJson(ctx)) {
+      // The bell to put back on the page: a follow form (none on a finished game).
+      const bell = game.state === 'post' ? '' : String(alertViews.followBell(ctx, game.id, { following: false, next: gamePath(game.id) }));
+      return sendJson(ctx, 200, { following: false, message, bell });
+    }
+    flash(ctx, 'ok', message);
+    redirect(ctx, safeNext(ctx.form.get('next')) ?? gamePath(game.id));
+  }
+
+  /** What a followed bell opens: the five alerts and Unfollow. A page; app.js shows it in the sheet. */
+  function gameAlertsPage(ctx, { id }) {
+    if (!signedIn(ctx)) return;
+    const game = games.get(id);
+    if (!game) return notFound(ctx);
+    const phones = store.get('SELECT COUNT(*) AS n FROM push_subscriptions WHERE user_id = ?', ctx.user.id).n;
+    send(ctx, 200, alertViews.gameAlertsPage(ctx, {
+      game, following: isFollowingGame(store, ctx.user.id, game.id), prefs: alertPrefs(store, ctx.user.id), phones, pushKey: push?.publicKey() ?? null,
+    }));
+  }
+
+  /** The five game alert settings. Every game the player follows uses them. */
+  function gameAlertsSettings(ctx) {
+    if (!signedIn(ctx)) return;
+    saveAlertPrefs(store, ctx.user.id, Object.fromEntries(GAME_ALERTS.map((a) => [a.key, ctx.form.get(a.key) === 'on'])));
+    if (wantsJson(ctx)) return sendJson(ctx, 200, { saved: true, message: 'Saved.' });
+    flash(ctx, 'ok', 'Saved. These apply to every game you follow.');
+    redirect(ctx, safeNext(ctx.form.get('next')) ?? '/notifications');
   }
 
   /**
@@ -802,7 +891,7 @@ export function createApp({ store, games, espn = null, config, mailer = createMa
       );
       for (const r of legs) mine.set(r.game_id, [...(mine.get(r.game_id) ?? []), r]);
     }
-    send(ctx, 200, moreViews.live(ctx, { list, mine }));
+    send(ctx, 200, moreViews.live(ctx, { list, mine, follows: followedGameIds(store, ctx.user.id, list.map((g) => g.id)) }));
   }
 
   function leaderboardPage(ctx) {
@@ -2220,6 +2309,10 @@ export function createApp({ store, games, espn = null, config, mailer = createMa
     ['GET', '/games', gamesPage],
     ['GET', '/games/:id', gamePage],
     ['GET', '/games/:id/bb', sitePicksPage],
+    ['POST', '/games/:id/follow', gameFollow],
+    ['POST', '/games/:id/unfollow', gameUnfollow],
+    ['GET', '/games/:id/alerts', gameAlertsPage],
+    ['POST', '/settings/game-alerts', gameAlertsSettings],
     ['POST', '/bb/locks/dismiss', locksCardDismiss],
     ['POST', '/bb/settings', sitePicksSetting],
     ['POST', '/games/:id/chat', chatPost],
@@ -2383,6 +2476,9 @@ export function createApp({ store, games, espn = null, config, mailer = createMa
       if (ctx.user?.screenName) {
         ctx.parlay = draftSummary(store, ctx.user.id, ctx.now);
         ctx.unread = notifier.unread(ctx.user.id);
+        // The units pill in the header: looked up only when a page is drawn.
+        const userId = ctx.user.id;
+        ctx.myUnits = () => record(store, userId).units;
       }
       if (cookies.flash) {
         ctx.flash = readFlash(cookies.flash);
@@ -2429,10 +2525,10 @@ function parseCookies(header = '') {
 
 function readFlash(value) {
   try {
-    const { type, text, at } = JSON.parse(Buffer.from(value, 'base64url').toString('utf8'));
+    const { type, text, at, game } = JSON.parse(Buffer.from(value, 'base64url').toString('utf8'));
     if (typeof text !== 'string' || text.length >= 300) return null;
     const time = typeof at === 'string' && !Number.isNaN(Date.parse(at)) ? new Date(at).toISOString() : null;
-    return { type: ['error', 'locked'].includes(type) ? type : 'ok', text, at: time };
+    return { type: ['error', 'locked'].includes(type) ? type : 'ok', text, at: time, game: typeof game === 'string' && game.length < 100 ? game : null };
   } catch {
     return null;
   }

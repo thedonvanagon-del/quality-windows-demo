@@ -78,7 +78,9 @@ ${splash ? html`<div class="splash" aria-hidden="true" data-splash><img class="s
     <a class="brand" href="/"><img class="brand-logo" src="${app.assets.logo}" alt="" width="34" height="34"><span class="brand-name"><span class="brand-word">${app.name}</span><small class="brand-by">by BOOKIEBULLIES.COM</small></span></a>
     <nav class="nav" aria-label="Main">${nav.map(link)}</nav>
     <div class="top-right">
-      ${active === 'install' ? '' : html`<a class="get-app" href="/install" data-get-app>${icons.download}<span>Get the app</span></a>`}
+      ${playing
+        ? unitsPill(ctx.myUnits?.() ?? null, profile)
+        : active === 'install' ? '' : html`<a class="get-app" href="/install" data-get-app>${icons.download}<span>Get the app</span></a>`}
       ${playing ? html`<a class="bell ${active === 'notifications' ? 'on' : ''}" href="/notifications" aria-label="Notifications${ctx.unread ? `, ${ctx.unread} new` : ''}">${icons.bell}${ctx.unread ? html`<b class="badge">${ctx.unread > 99 ? '99+' : ctx.unread}</b>` : ''}</a>` : ''}
       ${playing
         ? html`<a class="user-chip ${active === 'me' ? 'on' : ''}" href="${profile}">${avatar(user)}<span class="name">${user.screenName}</span></a>`
@@ -114,7 +116,7 @@ ${active === 'install' ? '' : html`<div class="ios-install" data-ios-install hid
   <div class="ios-arrow" aria-hidden="true">↓</div>
 </div>`}
 <main class="wrap">
-  ${flash?.type === 'locked' ? lockedTicket(ctx, flash) : flash ? html`<div class="flash ${flash.type === 'error' ? 'err' : 'ok'}" role="status">${flash.text}</div>` : ''}
+  ${ctx.flashShown ? '' : flash?.type === 'locked' ? lockedTicket(ctx, flash) : flash ? html`<div class="flash ${flash.type === 'error' ? 'err' : 'ok'}" role="status">${flash.text}</div>` : ''}
   ${body}
 </main>
 <footer>
@@ -146,10 +148,25 @@ export function csrfField(ctx) {
 }
 
 /**
+ * The player's all-time record in units, top right: "+12.4u ▲" in green,
+ * "−3.2u ▼" in red, linking to their profile. Nothing when there's no number.
+ */
+export function unitsPill(units, href) {
+  if (units == null || !Number.isFinite(units)) return '';
+  const n = Math.round(units * 10) / 10;
+  const dir = n > 0 ? 'up' : n < 0 ? 'down' : 'even';
+  const size = Math.abs(n);
+  const text = `${n > 0 ? '+' : n < 0 ? '−' : ''}${size}u`;
+  const said = `${n > 0 ? 'Up' : n < 0 ? 'Down' : 'Even at'} ${size} ${size === 1 ? 'unit' : 'units'}, all time. Your profile`;
+  return html`<a class="units-pill ${dir}" href="${href}" aria-label="${said}" title="Your record in units, all time">${text}${dir === 'even' ? '' : html`<span class="arrow" aria-hidden="true">${dir === 'up' ? '▲' : '▼'}</span>`}</a>`;
+}
+
+/**
  * The receipt a pick gets the moment it goes in: the bet, a LOCKED stamp and
  * the exact time. With the site's picks on, one quiet line points to them.
+ * On the games board it sits on the picked game's card instead (play.js).
  */
-function lockedTicket(ctx, flash) {
+export function lockedTicket(ctx, flash) {
   return html`<div class="locked-ticket" role="status">
     <span class="stamp">Locked</span>
     <div class="lt-body">

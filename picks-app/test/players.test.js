@@ -85,7 +85,7 @@ describe('first-time setup', () => {
     assert.deepEqual(follows, [userId('Cal'), officialId].sort((a, b) => a - b));
 
     const games = await ann.get('/games');
-    assert.match(games.text, /href="\/games\?sport=nba" class="on"/, 'the games page opens on the first favorite');
+    assert.match(games.text, /href="\/games" class="on"/, 'the games page opens on All, favorites or not');
     assert.match(visible(games.text), /Lakers.*Celtics/);
     assert.match((await ann.get('/games?sport=nfl')).text, /href="\/games\?sport=nfl" class="on"/, 'a sport in the address still wins');
     assert.equal((await ann.get('/setup')).location, '/games', 'never again');
@@ -99,7 +99,7 @@ describe('first-time setup', () => {
     await ann.get('/setup');
     assert.equal((await ann.post('/setup/skip')).location, '/games');
     assert.deepEqual(app.store.all('SELECT followee_id FROM follows').map((r) => r.followee_id), [userId('BookieBullies')]);
-    assert.match((await ann.get('/games')).text, /href="\/games\?sport=nfl" class="on"/, 'no favorites: the default sport');
+    assert.match((await ann.get('/games')).text, /href="\/games" class="on"/, 'no favorites: All');
     assert.equal((await ann.get('/setup')).location, '/games');
   });
 
