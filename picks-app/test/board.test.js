@@ -57,12 +57,12 @@ describe('the games board', () => {
     assert.match((await ann.get('/games?sport=bogus')).text, /href="\/games" class="on"/, 'an unknown sport is All');
   });
 
-  test('two big buttons a market, with the price and the win chance it implies', async () => {
+  test('each team on one line with its button: the number, the price and the win chance it implies', async () => {
     const ann = await player('ann@example.com', 'Ann');
     const bos = card((await ann.get('/games')).text, 'nba:5');
-    assert.match(visible(bos), /Spread Total Money Lakers \+4\.5 −110 52% Celtics −4\.5 −110 52%/);
-    assert.match(visible(bos), /Over 224\.5 −110 52% Under 224\.5 −110 52%/);
-    assert.match(visible(bos), /Lakers ML \+160 38% Celtics ML −190 66%/);
+    assert.match(visible(bos), /Spread Total Money LAL Lakers \+4\.5 −110 52% BOS Celtics Fav −4\.5 −110 52%/);
+    assert.match(visible(bos), /LAL Lakers O 224\.5 −110 52% BOS Celtics Fav U 224\.5 −110 52%/);
+    assert.match(visible(bos), /LAL Lakers \+160 38% BOS Celtics Fav −190 66%/);
     assert.match(bos, /<a class="pbtn" href="\/pick\?game=nba%3A5&amp;market=spread&amp;side=away&amp;board=all"/, 'from All, the slip knows to come back to All');
     assert.match(bos, /<div class="mk-panel" id="g-nba-5-spread" data-market-panel="spread" >/, 'spread shows first');
     assert.match(bos, /<div class="mk-panel" id="g-nba-5-total" data-market-panel="total" hidden>/);
@@ -97,7 +97,7 @@ describe('the games board', () => {
     assert.match(bos, /data-market-tab="total" aria-controls="g-nba-5-total" aria-pressed="true">Total<span class="mk-dot"/, 'with a dot on its tab');
     assert.match(bos, /<a class="pbtn mine" href="\/picks" aria-label="Your pick: Over 224\.5 at -110">/);
     assert.match(bos, /<span class="pbtn taken" aria-label="Under 224\.5 at -110, you took the other side">/);
-    assert.match(visible(bos), /Over 224\.5 −110 Locked/);
+    assert.match(visible(bos), /Lakers O 224\.5 −110 Locked/);
 
     // The next look at the board: a plain strip.
     const again = card((await ann.get('/games')).text, 'nba:5');
