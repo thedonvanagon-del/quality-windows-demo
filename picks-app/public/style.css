@@ -1949,3 +1949,8 @@ form.follow .bell { border: 0; background: none; cursor: pointer; font: inherit;
 .gc-row .pb-row { margin-top: 2px; }
 .gc-row .pb-pct { font-size: 0.95rem; }
 @media (max-width: 360px) { .gc-row { grid-template-columns: minmax(0, 1fr) 116px; } }
+
+/* Chat sits up on the time line, next to the bell, so a card is one row shorter. */
+.gc-chat { display: inline-flex; align-items: center; gap: 5px; flex: none; min-height: 32px; padding: 0 10px; border-radius: 999px; background: var(--raised); color: var(--muted); font-weight: 700; font-size: 0.84rem; font-variant-numeric: tabular-nums; }
+.gc-chat:hover { color: var(--ink); }
+.gc-chat svg { width: 15px; height: 15px; }
