@@ -1954,3 +1954,13 @@ form.follow .bell { border: 0; background: none; cursor: pointer; font: inherit;
 .gc-chat { display: inline-flex; align-items: center; gap: 5px; flex: none; min-height: 32px; padding: 0 10px; border-radius: 999px; background: var(--raised); color: var(--muted); font-weight: 700; font-size: 0.84rem; font-variant-numeric: tabular-nums; }
 .gc-chat:hover { color: var(--ink); }
 .gc-chat svg { width: 15px; height: 15px; }
+
+/* Market switcher as a full-width segmented control: three equal buttons in a framed bar,
+   the one showing filled with the theme's accent, so it reads as "tap to switch". */
+.gc .mk { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 3px; margin: 2px 0 12px; padding: 3px; border: 1px solid color-mix(in srgb, var(--accent) 45%, var(--line)); border-radius: 12px; background: var(--bg); }
+.gc .mk-tab { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 38px; padding: 0 6px; border-radius: 9px; color: var(--ink); opacity: 0.78; font-family: var(--cond); font-size: 1rem; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; transition: background 0.15s, color 0.15s, opacity 0.15s; }
+.gc .mk-tab:hover { opacity: 1; background: var(--raised); }
+.gc .mk-tab[aria-pressed="true"] { opacity: 1; background: var(--accent); color: var(--accent-ink); box-shadow: 0 2px 8px color-mix(in srgb, var(--accent) 30%, transparent); }
+.gc .mk-tab:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.gc .mk-dot { margin-left: 0; vertical-align: 0; box-shadow: 0 0 0 2px var(--bg); }
+.gc .mk-tab[aria-pressed="true"] .mk-dot { box-shadow: 0 0 0 2px var(--accent-ink); }
