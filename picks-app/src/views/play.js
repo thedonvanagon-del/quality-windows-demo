@@ -138,15 +138,14 @@ function upcomingCard(game, { ctx, all, here, mine, draft, chats, split, bb, fol
   const label = (m) => (m === 'spread' ? sport.spread : m === 'ml' ? 'Money' : 'Total');
   return html`<article class="event gc" id="${id}" aria-label="${game.away.name} at ${game.home.name}">
     <div class="gc-meta"><span class="gc-when">${at(game.start)}${all ? ` · ${sport.short}` : ''}${game.tv ? ` · ${game.tv}` : ''}</span>${followBell(ctx, game, here, follows)}</div>
-    <div class="gc-teams">${teamRow(game, 'away', { fav })}${teamRow(game, 'home', { fav })}</div>
     <div class="mk" role="group" aria-label="Market">
       ${BOARD_MARKETS.map((m) => html`<button type="button" class="mk-tab" data-market-tab="${m}" aria-controls="${id}-${m}" aria-pressed="${m === shown ? 'true' : 'false'}">${label(m)}${byMarket[m] ? html`<span class="mk-dot" role="img" aria-label="(your pick)"></span>` : ''}</button>`)}
     </div>
     ${BOARD_MARKETS.map((m) => html`<div class="mk-panel" id="${id}-${m}" data-market-panel="${m}" ${m === shown ? '' : html`hidden`}>
-      ${priced(m)
-        ? html`<div class="pbtns">${MARKETS[m].map((side) => pickButton(game, m, side, byMarket[m], leg, all))}</div>
-          ${splitLine(game, m, split.get(game.id)?.[m])}`
-        : html`<p class="mk-off">No ${label(m).toLowerCase()} on the board yet.</p>`}
+      <div class="gc-rows">
+        ${['away', 'home'].map((team, i) => html`<div class="gc-row">${teamRow(game, team, { fav })}${pickButton(game, m, MARKETS[m][i], byMarket[m], leg, all)}</div>`)}
+      </div>
+      ${priced(m) ? splitLine(game, m, split.get(game.id)?.[m]) : ''}
       ${byMarket[m] ? (byMarket[m] === just ? justLocked(ctx) : lockStrip(byMarket[m], game)) : ''}
     </div>`)}
     <div class="card-foot">
@@ -167,14 +166,16 @@ function pickButton(game, market, side, mine, leg, all) {
   const p = own ? { line: mine.line, odds: mine.odds } : price(game, market, side);
   if (!p) {
     const short = market === 'total' ? (side === 'over' ? 'Over' : 'Under') : game[side].short;
-    return html`<span class="pbtn off" aria-label="${short}: no price yet"><span class="pb-name">${short}</span><span class="pb-row"><span>No price yet</span></span></span>`;
+    return html`<span class="pbtn off" aria-label="${short}: no price yet"><span class="pb-name">–</span><span class="pb-row"><span>No price</span></span></span>`;
   }
   const name = selection(market, side, p.line, game);
   const pct = impliedPct(p.odds);
   const inParlay = leg?.market === market && leg.side === side;
   const kind = `pbtn${inParlay ? ' in-parlay' : ''}`;
   const label = `${name} at ${formatOdds(p.odds)}${inParlay ? ', in your parlay' : ''}`;
-  const inner = (right) => html`<span class="pb-name">${trueMinus(name)}</span><span class="pb-row"><span class="pb-odds">${minus(formatOdds(p.odds))}</span><span class="pb-pct">${right}</span></span>`;
+  // The team is on the row, so the button shows just the number: "+1.5", "O 224.5", or the moneyline price.
+  const top = market === 'spread' ? formatSpread(p.line) : market === 'total' ? `${side === 'over' ? 'O' : 'U'} ${p.line}` : formatOdds(p.odds);
+  const inner = (right) => html`<span class="pb-name">${minus(top)}</span><span class="pb-row">${market === 'ml' ? html`<span></span>` : html`<span class="pb-odds">${minus(formatOdds(p.odds))}</span>`}<span class="pb-pct">${right}</span></span>`;
   if (own) return html`<a class="${kind} mine" href="/picks" aria-label="Your pick: ${label}">${inner('Locked')}</a>`;
   if (mine) return html`<span class="${kind} taken" aria-label="${label}, you took the other side">${inner(`${pct}%`)}</span>`;
   const query = new URLSearchParams({ game: game.id, market, side });

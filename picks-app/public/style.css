@@ -1939,3 +1939,13 @@ form.follow .bell { border: 0; background: none; cursor: pointer; font: inherit;
 .toast.show { opacity: 1; transform: translate(-50%, 0); }
 .toast.bad { background: var(--loss); color: #fff; }
 @media (prefers-reduced-motion: reduce) { .toast { transition: none; } }
+
+/* Board rows: each team on one line with its button on the right (spread / total / money from the tabs above). */
+.gc .mk { margin: 0 0 8px; }
+.gc-rows { display: grid; gap: 8px; }
+.gc-row { display: grid; grid-template-columns: minmax(0, 1fr) 132px; align-items: center; gap: 10px; }
+.gc-row .pbtn { padding: 8px 12px; }
+.gc-row .pb-name { font-size: 1.08rem; font-variant-numeric: tabular-nums; }
+.gc-row .pb-row { margin-top: 2px; }
+.gc-row .pb-pct { font-size: 0.95rem; }
+@media (max-width: 360px) { .gc-row { grid-template-columns: minmax(0, 1fr) 116px; } }
