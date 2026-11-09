@@ -137,7 +137,7 @@ function upcomingCard(game, { ctx, all, here, mine, draft, chats, split, bb, fol
   const id = cardId(game.id);
   const label = (m) => (m === 'spread' ? sport.spread : m === 'ml' ? 'Money' : 'Total');
   return html`<article class="event gc" id="${id}" aria-label="${game.away.name} at ${game.home.name}">
-    <div class="gc-meta"><span class="gc-when">${at(game.start)}${all ? ` · ${sport.short}` : ''}${game.tv ? ` · ${game.tv}` : ''}</span>${followBell(ctx, game, here, follows)}</div>
+    <div class="gc-meta"><span class="gc-when">${at(game.start)}${all ? ` · ${sport.short}` : ''}${game.tv ? ` · ${game.tv}` : ''}</span><a class="gc-chat" href="/games/${encodeURIComponent(game.id)}#chat" aria-label="${count ? `Game chat, ${count} messages` : 'Game chat'}">${icons.chat}<span>${count || 'Chat'}</span></a>${followBell(ctx, game, here, follows)}</div>
     <div class="mk" role="group" aria-label="Market">
       ${BOARD_MARKETS.map((m) => html`<button type="button" class="mk-tab" data-market-tab="${m}" aria-controls="${id}-${m}" aria-pressed="${m === shown ? 'true' : 'false'}">${label(m)}${byMarket[m] ? html`<span class="mk-dot" role="img" aria-label="(your pick)"></span>` : ''}</button>`)}
     </div>
@@ -148,10 +148,7 @@ function upcomingCard(game, { ctx, all, here, mine, draft, chats, split, bb, fol
       ${priced(m) ? splitLine(game, m, split.get(game.id)?.[m]) : ''}
       ${byMarket[m] ? (byMarket[m] === just ? justLocked(ctx) : lockStrip(byMarket[m], game)) : ''}
     </div>`)}
-    <div class="card-foot">
-      ${bbPicks?.length ? bbChip(game, bbPicks[0]) : ''}
-      <a class="card-chat" href="/games/${encodeURIComponent(game.id)}#chat">${icons.chat}<span>${count ? `Chat · ${count}` : 'Chat'}</span></a>
-    </div>
+    ${bbPicks?.length ? html`<div class="card-foot">${bbChip(game, bbPicks[0])}</div>` : ''}
   </article>`;
 }
 
