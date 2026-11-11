@@ -64,44 +64,24 @@ const card = (page, id) => page.match(new RegExp(`<article class="event gc" id="
 const siteHrefs = (page) => [...page.matchAll(/href="(https:\/\/www\.bookiebullies\.com[^"]*)"/g)].map((m) => m[1].replaceAll('&amp;', '&'));
 
 describe('BB Pick chips', () => {
-  test('a chip on each game the official account picked: a gold Lock, else a Pick', async () => {
-    await slate();
-    const ann = await player();
-    const board = await ann.get('/games?sport=nba');
-    const lakers = card(board.text, 'nba:1');
-    // The Lock comes first when the model has two picks on a game.
-    assert.match(lakers, /<a class="bb-chip lock" href="\/games\/nba%3A1\/bb"[^>]*><span aria-hidden="true">🔒<\/span> BB Lock · Lakers −4\.5<\/a>/);
-    assert.equal((lakers.match(/bb-chip/g) ?? []).length, 1, 'one chip per game');
-    assert.match(card(board.text, 'nba:3'), /<a class="bb-chip" [^>]*>BB Pick · Over 219\.5<\/a>/);
-    assert.doesNotMatch(card(board.text, 'nba:2'), /bb-chip/, 'no chip without an official pick');
-    // College hoops has its own board.
-    assert.match(card((await ann.get('/games?sport=ncaab')).text, 'ncaab:9'), /BB Pick · UConn \+6\.5/);
-  });
-
-  test('a graded pick shows no chip', async () => {
-    const id = await officialPick('nba:2', 'spread', 'home');
-    app.store.run("UPDATE picks SET result = 'win', profit = 0.91 WHERE id = ?", id);
-    const ann = await player();
-    assert.doesNotMatch((await ann.get('/games?sport=nba')).text, /bb-chip/);
-  });
-
-  test("the board loads every game's official picks in one query", async () => {
+  test("no BB Pick chips on the game cards: the model's picks stay on the site", async () => {
     await slate();
     await officialPick('nba:2', 'spread', 'away');
     const ann = await player();
     const all = app.store.all;
     const queries = [];
     app.store.all = (sql, ...params) => {
-      if (/official_picks/.test(sql)) queries.push(sql);
+      if (/official_picks/.test(sql) && !/COUNT|count/.test(sql)) queries.push(sql);
       return all(sql, ...params);
     };
     try {
-      const board = await ann.get('/games?sport=nba');
-      assert.equal((board.text.match(/class="bb-chip/g) ?? []).length, 3);
+      for (const path of ['/games', '/games?sport=nba', '/games?sport=ncaab']) {
+        const board = await ann.get(path);
+        assert.doesNotMatch(board.text, /bb-chip|BB Pick ·|BB Lock ·/, path);
+      }
     } finally {
       app.store.all = all;
     }
-    assert.equal(queries.length, 1);
   });
 
   test('a chip opens the pick, line, odds and stars, and links to the site and the profile', async () => {
@@ -135,7 +115,7 @@ describe('BB Pick chips', () => {
     assert.doesNotMatch(board.text, /bb-chip|bb-locks/);
 
     await ann.post('/bb/settings', { show: 'on' });
-    assert.match((await ann.get('/games?sport=nba')).text, /bb-chip lock/);
+    assert.match((await ann.get('/games?sport=nba')).text, /bb-locks/);
     // Saved on the player.
     assert.equal(app.store.get("SELECT show_bb FROM users WHERE screen_name = 'Ann'").show_bb, 1);
   });
@@ -192,7 +172,6 @@ describe("Today's Locks card", () => {
     time.set('2026-11-06T04:50:00.000Z');
     const late = await ann.get('/games?sport=nba');
     assert.doesNotMatch(late.text, /bb-locks/);
-    assert.match(late.text, /bb-chip/, 'the chips stay');
     // Just after midnight Eastern: a new day, and tomorrow's pick is today's.
     time.set('2026-11-06T05:10:00.000Z');
     assert.match(visible((await ann.get('/games?sport=nba')).text), /1 Bookie Bullies pick today · See them/);

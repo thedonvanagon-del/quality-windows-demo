@@ -132,7 +132,6 @@ function upcomingCard(game, { ctx, all, here, mine, draft, chats, split, bb, fol
   const shown = just?.market ?? BOARD_MARKETS.find((m) => byMarket[m]) ?? BOARD_MARKETS.find(priced) ?? 'spread';
   const fav = favorite(game);
   const leg = draft.get(game.id) ?? null;
-  const bbPicks = bb.get(game.id);
   const count = chats.get(game.id) ?? 0;
   const id = cardId(game.id);
   const label = (m) => (m === 'spread' ? sport.spread : m === 'ml' ? 'Money' : 'Total');
@@ -148,7 +147,6 @@ function upcomingCard(game, { ctx, all, here, mine, draft, chats, split, bb, fol
       ${priced(m) ? splitLine(game, m, split.get(game.id)?.[m]) : ''}
       ${byMarket[m] ? (byMarket[m] === just ? justLocked(ctx) : lockStrip(byMarket[m], game)) : ''}
     </div>`)}
-    ${bbPicks?.length ? html`<div class="card-foot">${bbChip(game, bbPicks[0])}</div>` : ''}
   </article>`;
 }
 
@@ -207,7 +205,7 @@ function trueMinus(text) {
   return String(text).replace(/(^|\s)-(?=\d)/g, '$1−');
 }
 
-function gameCard(game, mine, sport, chatCount = null, split = null, leg = null, bbPicks = null) {
+function gameCard(game, mine, sport, chatCount = null, split = null, leg = null) {
   const fav = favorite(game);
   const row = (side, totalSide) => html`
     <span class="team">${stripe(game[side].color)}${teamLogo(game[side])}<span class="tname"><span class="tn">${game[side].short}</span>${fav === side || game[side].record ? html`<span class="tsub">${fav === side ? html`<span class="fav">Fav</span>` : ''}${game[side].record ? html`<span class="trec">${game[side].record}</span>` : ''}</span>` : ''}</span></span>
@@ -220,9 +218,8 @@ function gameCard(game, mine, sport, chatCount = null, split = null, leg = null,
       ${row('away', 'over')}
       ${row('home', 'under')}
     </div>
-    ${chatCount == null && !split?.spread && !bbPicks?.length ? '' : html`<div class="card-foot">
+    ${chatCount == null && !split?.spread ? '' : html`<div class="card-foot">
       ${chatCount == null ? '' : html`<a class="card-chat" href="/games/${encodeURIComponent(game.id)}#chat">${icons.chat}<span>${chatCount ? `Chat · ${chatCount}` : 'Chat'}</span></a>`}
-      ${bbPicks?.length ? bbChip(game, bbPicks[0]) : ''}
       ${split?.spread ? html`<span class="lean">${leanText(game, split.spread)}</span>` : ''}
     </div>`}
   </article>`;
@@ -233,15 +230,6 @@ function gameCard(game, mine, sport, chatCount = null, split = null, leg = null,
 /** "Lakers −4.5", "Over 223", "Lakers ML": a pick with true minus signs. */
 function pickText(p, game) {
   return selection(p.market, p.side, p.line, game).replace(/(^|\s)-(?=\d)/, '$1\u2212');
-}
-
-/**
- * The official account's pick on a game, as a chip under the board: gold
- * "🔒 BB Lock · Lakers −4.5" for a site Lock, else "BB Pick · Over 223". It
- * opens the model's picks on that game (a page; app.js shows it in the sheet).
- */
-function bbChip(game, p) {
-  return html`<a class="${p.lock ? 'bb-chip lock' : 'bb-chip'}" href="/games/${encodeURIComponent(game.id)}/bb" data-sheet="The Bookie Bullies model's pick">${p.lock ? html`<span aria-hidden="true">🔒</span> BB Lock` : 'BB Pick'} · ${pickText(p, game)}</a>`;
 }
 
 /** Confidence from the site, 1 to 5, as stars. */
