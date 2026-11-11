@@ -1393,3 +1393,5 @@ In rough order of value:
   one that has shipped.
 - Profile photos are files in `MEDIA_DIR`, not in the database: back both up.
 - The README has the details: settings, file map, security notes.
+
+- 2026-11-11: No BB Pick / BB Lock chips on the game cards (owner asked). The model's picks stay on the site; the Locks card at the top of the board and the "See the model's picks" link on the LOCKED ticket still point there.

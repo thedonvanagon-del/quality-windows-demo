@@ -504,7 +504,8 @@ export function createApp({ store, games, espn = null, config, mailer = createMa
     const draft = draftOnGames(store, ctx.user.id, list.map((g) => g.id));
     // The official account's picks: a chip on each game it picked, and today's count up top.
     const site = showsSitePicks(ctx.user);
-    const bb = site ? officialOnGames(store, list.map((g) => g.id)) : new Map();
+    // No BB Pick chips on the cards: the model's picks stay on the site (the Locks card links there).
+    const bb = new Map();
     const locks = site && !locksCardHidden(ctx.user, ctx.now) ? todaysSitePicks(store, ctx.now) : null;
     const problem = sports.some((s) => games.problem(s.key));
     const follows = followedGameIds(store, ctx.user.id, ids);
