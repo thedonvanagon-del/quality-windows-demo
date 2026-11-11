@@ -1,0 +1,73 @@
+name: studio-app deploy
+
+# Ships the studio booking app to the Lightsail server whenever studio-app
+# changes on main. Skipped (not failed) until the repo variable STUDIO_HOST is
+# set to the server's IP. It reuses the same deploy key as the picks app:
+# the secret APP_SSH_KEY. studio-app/README.md has the one-time server setup.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "studio-app/**"
+      - ".github/workflows/studio-app-deploy.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: studio-app-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    if: vars.STUDIO_HOST != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      STUDIO_HOST: ${{ vars.STUDIO_HOST }}
+      STUDIO_URL: ${{ vars.STUDIO_URL }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: tests
+        working-directory: studio-app
+        run: npm test
+
+      - name: ssh key
+        env:
+          APP_SSH_KEY: ${{ secrets.APP_SSH_KEY }}
+        run: |
+          set -euo pipefail
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$APP_SSH_KEY" > ~/.ssh/deploy
+          chmod 600 ~/.ssh/deploy
+          ssh-keyscan -t ed25519 "$STUDIO_HOST" >> ~/.ssh/known_hosts
+
+      # Code only. The database is in /var/lib/studio-app and the settings in
+      # /etc/studio-app.env; neither is touched.
+      - name: copy the app
+        run: |
+          set -euo pipefail
+          rsync -az --delete -e "ssh -i ~/.ssh/deploy" \
+            studio-app/package.json studio-app/src studio-app/public \
+            "ubuntu@$STUDIO_HOST:/opt/studio-app/"
+
+      - name: restart
+        run: ssh -i ~/.ssh/deploy "ubuntu@$STUDIO_HOST" 'sudo systemctl restart studio-app'
+
+      - name: check it answers
+        run: |
+          set -euo pipefail
+          for i in $(seq 1 20); do
+            if curl -fsS "$STUDIO_URL/healthz"; then echo; exit 0; fi
+            sleep 3
+          done
+          echo "::error::$STUDIO_URL/healthz did not answer after a minute"
+          ssh -i ~/.ssh/deploy "ubuntu@$STUDIO_HOST" 'sudo journalctl -u studio-app -n 50 --no-pager'
+          exit 1
