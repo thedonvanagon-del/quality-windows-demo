@@ -1,21 +1,97 @@
 [
-  {"start": 0.5,  "end": 5.5,  "text": "Friday morning. Sixty seconds. Grab your mug."},
-  {"start": 6.0,  "end": 9.5,  "text": "Sit up. Close your eyes."},
-  {"start": 9.5,  "end": 12.5, "text": "Breathe in."},
-  {"start": 12.5, "end": 16.0, "text": "And out. Slow."},
-  {"start": 16.0, "end": 18.5, "text": "Again. In."},
-  {"start": 18.5, "end": 22.0, "text": "And out."},
-  {"start": 22.0, "end": 25.0, "text": "The Buddha taught the middle way."},
-  {"start": 25.0, "end": 27.5, "text": "Not too tight. Not too loose."},
-  {"start": 27.5, "end": 29.5, "text": "Same as a pour-over."},
-  {"start": 29.5, "end": 31.0, "text": "Rush it, and it's sour."},
-  {"start": 31.0, "end": 32.5, "text": "Stew it, and it's bitter."},
-  {"start": 32.5, "end": 35.0, "text": "Slow and steady hits the sweet spot."},
-  {"start": 36.0, "end": 38.5, "text": "Nothing lasts."},
-  {"start": 38.5, "end": 42.0, "text": "Not the steam. Not the week. Not even the crema."},
-  {"start": 42.0, "end": 45.0, "text": "So drink the cup while it's here."},
-  {"start": 48.0, "end": 50.5, "text": "Beginner's mind."},
-  {"start": 50.5, "end": 53.0, "text": "Every cup is your first cup."},
-  {"start": 53.0, "end": 56.5, "text": "Take one sip like you've never tasted coffee."},
-  {"start": 57.3, "end": 59.0, "text": "Happy Friday."}
+ {
+  "start": 1.35,
+  "end": 5.91,
+  "text": "Friday morning. Sixty seconds. Grab your mug."
+ },
+ {
+  "start": 6.31,
+  "end": 8.91,
+  "text": "Sit up. Close your eyes."
+ },
+ {
+  "start": 8.93,
+  "end": 10.73,
+  "text": "Breathe in."
+ },
+ {
+  "start": 11.65,
+  "end": 13.9,
+  "text": "And out. Slow."
+ },
+ {
+  "start": 15.27,
+  "end": 17.45,
+  "text": "Again. In."
+ },
+ {
+  "start": 18.37,
+  "end": 20.19,
+  "text": "And out."
+ },
+ {
+  "start": 21.57,
+  "end": 23.89,
+  "text": "The Buddha taught the middle way."
+ },
+ {
+  "start": 23.89,
+  "end": 26.97,
+  "text": "Not too tight. Not too loose."
+ },
+ {
+  "start": 26.97,
+  "end": 28.99,
+  "text": "Same as a pour-over."
+ },
+ {
+  "start": 28.99,
+  "end": 30.98,
+  "text": "Rush it, and it's sour."
+ },
+ {
+  "start": 30.98,
+  "end": 33.01,
+  "text": "Stew it, and it's bitter."
+ },
+ {
+  "start": 33.01,
+  "end": 36.67,
+  "text": "Slow and steady hits the sweet spot."
+ },
+ {
+  "start": 37.46,
+  "end": 39.23,
+  "text": "Nothing lasts."
+ },
+ {
+  "start": 39.23,
+  "end": 43.42,
+  "text": "Not the steam. Not the week. Not even the crema."
+ },
+ {
+  "start": 43.42,
+  "end": 46.3,
+  "text": "So drink the cup while it's here."
+ },
+ {
+  "start": 47.35,
+  "end": 49.24,
+  "text": "Beginner's mind."
+ },
+ {
+  "start": 49.24,
+  "end": 51.91,
+  "text": "Every cup is your first cup."
+ },
+ {
+  "start": 51.91,
+  "end": 56.05,
+  "text": "Take one sip like you've never tasted coffee."
+ },
+ {
+  "start": 56.84,
+  "end": 58.37,
+  "text": "Happy Friday."
+ }
 ]
