@@ -34,6 +34,8 @@ Run `python -m cfbbot --demo` from this folder to see it on a sample Saturday.
   below.
 - **In-play picks** when a live line drifts far enough from the model. Each
   one comes with the best price it found and which book has it.
+- **Nothing priced worse than -250**, board or in-play. Past that a bet has to
+  cash 71% of the time just to break even.
 - **A short check-in** on scans with games live but nothing new. It lists
   earlier picks that still hold up. Turn it off with `CFB_HEARTBEAT=false`.
 - **A recap** once the last game ends, with every pick graded, board picks
