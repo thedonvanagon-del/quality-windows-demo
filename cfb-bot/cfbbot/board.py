@@ -13,7 +13,7 @@ import statistics
 from datetime import timedelta
 
 from . import odds
-from .model import Pick
+from .model import Pick, affordable
 from .odds import Quote
 from .util import decimal_odds, implied, parse_time
 
@@ -59,7 +59,7 @@ def _best_side(game, event, home, away, now, sport, user_books):
     for side, (ref_point, fair) in refs.items():
         for q in quotes[side]:
             gap = q.point - ref_point
-            if abs(gap) > MAX_POINTS_OFF:
+            if abs(gap) > MAX_POINTS_OFF or not affordable(q):
                 continue
             prob = min(0.99, max(0.01, fair + cover_gain(sport, ref_point, q.point)))
             ev = prob * decimal_odds(q.price) - 1

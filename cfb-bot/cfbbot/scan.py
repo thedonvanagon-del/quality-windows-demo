@@ -153,7 +153,7 @@ def run(cfg, state, now, fetch_games, fetch_odds, fetch_page=None, sport=NCAAF):
     alerts = state.alerts(day)
     still_going = any(g.state == "in" or (g.state == "pre" and g.start - now <= timedelta(hours=12)) for g in games)
     if alerts and not still_going and not state.recap_sent(day):
-        result.messages.append(report.recap_message(day, list(alerts.values()), sport))
+        result.messages.append(report.recap_message(day, list(alerts.values()), sport, state.season_record(day)))
         state.mark_recap_sent(day)
 
     with_lines = sum(1 for g in live if any(x is not None for x in pregame[g.id]))

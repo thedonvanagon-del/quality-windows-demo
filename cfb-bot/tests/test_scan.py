@@ -3,10 +3,12 @@ import tempfile
 import unittest
 from dataclasses import replace
 from datetime import datetime, timedelta, timezone
+from unittest import mock
 
 from helpers import SAMPLE_NOW, sample_events, sample_games
 
 from cfbbot import odds, scan
+from cfbbot import state as state_module
 from cfbbot.config import Config
 from cfbbot.state import State
 
@@ -166,6 +168,15 @@ class Recap(unittest.TestCase):
         recap = run(state, games=self.finals(40, 37), now=later).messages[0]  # 77 total, UGA by 3
         self.assertIn("1-1", recap)
         self.assertIn("❌ Under 72.5", recap)
+
+    def test_recap_carries_the_season(self):
+        # The sample Saturday predates the record, so move its start back.
+        with mock.patch.object(state_module, "RECORD_SINCE", SAMPLE_NOW.date()):
+            state = State()
+            run(state)
+            recap = run(state, games=self.finals(24, 35), now=SAMPLE_NOW + timedelta(hours=8)).messages[0]
+        self.assertIn("<b>Season</b> · 2-0 · +1.9 units, 1 a pick", recap)
+        self.assertIn("Spreads 1-0 +1.0 · Unders 1-0 +0.9", recap)
 
     def test_no_recap_while_night_games_are_coming(self):
         state = State()

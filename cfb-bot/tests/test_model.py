@@ -81,6 +81,14 @@ class FindPicks(unittest.TestCase):
         (side,) = model.find_picks(uga_ball, self.lines, -7.5, None, 5.0, 99)
         self.assertAlmostEqual(side.edge, 11.5 - 11 + 7.5 * (self.uga.remaining_minutes / 60), places=6)
 
+    def test_never_lays_more_than_250(self):
+        self.lines.best["home"].price = -260
+        self.lines.best["under"].price = -300
+        self.assertEqual(model.find_picks(self.uga, self.lines, -7.5, 52.5, 3.5, 5.0), [])
+        self.lines.best["home"].price = -250
+        (side,) = model.find_picks(self.uga, self.lines, -7.5, 52.5, 3.5, 5.0)
+        self.assertEqual((side.label, side.quote.price), ("Georgia +11.5", -250))
+
     def test_one_book_is_not_enough(self):
         self.lines.books = 1
         self.assertEqual(model.find_picks(self.uga, self.lines, -7.5, 52.5, 3.5, 5.0), [])
