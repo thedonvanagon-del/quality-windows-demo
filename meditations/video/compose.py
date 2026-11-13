@@ -8,9 +8,13 @@ Usage:
 --logo    PNG or JPG. A black-on-white logo is turned into a cream-white one with a
           transparent background, so it shows on the water.
 --audio   optional voiceover or music. Trimmed to --seconds, faded out at the end.
+--captions  optional JSON list of {"start": s, "end": s, "text": "..."} shown as typewriter
+          captions in the lower third (e.g. ../2026-11-13.captions.json).
 """
 import argparse
+import json
 import subprocess
+import textwrap
 import tempfile
 from pathlib import Path
 
@@ -22,7 +26,8 @@ FONT = "/usr/share/fonts/X11/Type1/c0419bt_.pfb"        # Courier 10 Pitch
 FONT_BOLD = "/usr/share/fonts/X11/Type1/c0583bt_.pfb"   # Courier 10 Pitch Bold
 CREAM = (255, 247, 233)
 LOGO_W = 720          # logo width in px
-LOGO_CY = 760         # logo centre y
+LOGO_CY = 700         # logo centre y
+CAP_CY = 1465         # caption block centre y; keeps clear of the Reels buttons below
 
 
 def load_logo(path):
@@ -79,6 +84,28 @@ def build_overlay(logo_path, lines):
     return overlay
 
 
+def build_caption(text):
+    """One caption cue as a transparent 1080x1920 PNG: typewriter text on a soft dark pill."""
+    font = ImageFont.truetype(FONT, 54)
+    lines = textwrap.wrap(text, 30)
+    lh = 72
+    img = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+    d = ImageDraw.Draw(img)
+    widest = max(d.textlength(l, font=font) for l in lines)
+    block_h = lh * len(lines)
+    x0, x1 = W / 2 - widest / 2 - 44, W / 2 + widest / 2 + 44
+    y0 = CAP_CY - block_h / 2 - 22
+    y1 = CAP_CY + block_h / 2 + 22
+    d.rounded_rectangle((x0, y0, x1, y1), radius=30, fill=(10, 16, 28, 120))
+    y = CAP_CY - block_h / 2 + (lh - 54) / 2 - 4
+    for l in lines:
+        tw = d.textlength(l, font=font)
+        d.text((W / 2 - tw / 2 + 2, y + 2), l, font=font, fill=(0, 0, 0, 140))
+        d.text((W / 2 - tw / 2, y), l, font=font, fill=CREAM + (255,))
+        y += lh
+    return img
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--bg", required=True)
@@ -86,6 +113,7 @@ def main():
     ap.add_argument("--out", required=True)
     ap.add_argument("--seconds", type=float, default=60)
     ap.add_argument("--audio")
+    ap.add_argument("--captions")
     ap.add_argument("--title", default="Buddha Beans Morning Meditation Vol. 2")
     a = ap.parse_args()
 
@@ -97,16 +125,31 @@ def main():
         build_overlay(a.logo, lines).save(ov)
         s = a.seconds
         cmd = ["ffmpeg", "-y", "-loglevel", "error", "-stream_loop", "-1", "-i", a.bg, "-loop", "1", "-i", str(ov)]
+        chains = [
+            f"[0:v]scale={W}:{H}:force_original_aspect_ratio=increase,crop={W}:{H},setsar=1,fps=30[bg0]",
+            "[1:v]format=rgba,fade=t=in:st=0.6:d=1.2:alpha=1[ov]",
+            "[bg0][ov]overlay=0:0:shortest=1[bg1]",
+        ]
+        last, idx = "bg1", 2
+        if a.captions:
+            for n, cue in enumerate(json.loads(Path(a.captions).read_text())):
+                p = Path(tmp) / f"cap{n}.png"
+                build_caption(cue["text"]).save(p)
+                dur = cue["end"] - cue["start"]
+                cmd += ["-loop", "1", "-t", f"{dur:.2f}", "-i", str(p)]
+                chains.append(
+                    f"[{idx}:v]format=rgba,fade=t=in:st=0:d=0.35:alpha=1,fade=t=out:st={dur-0.35:.2f}:d=0.35:alpha=1,"
+                    f"setpts=PTS+{cue['start']}/TB[c{n}]"
+                )
+                chains.append(f"[{last}][c{n}]overlay=0:0:eof_action=pass[bg{idx}]")
+                last, idx = f"bg{idx}", idx + 1
+        audio_idx = idx
         if a.audio:
             cmd += ["-i", a.audio]
-        vf = (
-            f"[0:v]scale={W}:{H}:force_original_aspect_ratio=increase,crop={W}:{H},setsar=1,fps=30[bg];"
-            f"[1:v]format=rgba,fade=t=in:st=0.6:d=1.2:alpha=1[ov];"
-            f"[bg][ov]overlay=0:0:shortest=1,fade=t=in:st=0:d=0.8,fade=t=out:st={s-1.2}:d=1.2[v]"
-        )
-        cmd += ["-filter_complex", vf, "-map", "[v]"]
+        chains.append(f"[{last}]fade=t=in:st=0:d=0.8,fade=t=out:st={s-1.2}:d=1.2[v]")
+        cmd += ["-filter_complex", ";".join(chains), "-map", "[v]"]
         if a.audio:
-            cmd += ["-map", "2:a", "-af", f"afade=t=out:st={s-1.5}:d=1.5", "-c:a", "aac", "-b:a", "192k"]
+            cmd += ["-map", f"{audio_idx}:a", "-af", f"afade=t=out:st={s-1.5}:d=1.5", "-c:a", "aac", "-b:a", "192k"]
         cmd += ["-t", str(s), "-c:v", "libx264", "-preset", "medium", "-crf", "18", "-pix_fmt", "yuv420p",
                 "-movflags", "+faststart", a.out]
         subprocess.run(cmd, check=True)
