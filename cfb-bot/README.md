@@ -39,7 +39,10 @@ Run `python -m cfbbot --demo` from this folder to see it on a sample Saturday.
 - **A short check-in** on scans with games live but nothing new. It lists
   earlier picks that still hold up. Turn it off with `CFB_HEARTBEAT=false`.
 - **A recap** once the last game ends, with every pick graded, board picks
-  (marked 🔒) included.
+  (marked 🔒) included. It ends with the season so far: the record and units
+  won or lost betting one unit a pick, split into in-play spreads, overs,
+  unders and the board, so you can see which kinds of picks pay. The record
+  starts October 18, 2026, the first slate on today's model.
 - Silence when nothing's on.
 
 The same pick never gets sent twice in a day.
