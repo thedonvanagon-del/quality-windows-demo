@@ -217,7 +217,14 @@ def bass(freq, d=0.45):
     return (np.sin(2 * np.pi * freq * t) + .3 * np.sin(4 * np.pi * freq * t)) * np.exp(-t * 4.2) * 0.5
 
 
-KINDS = {"thunk": (thunk, 1.0), "slap": (slap, .85), "band": (slap, .6), "scribble": (scribble_snd, .7),
+def pour(d=1.4):
+    t = _t(d)
+    n = _fft_band(RNG.standard_normal(len(t)), 500, 4200)
+    mod = 0.7 + 0.3 * np.sin(2 * np.pi * 9 * t + RNG.uniform(0, 6)) * np.sin(2 * np.pi * 3.1 * t)
+    return n / max(np.abs(n).max(), 1e-6) * mod * np.minimum(1, np.minimum(t / .12, (d - t) / .25)) * 0.5
+
+
+KINDS = {"pour": (pour, .6), "tick": (tick, .55), "thunk": (thunk, 1.0), "slap": (slap, .85), "band": (slap, .6), "scribble": (scribble_snd, .7),
          "tape": (rip, .8)}
 
 

@@ -57,6 +57,12 @@ Scene types and their fields:
 - `cutout`: torn, taped photo with big overlapping words and a hand-drawn arrow. `image`, `words`, `note`, `target` (where the arrow points, as fractions of the photo)
 - `stack`: poster of full-width bands that slide in on the beat. `lines`
 - `outro`: logo stamp, `words`, URL with marker underline
+- `cup`: hand-drawn mug that fills with a pour, steam, coffee-ring stains. Fixed copy about drip coffee being ~98% water.
+- `chart`: extraction curve drawn live with a dot climbing it; sour, sweet-spot (18-22%) and bitter zones light up as it crosses. Labelled as a sketch, not data.
+- `knobs`: four torn cards with hand-drawn icons (grind, water temperature, ratio, time) and an EXTRACTION badge.
+- `fix`: two-column fix list (sour: finer, hotter, longer; bitter: coarser, cooler, shorter) and a one-change-at-a-time banner.
+
+The last four are the educational set. Example: `examples/why-coffee-tastes-sour-or-bitter.json` (27s). Their copy is standard brewing guidance (SCA ranges: 195-205F water, 18-22% extraction, about 1:16 ratio); check any new numbers before adding them.
 
 Only Brothers is used. Keep every word on screen from the logo, the catalog, or text the owner supplied.
 

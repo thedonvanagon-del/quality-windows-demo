@@ -45,7 +45,7 @@ Formats: `9:16`, `16:9`, `1:1`, `4:5`. Scene types: `logo`, `title`, `beans`, `b
 
 ## Print style (hand-made look)
 
-`"style": "print"` in a storyboard switches to the screen-print look in `scenes_print.py`: Brothers only, ink on kraft, wobbling ink edge, hand-drawn underlines and arrow, torn paper and tape. Motion steps on twos (12 fps poses at 24 fps), cuts are hard and land on the beat (`bpm`, and each scene's length is `beats`), and sound is a beat-locked groove plus hits (`sound.score_print`). If Brothers fails to load the render stops instead of falling back. Scene types: `mascot`, `slam`, `cutout`, `stack`, `outro`. Example: `examples/meet-buddha-beans.json`. Tested at 9:16 only.
+`"style": "print"` in a storyboard switches to the screen-print look in `scenes_print.py`: Brothers only, ink on kraft, wobbling ink edge, hand-drawn underlines and arrow, torn paper and tape. Motion steps on twos (12 fps poses at 24 fps), cuts are hard and land on the beat (`bpm`, and each scene's length is `beats`), and sound is a beat-locked groove plus hits (`sound.score_print`). If Brothers fails to load the render stops instead of falling back. Scene types: `mascot`, `slam`, `cutout`, `stack`, `outro`, plus the diagram set in `scenes_print_edu.py`: `cup`, `chart`, `knobs`, `fix`. Example: `examples/meet-buddha-beans.json`. Tested at 9:16 only.
 
 ## Speed
 

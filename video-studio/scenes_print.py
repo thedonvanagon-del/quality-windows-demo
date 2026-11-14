@@ -95,6 +95,7 @@ def build(sc, brand, w, h, bpm):
     ev = []
     t = sc.get("type", "slam")
     body = ""
+    extra_css = ""
     nbeats = sc.get("beats", 4)
 
     def word_html(text, at, size_cap, rot, fill=None, shadow=None, dx=-160, weight=700, track=".01em",
@@ -233,7 +234,11 @@ def build(sc, brand, w, h, bpm):
                 + word_html(url, 3.5 * beat, P(100), 1.2, weight=500, track=".1em", width=w - P(120),
                             scrib_at=4.1 * beat) + '</div>')
     else:
-        raise SystemExit(f"print style has no scene type '{t}'")
+        from types import SimpleNamespace
+        from scenes_print_edu import build_edu
+        ctx = SimpleNamespace(P=P, S=lambda v: v * u, u=u, w=w, h=h, rng=rng, beat=beat, PAL=PAL, fg=fg, spot=spot,
+                              ev=ev, word_html=word_html, torn=torn, bgname=bgname)
+        body, extra_css = build_edu(t, sc, ctx)
 
     shakes = ",".join(f"shake .26s linear {at:.3f}s both" for at, k in ev if k in ("slap", "thunk", "band"))
     specks = "".join(
@@ -296,6 +301,7 @@ html,body{{width:{w}px;height:{h}px;overflow:hidden;background:{bg};color:{fg};f
 @keyframes rise{{from{{opacity:0;transform:translateY({P(30)}px) rotate(-5deg)}}to{{opacity:1;transform:rotate(-5deg)}}}}
 @keyframes shake{{0%{{transform:translate(0,0)}}25%{{transform:translate({P(-9)}px,{P(6)}px)}}
   50%{{transform:translate({P(7)}px,{P(-5)}px)}}75%{{transform:translate({P(-3)}px,{P(3)}px)}}100%{{transform:translate(0,0)}}}}
+{extra_css}
 </style></head><body>
 <svg width="0" height="0" style="position:absolute"><filter id="rough" x="-3%" y="-3%" width="106%" height="106%">
 <feTurbulence id="boil" type="fractalNoise" baseFrequency=".03" numOctaves="2" seed="1" result="n"/>
