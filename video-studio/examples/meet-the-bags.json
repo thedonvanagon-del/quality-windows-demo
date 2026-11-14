@@ -1,0 +1,91 @@
+{
+  "title": "Meet The Bags",
+  "brand": "buddhabeans",
+  "format": "9:16",
+  "fps": 30,
+  "transition": 0.4,
+  "scenes": [
+    {
+      "type": "logo",
+      "duration": 3.5,
+      "sub": "Meet the bags",
+      "caption": "Every bag tells you where the beans grew."
+    },
+    {
+      "type": "bags",
+      "duration": 6.5,
+      "theme": "kraft",
+      "text": "Pick your origin",
+      "bags": [
+        {
+          "image": "bags/mexico.png",
+          "label": "Mexico"
+        },
+        {
+          "image": "bags/ethiopia.png",
+          "label": "Ethiopia"
+        },
+        {
+          "image": "bags/colombia.png",
+          "label": "Colombia"
+        },
+        {
+          "image": "bags/peru.png",
+          "label": "Peru"
+        },
+        {
+          "image": "bags/costa-rica.png",
+          "label": "Costa Rica"
+        }
+      ],
+      "caption": "Mexico. Ethiopia. Colombia. Peru. Costa Rica."
+    },
+    {
+      "type": "bags",
+      "duration": 6.5,
+      "theme": "coral",
+      "text": "Small lots and limited runs",
+      "bags": [
+        {
+          "image": "bags/burundi.png",
+          "label": "Burundi"
+        },
+        {
+          "image": "bags/brazil.png",
+          "label": "Brazil"
+        },
+        {
+          "image": "bags/laos.png",
+          "label": "Laos"
+        },
+        {
+          "image": "bags/colombia-decaf.png",
+          "label": "Colombia decaf"
+        }
+      ],
+      "caption": "Plus small lots and limited editions when we get them."
+    },
+    {
+      "type": "photo",
+      "duration": 6,
+      "theme": "ink",
+      "eyebrow": "In your hands",
+      "text": "Fresh roasted",
+      "bullets": [
+        "Micro-roasted",
+        "12oz bags"
+      ],
+      "note": "Mexico, Chiapas",
+      "image": "bag.jpg",
+      "caption": "Micro-roasted in small batches."
+    },
+    {
+      "type": "outro",
+      "duration": 4,
+      "text": "Find your bag."
+    }
+  ],
+  "audio": {
+    "sfx": true
+  }
+}
