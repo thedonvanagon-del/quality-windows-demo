@@ -47,6 +47,10 @@ Formats: `9:16`, `16:9`, `1:1`, `4:5`. Scene types: `logo`, `title`, `beans`, `b
 
 `"style": "print"` in a storyboard switches to the screen-print look in `scenes_print.py`: Brothers only, ink on kraft, wobbling ink edge, hand-drawn underlines and arrow, torn paper and tape. Motion steps on twos (12 fps poses at 24 fps), cuts are hard and land on the beat (`bpm`, and each scene's length is `beats`), and sound is a beat-locked groove plus hits (`sound.score_print`). If Brothers fails to load the render stops instead of falling back. Scene types: `mascot`, `slam`, `cutout`, `stack`, `outro`, plus the diagram set in `scenes_print_edu.py`: `cup`, `chart`, `knobs`, `fix`. Example: `examples/meet-buddha-beans.json`. Tested at 9:16 only.
 
+## Sound (print style)
+
+`sound2.py` is the current sound: modal hits (wood knock, stamp thud, card on a table), a four-chord pluck loop with a soft bass and brushed drums, a little reverb, and the music ducks under each hit. It is tuned for phone speakers (energy mostly 200 Hz to 5 kHz). `studio.py sound <storyboard> <video> <out> --mode full|music` re-mixes a finished video without re-rendering; `music` drops the hits. The old track (`sound.score_print`, `--mode v1`) was 92% sub-200 Hz and is kept only for comparison. Audio is verified by measurement (tonal balance, loudness, peak, onset alignment), not by ear.
+
 ## Speed
 
 Motion graphics render at roughly 10 to 12 seconds per second of output on a 4-core container. Drop `fps` to 24 for drafts. Masters come out around 43MB for 50 seconds because of the paper grain; re-encode with `-crf 26` for sharing (about 14MB).

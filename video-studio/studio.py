@@ -25,6 +25,7 @@ from pathlib import Path
 import scenes
 import scenes_print
 import sound
+import sound2
 
 HERE = Path(__file__).resolve().parent
 # Cloud containers ship a Chromium that the pip package may not match; use it when present.
@@ -250,7 +251,10 @@ def cmd_build(a):
                 for d, ev in zip(durs, all_events):
                     abs_ev += [(acc_s + t_, k_) for t_, k_ in ev]
                     acc_s += d
-                sound.write_wav(sound.score_print(bpm, starts_s, abs_ev, total, sb.get("groove_from", 4)), wav)
+                if audio.get("sfx") == "v1":
+                    sound.write_wav(sound.score_print(bpm, starts_s, abs_ev, total, sb.get("groove_from", 4)), wav)
+                else:
+                    sound.write_wav(sound2.score_v2(bpm, abs_ev, total, sb.get("groove_from", 4), "full"), wav)
             else:
                 sound.write_wav(sound.score(sb, total), wav)
             audio.update(music=str(wav), music_volume=0.4)  # music-only path applies x2.5 -> unity gain
@@ -313,7 +317,10 @@ def cmd_sound(a):
                 sc["duration"] = round(sc.get("beats", 4) * 60.0 / bpm, 4)
                 abs_ev += [(acc + t_, k_) for t_, k_ in scenes_print.build(sc, brand, w, h, bpm)[1]]
                 acc += sc["duration"]
-            sound.write_wav(sound.score_print(bpm, [], abs_ev, total, sb.get("groove_from", 4)), wav)
+            if getattr(a, "mode", "full") == "v1":
+                sound.write_wav(sound.score_print(bpm, [], abs_ev, total, sb.get("groove_from", 4)), wav)
+            else:
+                sound.write_wav(sound2.score_v2(bpm, abs_ev, total, sb.get("groove_from", 4), a.mode), wav)
         else:
             sound.write_wav(sound.score(sb, total), wav)
         mix_audio(Path(a.video), Path(a.out), total, {"music": str(wav), "music_volume": 0.4})
@@ -353,6 +360,8 @@ def main():
     st = sub.add_parser("still"); st.add_argument("storyboard"); st.add_argument("--t", type=float, default=2.5)
     st.add_argument("--format", choices=FORMATS); st.add_argument("--out"); st.set_defaults(fn=cmd_still)
     so = sub.add_parser("sound"); so.add_argument("storyboard"); so.add_argument("video"); so.add_argument("out")
+    so.add_argument("--mode", choices=("full", "music", "v1"), default="full",
+                    help="print style: full = music + soft hits (v2), music = music only, v1 = old track")
     so.set_defaults(fn=cmd_sound)
     l = sub.add_parser("lint"); l.add_argument("storyboard"); l.set_defaults(fn=cmd_lint)
     r = sub.add_parser("reframe"); r.add_argument("src"); r.add_argument("dst")
