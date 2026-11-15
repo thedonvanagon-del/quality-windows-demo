@@ -62,7 +62,9 @@ Scene types and their fields:
 - `knobs`: four torn cards with hand-drawn icons (grind, water temperature, ratio, time) and an EXTRACTION badge.
 - `fix`: two-column fix list (sour: finer, hotter, longer; bitter: coarser, cooler, shorter) and a one-change-at-a-time banner.
 
-The last four are the educational set. Example: `examples/why-coffee-tastes-sour-or-bitter.json` (27s). Their copy is standard brewing guidance (SCA ranges: 195-205F water, 18-22% extraction, about 1:16 ratio); check any new numbers before adding them.
+More diagram scenes: `cracks` (two big temperatures with starbursts), `roast` (five hand-drawn beans, green to dark), `compare` (2 to 4 torn cards side by side; each column has `title`, `rows`, `bg`, optional `bean` colour and `small`; scene takes `banner` and `note`), `myth` (`claim` struck through, then `fact`), `methods` (four brew methods with icons and a grind scale), `belt` (globe with the tropics band shaded).
+
+The first four are the original educational set. Example: `examples/why-coffee-tastes-sour-or-bitter.json` (27s). Their copy is standard brewing guidance (SCA ranges: 195-205F water, 18-22% extraction, about 1:16 ratio); check any new numbers before adding them.
 
 Only Brothers is used. Keep every word on screen from the logo, the catalog, or text the owner supplied.
 

@@ -40,8 +40,51 @@ def build_edu(t, sc, C):
         return "M" + " L".join(f"{x:.1f},{y:.1f}" for x, y in pts)
 
     def path_el(d, at, color=None, width=11, dur=.45, fillc="none"):
-        return (f'<path d="{d}" pathLength="1" style="animation-delay:{at * beat:.3f}s;animation-duration:{dur * beat:.3f}s;'
-                f'stroke:{color or INK};stroke-width:{P(width)}px;fill:{fillc}"/>')
+        if fillc == "none":
+            st = (f"animation-delay:{at * beat:.3f}s;animation-duration:{dur * beat:.3f}s;stroke:{color or INK};"
+                  f"stroke-width:{P(width)}px;fill:none")
+        else:  # outline draws on; the fill fades in just behind it
+            st = (f"animation-name:draw,fillin;animation-duration:{dur * beat:.3f}s,{.25 * beat:.3f}s;"
+                  f"animation-delay:{at * beat:.3f}s,{(at + dur * .55) * beat:.3f}s;stroke:{color or INK};"
+                  f"stroke-width:{P(width)}px;fill:{fillc};fill-opacity:0")
+        return f'<path d="{d}" pathLength="1" style="{st}"/>'
+
+    def ell_rot(cx, cy, rx, ry, rot, amp=2.5, turns=1.06):
+        n = 36
+        c, s_ = math.cos(math.radians(rot)), math.sin(math.radians(rot))
+        pts = []
+        for i in range(int(n * turns) + 1):
+            a = i / n * 2 * math.pi - math.pi / 2
+            r = 1 + rng.uniform(-amp, amp) / max(rx, 1)
+            x, y = rx * r * math.cos(a), ry * r * math.sin(a)
+            pts.append((S(cx + x * c - y * s_), S(cy + x * s_ + y * c)))
+        return "M" + " L".join(f"{x:.1f},{y:.1f}" for x, y in pts)
+
+    def bean(cx, cy, rot, color, at, k=1.0, dur=.5, oc=None):
+        rx, ry = 56 * k, 80 * k
+        c, s_ = math.cos(math.radians(rot)), math.sin(math.radians(rot))
+        lum = sum(int(color[i:i + 2], 16) for i in (1, 3, 5)) / 3
+        crease_c = INK if lum > 110 else CREAM
+        pts = [(0, -ry * .85), (rx * .38, -ry * .35), (-rx * .38, ry * .3), (0, ry * .85)]
+        rp = [(cx + x * c - y * s_, cy + x * s_ + y * c) for x, y in pts]
+        crease = "M" + " L".join(f"{S(x):.0f},{S(y):.0f}" for x, y in rp)
+        return (path_el(ell_rot(cx, cy, rx, ry, rot), at, oc or INK, 9 * max(k, .45), dur, fillc=color)
+                + path_el(crease, at + .3, crease_c, 8 * max(k, .45), .25))
+
+    def burst(cx, cy, r, at, color, n=16):
+        pts = []
+        for i in range(n * 2):
+            a = i * math.pi / n + rng.uniform(-.04, .04)
+            rr = r * (1 if i % 2 == 0 else .66) * (1 + rng.uniform(-.06, .06))
+            pts.append((S(cx + rr * math.cos(a)), S(cy + rr * math.sin(a))))
+        return path_el("M" + " L".join(f"{x:.0f},{y:.0f}" for x, y in pts) + " Z", at, INK, 10, .45, fillc=color)
+
+    def poly(pts, at, color=None, width=10, dur=.4, fillc="none", close=False):
+        d = "M" + " L".join(f"{S(x):.0f},{S(y):.0f}" for x, y in pts) + (" Z" if close else "")
+        return path_el(d, at, color, width, dur, fillc)
+
+    def fitsize(text, maxw, cap, k=.72):
+        return int(min(cap, maxw / (max(len(text), 1) * k)))
 
     def arrow(x1, y1, x2, y2, at, color=None, width=11, bulge=40):
         mx, my = (x1 + x2) / 2 + bulge, (y1 + y2) / 2
@@ -273,9 +316,223 @@ def build_edu(t, sc, C):
         parts.append(lab("then taste again.", 540, 1465, 70, 9.6, rot=2, center=True, width=900, slant=True))
         css += (f".cardsh{{position:absolute;inset:0;filter:drop-shadow({P(12)}px {P(14)}px 0 rgba(20,10,0,.32))}}"
                 ".cardbg{position:absolute;inset:0}")
+    # ================================================================ cracks (two big numbers with bursts)
+    elif t == "cracks":
+        parts.append(deco((90, 1640, 300)))
+        parts.append(tagl(sc.get("tag", "(02) THE CRACKS")))
+        blocks = [("FIRST CRACK", "~385°F", "light roasts finish near here.", "POP!", 0.0, 200, 860),
+                  ("SECOND CRACK", "~435°F", "dark roast territory.", "CRACK!", 4.0, 960, 1500)]
+        for (lbl, num, note, word, b0, y0, _y1) in blocks:
+            parts.append(lab(lbl, 70, y0, 54, b0, weight=500, track=".16em", color=CORAL, kind=None, dx=-100, dy=0))
+            parts.append(lab(num, 60, y0 + 70, 200, b0 + .5, rot=-2, color=CREAM, shadow=CORAL))
+            parts.append(svg(burst(880, y0 + 200, 175 if len(word) > 5 else 150, b0 + 1.2, CORAL)))
+            parts.append(lab(word, 880, y0 + 165, 66 if len(word) < 6 else 54, b0 + 1.5, rot=-9, color=INK, center=True,
+                             width=300, kind="thunk"))
+            parts.append(lab(note, 70, y0 + 330, 62, b0 + 2.2, rot=-2, slant=True, color=CREAM, kind=None))
+
+    # ================================================================ roast (five beans, green to dark)
+    elif t == "roast":
+        parts.append(deco((950, 1560, 320), (60, 640, 200)))
+        parts.append(tagl(sc.get("tag", "(01) THE ROAST")))
+        parts.append(f'<div class="abs" style="left:{P(70)}px;top:{P(190)}px;width:{P(940)}px">'
+                     + word_html("LONGER ROAST,", 0, P(190), -2, width=P(940))
+                     + word_html("DARKER BEAN.", 1.0 * beat, P(190), 1.5, fill=spot, shadow=fg, width=P(940),
+                                 scrib_at=2.0 * beat) + "</div>")
+        cols = ["#6f8a3a", "#b9803f", "#7a4a26", "#4b2c17", "#24130b"]
+        names = ["GREEN", "LIGHT", "MEDIUM", "MED-DARK", "DARK"]
+        inner = ""
+        for i, (c_, nm) in enumerate(zip(cols, names)):
+            cx = 140 + 200 * i
+            at = 2.4 + .65 * i
+            inner += bean(cx, 950, (-14, 12)[i % 2], c_, at, k=1.45)
+            parts.append(lab(nm, cx, 1110, 34, at + .5, weight=500, track=".06em", center=True, width=196, kind=None))
+            ev.append((at * beat, "slap"))
+        parts.append(svg(inner))
+        parts.append(svg(arrow(110, 1290, 960, 1290, 6.2, width=12, bulge=0)))
+        parts.append(lab("MORE TIME IN THE ROASTER", 540, 1342, 42, 6.8, weight=500, track=".14em", center=True, width=900, kind=None))
+        parts.append(lab("hotter and longer = darker.", 540, 1430, 58, 7.2, rot=-2, center=True, width=900, slant=True))
+
+    # ================================================================ compare (n columns of cards)
+    elif t == "compare":
+        specs = sc["columns"]
+        n = len(specs)
+        gap = 20
+        cw = int((1000 - gap * (n - 1)) / n)
+        chh = sc.get("height", 940)
+        top = sc.get("top", 260)
+        parts.append(deco((960, 1600, 300)))
+        parts.append(tagl(sc.get("tag", "(03) SIDE BY SIDE")))
+        cbg = {"cream": (CREAM, INK, CORAL), "coral": (CORAL, INK, CREAM), "ink": (INK, CREAM, CORAL), "kraft": ("#c4a56f", INK, CREAM)}
+        for i, cs in enumerate(specs):
+            x = 40 + i * (cw + gap)
+            at = i * 1.4
+            bgc, txt, hi = cbg[cs.get("bg", "cream")]
+            rot = (-1.2, .9, -.8, 1.1)[i % 4]
+            kids = []
+            y = 24
+            if cs.get("bean"):
+                kids.append(f'<svg class="over" viewBox="0 0 {w} {h}" style="left:0;top:0">{bean(cw / 2, 100, -14, cs["bean"], at + .4, k=.8, oc=(CREAM if cs.get("bg") == "ink" else None))}</svg>')
+                y = 190
+            for li, line in enumerate(cs["title"]):
+                sz = fitsize(line, cw - 40, 96 if li == 0 else 110)
+                kids.append(lab(line, cw / 2, y, sz, at + .5 + .15 * li, color=txt, shadow=hi if li else None,
+                                center=True, width=cw - 20, kind=None, dx=0, dy=-40))
+                y += int(sz * 1.05)
+            if cs.get("small"):
+                kids.append(lab(cs["small"], cw / 2, y + 6, 28, at + 1.0, weight=500, track=".06em", color=txt, center=True,
+                                width=cw - 20, kind=None, dx=0, dy=20))
+                y += 54
+            y += 40
+            for ri, row in enumerate(cs["rows"]):
+                words = row.split()
+                lines = [row] if len(row) <= 9 else [" ".join(words[:len(words) // 2 or 1]), " ".join(words[len(words) // 2 or 1:])]
+                lines = [ln for ln in lines if ln]
+                sz = min(fitsize(max(lines, key=len), cw - 30, 78), 78)
+                rat = at + 1.4 + .75 * ri
+                for li, ln in enumerate(lines):
+                    kids.append(lab(ln, cw / 2, y + li * int(sz * 1.05), sz, rat, color=txt if ri % 2 == 0 else hi,
+                                    center=True, width=cw - 10, kind=("slap" if li == 0 else None), dx=(-60 if i % 2 == 0 else 60), dy=0))
+                y += int(sz * 1.05) * len(lines) + 46
+            ev.append((at * beat, "slap"))
+            parts.append(
+                f'<div class="word abs cardw" style="left:{P(x)}px;top:{P(top)}px;width:{P(cw)}px;height:{P(chh)}px;--r:{rot}deg;'
+                f'--dx:{P(-300 + 300 * i)}px;--dy:{P(-200)}px;animation-delay:{at * beat:.3f}s">'
+                f'<div class="cardsh"><div class="cardbg" style="background:{bgc};clip-path:{torn_rect(cw, chh)}"></div></div>'
+                f'{"".join(kids)}</div>')
+        bt = sc.get("banner_at", 8.0)
+        if sc.get("banner"):
+            parts.append(f'<div class="abs" style="left:{P(70)}px;top:{P(top + chh + 50)}px;width:{P(940)}px">'
+                         + word_html(sc["banner"], bt * beat, P(110), -1.5, fill=spot, shadow=fg, width=P(940),
+                                     scrib_at=(bt + 1.2) * beat) + "</div>")
+        if sc.get("note"):
+            parts.append(lab(sc["note"], 540, top + chh + 215, 60, bt + 2.5, rot=2, center=True, width=940, slant=True))
+        css += (f".cardsh{{position:absolute;inset:0;filter:drop-shadow({P(12)}px {P(14)}px 0 rgba(20,10,0,.32))}}"
+                ".cardbg{position:absolute;inset:0}")
+
+    # ================================================================ myth (struck-out claim, then the fact)
+    elif t == "myth":
+        parts.append(deco((940, 1640, 300)))
+        parts.append(tagl(sc.get("tag", "MYTH OR FACT?")))
+        l1, l2 = sc["claim"]
+        parts.append(lab(l1, 70, 300, fitsize(l1, 940, 170), 0.0, rot=-1.5, color=INK, shadow=CREAM))
+        parts.append(lab(l2, 70, 300 + fitsize(l1, 940, 170) + 30, fitsize(l2, 940, 100), 1.0, rot=1, color=INK))
+        s1 = 300 + fitsize(l1, 940, 170) * .5
+        s2 = 300 + fitsize(l1, 940, 170) + 30 + fitsize(l2, 940, 100) * .5
+        parts.append(svg(path_el(wob(50, s1 + 8, 1030, s1 - 14, 6), 2.6, INK, 16, .35)
+                         + path_el(wob(50, s2 - 8, 1030, s2 + 12, 6), 3.0, INK, 16, .35)))
+        ev.append((2.6 * beat, "slap"))
+        ev.append((3.0 * beat, "slap"))
+        parts.append(f'<div class="abs" style="left:{P(70)}px;top:{P(780)}px;width:{P(940)}px">'
+                     + word_html(sc["fact"][0], 4.0 * beat, P(260), -2, width=P(940))
+                     + word_html(sc["fact"][1], 5.0 * beat, P(260), 1.5, fill=CREAM, shadow=INK, width=P(940),
+                                 scrib_at=5.6 * beat) + "</div>")
+        parts.append(lab(sc["note"], 540, 1350, fitsize(sc["note"], 940, 58, .52), 6.6, rot=-2, center=True, width=980, slant=True, color=INK))
+
+    # ================================================================ methods (four rows with icons + a grind scale)
+    elif t == "methods":
+        parts.append(deco((960, 1600, 300)))
+        parts.append(tagl(sc.get("tag", "(01) FOUR WAYS")))
+        rows = [
+            ("ESPRESSO", "FINE GRIND", "~25–30 SEC", .06),
+            ("POUR-OVER", "MEDIUM-FINE", "~3 MIN", .33),
+            ("FRENCH PRESS", "COARSE", "~4 MIN", .80),
+            ("COLD BREW", "COARSE", "12–24 HOURS", .93),
+        ]
+        brown = CUP_BROWN
+        for i, (name, grind, tm, pos) in enumerate(rows):
+            oy = 200 + i * 285
+            at = 1.0 + 3.0 * i
+            ox = 60
+            ic = []
+            if i == 0:   # espresso cup
+                ic.append(poly([(ox + 45, oy + 95), (ox + 55, oy + 170), (ox + 150, oy + 170), (ox + 160, oy + 95)], at + .3, INK, 9, .4, brown, True))
+                ic.append(path_el(wob(ox + 35, oy + 95, ox + 170, oy + 95), at + .6, INK, 9, .2))
+                ic.append(poly([(ox + 162, oy + 110), (ox + 198, oy + 106), (ox + 202, oy + 140), (ox + 160, oy + 146)], at + .7, INK, 9, .3))
+                ic.append(path_el(wob(ox + 20, oy + 186, ox + 195, oy + 186), at + .9, INK, 9, .25))
+            elif i == 1:  # cone over a mug
+                ic.append(poly([(ox + 30, oy + 30), (ox + 190, oy + 30), (ox + 128, oy + 112), (ox + 92, oy + 112)], at + .3, INK, 9, .4, CORAL, True))
+                ic.append(poly([(ox + 62, oy + 128), (ox + 70, oy + 198), (ox + 150, oy + 198), (ox + 158, oy + 128)], at + .7, INK, 9, .4, brown, True))
+                ic.append(path_el(wob(ox + 55, oy + 128, ox + 165, oy + 128), at + 1.0, INK, 9, .2))
+            elif i == 2:  # french press
+                ic.append(poly([(ox + 55, oy + 55), (ox + 58, oy + 200), (ox + 162, oy + 200), (ox + 165, oy + 55)], at + .3, INK, 9, .4, brown, True))
+                ic.append(path_el(wob(ox + 48, oy + 48, ox + 172, oy + 48), at + .6, INK, 11, .2))
+                ic.append(path_el(wob(ox + 110, oy + 48, ox + 110, oy + 8), at + .8, INK, 9, .2))
+                ic.append(path_el(ell(ox + 110, oy + 8, 13, 10, 1.5), at + .9, INK, 9, .2, CORAL))
+                ic.append(poly([(ox + 166, oy + 85), (ox + 198, oy + 92), (ox + 198, oy + 160), (ox + 164, oy + 165)], at + .9, INK, 9, .3))
+            else:         # cold brew jar with ice
+                ic.append(poly([(ox + 58, oy + 70), (ox + 52, oy + 200), (ox + 168, oy + 200), (ox + 162, oy + 70)], at + .3, INK, 9, .4, brown, True))
+                ic.append(poly([(ox + 62, oy + 38), (ox + 158, oy + 38), (ox + 160, oy + 68), (ox + 60, oy + 68)], at + .7, INK, 9, .3, CORAL, True))
+                for (qx, qy) in ((82, 112), (118, 135), (96, 160)):
+                    ic.append(poly([(ox + qx, oy + qy), (ox + qx + 30, oy + qy + 4), (ox + qx + 27, oy + qy + 32), (ox + qx - 2, oy + qy + 28)],
+                                   at + 1.0 + qx * .004, CREAM, 7, .15, "rgba(241,228,198,.55)", True))
+            parts.append(svg("".join(ic)))
+            parts.append(svg(path_el(ell(ox + 4, oy + 8, 28, 28, 1.5), at, INK, 8, .25, CORAL)))
+            parts.append(lab(str(i + 1), ox + 4, oy - 12, 38, at + .1, center=True, width=60, color=INK, kind=None, dx=0, dy=0))
+            nsz = fitsize(name, 690, 92)
+            parts.append(lab(name, 310, oy + 10, nsz, at))
+            parts.append(lab(grind, 312, oy + 118, 46, at + .5, weight=500, track=".1em", color=PAL["plum"], kind=None))
+            parts.append(lab(tm, 310, oy + 172, 72, at + 1.0, color=INK, shadow=CORAL, kind="slap"))
+        # grind scale: dots get bigger left to right, numbered pins mark each method
+        sy = 1478
+        dots = ""
+        for k in range(9):
+            r = 5 + k * 2.4
+            x = 120 + k * 105
+            dots += path_el(ell(x, sy, r, r, 1, 1), 12.2 + k * .12, INK, 7, .15, fillc=INK)
+        parts.append(svg(dots))
+        parts.append(lab("FINE", 60, sy + 52, 38, 12.2, weight=500, track=".14em", kind=None))
+        parts.append(lab("COARSE", 1020, sy + 52, 38, 12.4, weight=500, track=".14em", kind=None, center=False) if False else
+                     lab("COARSE", 880, sy + 52, 38, 12.4, weight=500, track=".14em", kind=None))
+        pins = ""
+        for i, (_n, _g, _t, pos) in enumerate(rows):
+            px_ = 120 + pos * 840
+            pins += path_el(ell(px_, sy - 62, 26, 26, 1.5), 13.0 + .35 * i, INK, 8, .25, CORAL)
+            pins += path_el(wob(px_, sy - 36, px_, sy - 22), 13.2 + .35 * i, INK, 7, .15)
+        parts.append(svg(pins))
+        for i, (_n, _g, _t, pos) in enumerate(rows):
+            parts.append(lab(str(i + 1), 120 + pos * 840, sy - 84, 34, 13.1 + .35 * i, center=True, width=60, kind="slap", dx=0, dy=-20))
+
+    # ================================================================ belt (globe with the coffee belt shaded)
+    elif t == "belt":
+        parts.append(deco((90, 1650, 280), (960, 560, 220)))
+        parts.append(tagl(sc.get("tag", "(02) THE BEAN BELT")))
+        parts.append(f'<div class="abs" style="left:{P(70)}px;top:{P(170)}px;width:{P(940)}px">'
+                     + word_html("COFFEE GROWS", 0, P(200), -2, width=P(940))
+                     + word_html("BETWEEN THE TROPICS.", 1.0 * beat, P(200), 1.5, fill=spot, shadow=fg, width=P(940)) + "</div>")
+        cx, cy, R = 500, 1010, 360
+        lat = R * math.sin(math.radians(23.4))
+        band_h = 2 * lat
+        parts.append(f'<div class="abs globe" style="left:{P(cx - R)}px;top:{P(cy - R)}px;width:{P(2 * R)}px;height:{P(2 * R)}px">'
+                     f'<div class="beltband on" style="top:{P(R - lat)}px;height:{P(band_h)}px;animation-delay:{4.0 * beat:.3f}s"></div></div>')
+        g = path_el(ell(cx, cy, R, R, 3, 1.05), 2.0, INK, 13, .9)
+        g += path_el(ell(cx, cy, R * .45, R, 3, 1.05), 2.6, INK, 7, .6)
+        g += path_el(wob(cx - R, cy, cx + R, cy), 3.0, INK, 8, .5)
+        for sgn in (-1, 1):
+            yy = cy + sgn * lat
+            half = math.sqrt(R * R - lat * lat)
+            g += path_el(wob(cx - half, yy, cx + half, yy), 3.4, CORAL, 10, .5)
+        parts.append(svg(g))
+        parts.append(lab("TROPIC OF CANCER", 878, cy - lat - 24, 24, 3.8, weight=500, track=".06em", color=INK, kind=None) if False else
+                     lab("CANCER", 872, cy - lat - 22, 30, 3.8, weight=500, track=".1em", kind=None))
+        parts.append(lab("CAPRICORN", 872, cy + lat - 22, 30, 3.9, weight=500, track=".1em", kind=None))
+        parts.append(lab("EQUATOR", 872, cy - 20, 30, 3.7, weight=500, track=".1em", kind=None))
+        pins = ""
+        spots = [(320, 930, -20), (410, 1085, 15), (490, 955, 8), (590, 1100, -12), (670, 935, 22), (740, 1050, -8),
+                 (380, 1000, 30), (560, 1020, -25), (700, 990, 14)]
+        for i, (px_, py_, rr) in enumerate(spots):
+            pins += bean(px_, py_, rr, CUP_BROWN, 5.0 + .35 * i, k=.34, dur=.3)
+            ev.append(((5.0 + .35 * i) * beat, "slap"))
+        parts.append(svg(pins))
+        parts.append(lab("the bean belt.", 140, 590, 70, 8.4, rot=-6, slant=True))
+        parts.append(svg(arrow(300, 690, 380, 880, 8.8, bulge=-40)))
+        parts.append(lab("roughly 23°N to 23°S", 540, 1430, 54, 10.0, rot=1.5, center=True, width=940, slant=True))
+        css += (".globe{border-radius:50%;overflow:hidden}.beltband{position:absolute;left:0;width:100%;background:rgba(238,117,86,.5);"
+                "clip-path:inset(0 100% 0 0)}.beltband.on{animation:wipe .6s linear both}")
+
     else:
         raise SystemExit(f"print style has no scene type '{t}'")
 
+    css += "@keyframes fillin{from{fill-opacity:0}to{fill-opacity:1}}"
     css += (f".ring{{position:absolute;border-radius:50%;background:radial-gradient(circle,transparent 61%,"
             f"rgba(85,48,16,.20) 63%,rgba(85,48,16,.34) 68%,rgba(85,48,16,.16) 72%,transparent 74%);}}"
             ".abs{position:absolute}"
