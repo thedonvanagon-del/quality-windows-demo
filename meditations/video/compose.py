@@ -24,7 +24,7 @@ from PIL import Image, ImageDraw, ImageFilter, ImageFont
 W, H = 1080, 1920
 FONT = "/usr/share/fonts/X11/Type1/c0419bt_.pfb"        # Courier 10 Pitch
 FONT_BOLD = "/usr/share/fonts/X11/Type1/c0583bt_.pfb"   # Courier 10 Pitch Bold
-CREAM = (255, 247, 233)
+CREAM = (255, 255, 255)   # pure white
 LOGO_W = 720          # logo width in px
 LOGO_CY = 700         # logo centre y
 CAP_CY = 1465         # caption block centre y; keeps clear of the Reels buttons below
@@ -63,7 +63,7 @@ def build_overlay(logo_path, lines):
 
     # soft dark scrim so the cream logo and title hold up against the bright sun and foam
     scrim = Image.new("RGBA", (W, H), (0, 0, 0, 0))
-    ImageDraw.Draw(scrim).ellipse((40, LOGO_CY - 420, W - 40, LOGO_CY + 760), fill=(14, 20, 36, 70))
+    ImageDraw.Draw(scrim).ellipse((40, LOGO_CY - 420, W - 40, LOGO_CY + 760), fill=(10, 16, 30, 95))
     overlay = Image.alpha_composite(overlay, scrim.filter(ImageFilter.GaussianBlur(110)))
 
     lx, ly = (W - logo.width) // 2, LOGO_CY - logo.height // 2

@@ -2,7 +2,7 @@
 
 Usage:
   python3 voice.py --models DIR --script ../2026-11-15.script.json \
-      --out-audio narration.wav --out-captions cues.json [--voice af_heart] [--speed 0.9]
+      --out-audio narration.wav --out-captions cues.json [--voice bf_emma --lang en-gb] [--speed 0.9]
 
 --script is a JSON list of [line, seconds of silence after it].
 --voice is one Kokoro voice, or a blend like "af_heart:0.5,af_nicole:0.5".
@@ -59,6 +59,7 @@ def main():
     ap.add_argument("--script", required=True)
     ap.add_argument("--voice", default="af_heart")
     ap.add_argument("--speed", type=float, default=0.9)
+    ap.add_argument("--lang", default="en-us", help="en-us, or en-gb for the British voices (bf_*)")
     ap.add_argument("--out-audio", required=True)
     ap.add_argument("--out-captions", required=True)
     a = ap.parse_args()
@@ -70,7 +71,7 @@ def main():
 
     clips, sr = [], None
     for text, _ in LINES:
-        samples, sr = k.create(text, voice=style, speed=a.speed, lang="en-us")
+        samples, sr = k.create(text, voice=style, speed=a.speed, lang=a.lang)
         clips.append(trim(np.asarray(samples, np.float32), sr))
 
     gaps = [g * GAP_SCALE for _, g in LINES]
