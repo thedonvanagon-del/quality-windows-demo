@@ -2,7 +2,7 @@
 
 Usage:
   python3 voice.py --models DIR --script ../2026-11-15.script.json \
-      --out-audio narration.wav --out-captions cues.json [--voice bf_emma --lang en-gb] [--speed 0.9]
+      --out-audio narration.wav --out-captions cues.json [--voice bf_emma --lang en-gb] [--speed 0.9] [--gap-scale 1.2] [--warm]
 
 --script is a JSON list of [line, seconds of silence after it].
 --voice is one Kokoro voice, or a blend like "af_heart:0.5,af_nicole:0.5".
@@ -17,6 +17,8 @@ so compose.py --captions lines up with the voice.
 """
 import argparse
 import json
+import subprocess
+import tempfile
 
 import numpy as np
 import soundfile as sf
@@ -59,6 +61,8 @@ def main():
     ap.add_argument("--script", required=True)
     ap.add_argument("--voice", default="af_heart")
     ap.add_argument("--speed", type=float, default=0.9)
+    ap.add_argument("--gap-scale", type=float, default=1.0, help="stretch or shrink every pause")
+    ap.add_argument("--warm", action="store_true", help="soften the voice: less treble, a little body, a touch of room")
     ap.add_argument("--lang", default="en-us", help="en-us, or en-gb for the British voices (bf_*)")
     ap.add_argument("--out-audio", required=True)
     ap.add_argument("--out-captions", required=True)
@@ -74,7 +78,7 @@ def main():
         samples, sr = k.create(text, voice=style, speed=a.speed, lang=a.lang)
         clips.append(trim(np.asarray(samples, np.float32), sr))
 
-    gaps = [g * GAP_SCALE for _, g in LINES]
+    gaps = [g * a.gap_scale for _, g in LINES]
     cues, pos = [], LEAD_IN
     total = LEAD_IN + sum(len(c) / sr + gap for c, gap in zip(clips, gaps)) + TAIL
     voice = np.zeros(int(total * sr) + 1, np.float32)
@@ -88,6 +92,13 @@ def main():
     for cur, nxt in zip(cues, cues[1:]):
         cur["end"] = min(cur["end"], nxt["start"])
 
+    if a.warm:
+        with tempfile.TemporaryDirectory() as tmp:
+            sf.write(f"{tmp}/in.wav", voice, sr)
+            fx = "highpass=f=70,equalizer=f=220:t=q:w=0.9:g=2.5,equalizer=f=3200:t=q:w=1.2:g=-2,treble=g=-4:f=6500,aecho=0.9:0.6:38|71:0.10|0.06"
+            subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-i", f"{tmp}/in.wav", "-af", fx, "-ar", str(sr), f"{tmp}/out.wav"], check=True)
+            warm, _ = sf.read(f"{tmp}/out.wav", dtype="float32")
+        voice = np.pad(warm, (0, max(0, len(voice) - len(warm))))[:len(voice)]
     voice = voice / np.abs(voice).max() * 0.85
     bed = wave_bed(len(voice), sr) * 0.16
     fade = int(1.5 * sr)
