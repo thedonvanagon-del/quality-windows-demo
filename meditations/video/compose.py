@@ -4,7 +4,7 @@ Usage:
   python3 compose.py --bg waves_loop.mp4 --logo assets/logo.jpg --out reel.mp4 \
       [--seconds 60] [--audio voiceover.m4a] [--title "Buddha Beans Morning Meditation Vol. 2"]
 
---bg      any video. Scaled and cropped to fill 9:16, and looped or trimmed to --seconds.
+--bg      any video, or a still image for a background that does not move. Scaled and cropped to fill 9:16, and looped or trimmed to --seconds.
 --logo    PNG or JPG. A black-on-white logo is turned into a cream-white one with a
           transparent background, so it shows on the water.
 --audio   optional voiceover or music. Trimmed to --seconds, faded out at the end.
@@ -118,13 +118,18 @@ def main():
     a = ap.parse_args()
 
     # same words as the title, broken over three lines
-    lines = ["BUDDHA BEANS", "Morning Meditation", "Vol. 2"] if a.title == "Buddha Beans Morning Meditation Vol. 2" else [a.title]
+    if a.title.startswith("Buddha Beans Morning Meditation"):
+        lines = ["BUDDHA BEANS", "Morning Meditation", a.title[len("Buddha Beans Morning Meditation"):].strip()]
+    else:
+        lines = [a.title]
 
     with tempfile.TemporaryDirectory() as tmp:
         ov = Path(tmp) / "overlay.png"
         build_overlay(a.logo, lines).save(ov)
         s = a.seconds
-        cmd = ["ffmpeg", "-y", "-loglevel", "error", "-stream_loop", "-1", "-i", a.bg, "-loop", "1", "-i", str(ov)]
+        still = a.bg.lower().endswith((".png", ".jpg", ".jpeg"))
+        bg_in = ["-loop", "1", "-i", a.bg] if still else ["-stream_loop", "-1", "-i", a.bg]
+        cmd = ["ffmpeg", "-y", "-loglevel", "error", *bg_in, "-loop", "1", "-i", str(ov)]
         chains = [
             f"[0:v]scale={W}:{H}:force_original_aspect_ratio=increase,crop={W}:{H},setsar=1,fps=30[bg0]",
             "[1:v]format=rgba,fade=t=in:st=0.6:d=1.2:alpha=1[ov]",

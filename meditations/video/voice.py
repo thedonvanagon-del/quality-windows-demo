@@ -1,7 +1,11 @@
 """Narrate a meditation with the open-source Kokoro voice model, over soft wave sound.
 
 Usage:
-  python3 voice.py --models DIR --out-audio narration.wav --out-captions cues.json
+  python3 voice.py --models DIR --script ../2026-11-15.script.json \
+      --out-audio narration.wav --out-captions cues.json [--voice af_heart] [--speed 0.9]
+
+--script is a JSON list of [line, seconds of silence after it].
+--voice is one Kokoro voice, or a blend like "af_heart:0.5,af_nicole:0.5".
 
 DIR must hold kokoro-v1.0.onnx and voices-v1.0.bin, from
 https://github.com/thewh1teagle/kokoro-onnx/releases/tag/model-files-v1.0
@@ -18,33 +22,9 @@ import numpy as np
 import soundfile as sf
 from kokoro_onnx import Kokoro
 
-# (line, seconds of silence after it)
-LINES = [
-    ("Friday morning. Sixty seconds. Grab your mug.", 2.0),
-    ("Sit up. Close your eyes.", 1.2),
-    ("Breathe in.", 2.8),
-    ("And out. Slow.", 3.5),
-    ("Again. In.", 2.8),
-    ("And out.", 3.5),
-    ("The Buddha taught the middle way.", 0.7),
-    ("Not too tight. Not too loose.", 1.1),
-    ("Same as a pour-over.", 0.7),
-    ("Rush it, and it's sour.", 0.6),
-    ("Stew it, and it's bitter.", 0.7),
-    ("Slow and steady hits the sweet spot.", 2.6),
-    ("Nothing lasts.", 0.9),
-    ("Not the steam. Not the week. Not even the crema.", 1.1),
-    ("So drink the cup while it's here.", 3.0),
-    ("Beginner's mind.", 0.9),
-    ("Every cup is your first cup.", 1.1),
-    ("Take one sip like you've never tasted coffee.", 2.6),
-    ("Happy Friday.", 0.0),
-]
-GAP_SCALE = 0.65   # shrink every pause to land near sixty seconds
+GAP_SCALE = 1.0
 LEAD_IN = 1.5      # seconds of waves before the first word
 TAIL = 3.0         # seconds of waves after the last word
-SPEED = 0.85
-VOICE_MIX = (("af_heart", 0.5), ("af_nicole", 0.5))   # warm + soft
 
 
 def trim(x, sr, thresh=0.01, pad=0.06):
@@ -76,16 +56,21 @@ def wave_bed(n, sr, seed=3):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--models", required=True)
+    ap.add_argument("--script", required=True)
+    ap.add_argument("--voice", default="af_heart")
+    ap.add_argument("--speed", type=float, default=0.9)
     ap.add_argument("--out-audio", required=True)
     ap.add_argument("--out-captions", required=True)
     a = ap.parse_args()
 
     k = Kokoro(f"{a.models}/kokoro-v1.0.onnx", f"{a.models}/voices-v1.0.bin")
-    style = sum(k.get_voice_style(name) * w for name, w in VOICE_MIX)
+    LINES = [tuple(x) for x in json.load(open(a.script))]
+    mix = [(p.split(":")[0], float(p.split(":")[1]) if ":" in p else 1.0) for p in a.voice.split(",")]
+    style = sum(k.get_voice_style(name) * w for name, w in mix)
 
     clips, sr = [], None
     for text, _ in LINES:
-        samples, sr = k.create(text, voice=style, speed=SPEED, lang="en-us")
+        samples, sr = k.create(text, voice=style, speed=a.speed, lang="en-us")
         clips.append(trim(np.asarray(samples, np.float32), sr))
 
     gaps = [g * GAP_SCALE for _, g in LINES]
