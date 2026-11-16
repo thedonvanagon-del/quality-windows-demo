@@ -26,8 +26,8 @@ FONT = "/usr/share/fonts/X11/Type1/c0419bt_.pfb"        # Courier 10 Pitch
 FONT_BOLD = "/usr/share/fonts/X11/Type1/c0583bt_.pfb"   # Courier 10 Pitch Bold
 CREAM = (255, 255, 255)   # pure white
 LOGO_W = 720          # logo width in px
-LOGO_CY = 700         # logo centre y
-CAP_CY = 1465         # caption block centre y; keeps clear of the Reels buttons below
+LOGO_CY = 640         # logo centre y
+CAP_CY = 1400         # caption block centre y; keeps clear of the Reels buttons below
 
 
 def load_logo(path):
@@ -86,9 +86,9 @@ def build_overlay(logo_path, lines):
 
 def build_caption(text):
     """One caption cue as a transparent 1080x1920 PNG: typewriter text on a soft dark pill."""
-    font = ImageFont.truetype(FONT, 54)
-    lines = textwrap.wrap(text, 30)
-    lh = 72
+    font = ImageFont.truetype(FONT, 50)
+    lines = textwrap.wrap(text, 27)   # narrow enough to clear the Reels buttons on the right
+    lh = 68
     img = Image.new("RGBA", (W, H), (0, 0, 0, 0))
     d = ImageDraw.Draw(img)
     widest = max(d.textlength(l, font=font) for l in lines)
@@ -97,7 +97,7 @@ def build_caption(text):
     y0 = CAP_CY - block_h / 2 - 22
     y1 = CAP_CY + block_h / 2 + 22
     d.rounded_rectangle((x0, y0, x1, y1), radius=30, fill=(10, 16, 28, 120))
-    y = CAP_CY - block_h / 2 + (lh - 54) / 2 - 4
+    y = CAP_CY - block_h / 2 + (lh - 50) / 2 - 4
     for l in lines:
         tw = d.textlength(l, font=font)
         d.text((W / 2 - tw / 2 + 2, y + 2), l, font=font, fill=(0, 0, 0, 140))
