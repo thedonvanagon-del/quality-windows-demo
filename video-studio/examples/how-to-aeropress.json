@@ -1,0 +1,63 @@
+{
+ "title": "How To Aeropress",
+ "brand": "buddhabeans",
+ "style": "print",
+ "format": "9:16",
+ "fps": 24,
+ "bpm": 120,
+ "scenes": [
+  {
+   "type": "brew",
+   "method": "aeropress",
+   "step": 0,
+   "beats": 4,
+   "bg": "kraft"
+  },
+  {
+   "type": "brew",
+   "method": "aeropress",
+   "step": 1,
+   "beats": 6,
+   "bg": "kraft"
+  },
+  {
+   "type": "brew",
+   "method": "aeropress",
+   "step": 2,
+   "beats": 6,
+   "bg": "kraft"
+  },
+  {
+   "type": "brew",
+   "method": "aeropress",
+   "step": 3,
+   "beats": 6,
+   "bg": "kraft"
+  },
+  {
+   "type": "brew",
+   "method": "aeropress",
+   "step": 4,
+   "beats": 6,
+   "bg": "kraft"
+  },
+  {
+   "type": "brew",
+   "method": "aeropress",
+   "step": 5,
+   "beats": 6,
+   "bg": "kraft"
+  },
+  {
+   "type": "outro",
+   "beats": 6,
+   "bg": "coral",
+   "words": [
+    "PRESS PLAY."
+   ]
+  }
+ ],
+ "audio": {
+  "sfx": true
+ }
+}

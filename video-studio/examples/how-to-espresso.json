@@ -1,0 +1,63 @@
+{
+ "title": "How To Espresso",
+ "brand": "buddhabeans",
+ "style": "print",
+ "format": "9:16",
+ "fps": 24,
+ "bpm": 120,
+ "scenes": [
+  {
+   "type": "brew",
+   "method": "espresso",
+   "step": 0,
+   "beats": 4,
+   "bg": "kraft"
+  },
+  {
+   "type": "brew",
+   "method": "espresso",
+   "step": 1,
+   "beats": 6,
+   "bg": "kraft"
+  },
+  {
+   "type": "brew",
+   "method": "espresso",
+   "step": 2,
+   "beats": 6,
+   "bg": "kraft"
+  },
+  {
+   "type": "brew",
+   "method": "espresso",
+   "step": 3,
+   "beats": 6,
+   "bg": "kraft"
+  },
+  {
+   "type": "brew",
+   "method": "espresso",
+   "step": 4,
+   "beats": 8,
+   "bg": "kraft"
+  },
+  {
+   "type": "brew",
+   "method": "espresso",
+   "step": 5,
+   "beats": 6,
+   "bg": "kraft"
+  },
+  {
+   "type": "outro",
+   "beats": 6,
+   "bg": "coral",
+   "words": [
+    "PULL IT RIGHT."
+   ]
+  }
+ ],
+ "audio": {
+  "sfx": true
+ }
+}

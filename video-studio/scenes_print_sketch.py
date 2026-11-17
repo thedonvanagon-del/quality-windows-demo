@@ -281,20 +281,45 @@ def build_sketch(sc, C):
         back.append(txt(905, 735, "(SPED UP)", 24, PLUM, 500, extra="letter-spacing:.14em"))
 
     # ------------------------------------------------------------ character
+    fig = sc.get("figure", "barista")   # barista (colour), mono (minimal black and white), buddha
+    WHITE = "#fbf7ef"
     ch = []
-    ch.append(pg([(170, 905), (330, 905), (348, 1300), (152, 1300)], CREAM, 9))                      # shirt
-    ch.append(pg([(190, 962), (310, 962), (326, 1300), (174, 1300)], CORAL, 9))                      # apron
-    ch.append(pth(wb(196, 962, 186, 905, 1), 8) + pth(wb(304, 962, 314, 905, 1), 8))
-    ch.append(pg([(232, 862), (268, 862), (272, 910), (228, 910)], CREAM, 8))                        # neck
-    ch.append(circ(250, 1115, 14, CREAM, 6))                                                          # apron pocket dot
-    ch.append(pth(wb(205, 1175, 295, 1175, 1.5), 6))
+    if fig == "mono":
+        ch.append(pg([(178, 905), (322, 905), (338, 1300), (162, 1300)], WHITE, 9))
+        ch.append(pth(wb(250, 858, 250, 905, 1), 9))
+    elif fig == "buddha":
+        ch.append(pth("M150,905 C112,1000 98,1130 116,1300 L384,1300 C402,1130 388,1000 350,905 Z", 10, INK, WHITE))
+        ch.append(f'<path d="M205,840 L295,840 L300,915 L200,915 Z" style="fill:{WHITE};stroke:none"/>')    # neck, no seams
+        ch.append(pth("M150,905 C112,1000 98,1130 116,1300 L172,1300 C166,1150 182,1010 214,905 Z", 8, INK, INK))
+        ch.append(pth("M350,905 C388,1000 402,1130 384,1300 L328,1300 C334,1150 318,1010 286,905 Z", 8, INK, INK))
+        ch.append(pth("M200,1000 Q250,1030 300,1000", 7))
+        ch.append(pth("M196,1060 C168,1130 172,1230 206,1290", 6) + pth("M304,1060 C332,1130 328,1230 294,1290", 6))  # round belly
+        ch.append(circ(250, 1160, 9, WHITE, 6))                                                         # navel
+        ch.append(pth("M186,1235 Q250,1275 314,1235", 7))
+    else:
+        ch.append(pg([(170, 905), (330, 905), (348, 1300), (152, 1300)], CREAM, 9))                      # shirt
+        ch.append(pg([(190, 962), (310, 962), (326, 1300), (174, 1300)], CORAL, 9))                      # apron
+        ch.append(pth(wb(196, 962, 186, 905, 1), 8) + pth(wb(304, 962, 314, 905, 1), 8))
+        ch.append(pg([(232, 862), (268, 862), (272, 910), (228, 910)], CREAM, 8))                        # neck
+        ch.append(circ(250, 1115, 14, CREAM, 6))                                                          # apron pocket dot
+        ch.append(pth(wb(205, 1175, 295, 1175, 1.5), 6))
+
+    if fig == "mono":
+        upper = fore = pth(f"M0,0 L{L},0", 20, INK)
+        hand_r, hand_fill = 20, WHITE
+    elif fig == "buddha":
+        upper = pth(f"M0,0 L{L},0", 64, INK)                                    # dark robe sleeve
+        fore = pth(f"M0,0 L{L},0", 56, INK) + pth(f"M0,0 L{L},0", 42, WHITE)    # bare forearm
+        hand_r, hand_fill = 30, WHITE
+    else:
+        upper = fore = pth(f"M0,0 L{L},0", 52, INK) + pth(f"M0,0 L{L},0", 38, CREAM)
+        hand_r, hand_fill = 27, CREAM
 
     def arm(sh, a1, a2, name, hand=True):
         ua = kf(name + "u", "transform", lambda k, s: f"rotate({s[a1]:.2f}deg)") + "transform-origin:0 0;"
         fa = kf(name + "f", "transform", lambda k, s: f"rotate({s[a2]:.2f}deg)") + "transform-origin:0 0;"
-        sleeve = pth(f"M0,0 L{L},0", 52, INK) + pth(f"M0,0 L{L},0", 38, CREAM)
-        return (f'<g transform="translate({sh[0]} {sh[1]})"><g style="{ua}">{sleeve}'
-                f'<g transform="translate({L} 0)"><g style="{fa}">{sleeve}{circ(L, 0, 27, CREAM, 8)}</g></g></g></g>')
+        return (f'<g transform="translate({sh[0]} {sh[1]})"><g style="{ua}">{upper}'
+                f'<g transform="translate({L} 0)"><g style="{fa}">{fore}{circ(L, 0, hand_r, hand_fill, 8)}</g></g></g></g>')
 
     larm = arm(SL, "l1", "l2", "la")
     rarm = arm(SR, "r1", "r2", "ra")
@@ -353,14 +378,29 @@ def build_sketch(sc, C):
     open_a = kf("op", "opacity", lambda k, s: "1" if s["mouth"] == "open" else "0")
     smile_a = kf("sm", "opacity", lambda k, s: "0" if s["mouth"] == "open" else "1")
     face = []
-    face.append(circ(250, 745, 108, CREAM, 10))
-    face.append(f'<path d="M142,735 C142,625 358,625 358,735 L338,725 C300,705 200,705 162,725 Z" style="fill:{PLUM};stroke:{INK};stroke-width:9"/>')
-    face.append(pth("M146,728 L354,728", 14, INK))
-    face.append(f'<g style="{blink}">{circ(212, 758, 8, INK, 2)}{circ(288, 758, 8, INK, 2)}</g>')
-    face.append(pth(wb(194, 730, 232, 724, 1), 6) + pth(wb(268, 724, 306, 730, 1), 6))
-    face.append(circ(188, 792, 15, CORAL, 0, CORAL) + circ(312, 792, 15, CORAL, 0, CORAL))
-    face.append(f'<g style="{smile_a}"><path d="M216,795 Q250,830 284,795" style="stroke:{INK};stroke-width:8;fill:none"/></g>')
-    face.append(f'<g style="{open_a}"><ellipse cx="250" cy="806" rx="20" ry="24" style="fill:{INK};stroke:none"/></g>')
+    if fig == "mono":
+        face.append(circ(250, 745, 100, WHITE, 9))
+        face.append(f'<g style="{blink}">{circ(214, 752, 7, INK, 2)}{circ(286, 752, 7, INK, 2)}</g>')
+        face.append(f'<g style="{smile_a}"><path d="M220,792 Q250,818 280,792" style="stroke:{INK};stroke-width:8;fill:none"/></g>')
+        face.append(f'<g style="{open_a}"><ellipse cx="250" cy="800" rx="16" ry="20" style="fill:{INK};stroke:none"/></g>')
+    elif fig == "buddha":
+        for ex in (136, 364):                                                  # long earlobes
+            face.append(f'<ellipse cx="{ex}" cy="778" rx="22" ry="50" style="fill:{WHITE};stroke:{INK};stroke-width:8"/>')
+        face.append(circ(250, 745, 114, WHITE, 10))
+        face.append(pth("M188,722 Q211,700 234,722", 7) + pth("M266,722 Q289,700 312,722", 7))   # raised brows
+        face.append(pth("M194,756 Q212,738 230,756", 8) + pth("M270,756 Q288,738 306,756", 8))   # laughing, eyes shut
+        face.append(pth("M178,786 Q186,806 182,826", 6) + pth("M322,786 Q314,806 318,826", 6))  # cheek lines
+        face.append(f'<path d="M204,792 Q250,794 296,792 Q292,852 250,858 Q208,852 204,792 Z" style="fill:{INK};stroke:{INK};stroke-width:7"/>')
+        face.append(pth("M226,840 Q250,826 274,840", 6, WHITE))                # tongue line
+    else:
+        face.append(circ(250, 745, 108, CREAM, 10))
+        face.append(f'<path d="M142,735 C142,625 358,625 358,735 L338,725 C300,705 200,705 162,725 Z" style="fill:{PLUM};stroke:{INK};stroke-width:9"/>')
+        face.append(pth("M146,728 L354,728", 14, INK))
+        face.append(f'<g style="{blink}">{circ(212, 758, 8, INK, 2)}{circ(288, 758, 8, INK, 2)}</g>')
+        face.append(pth(wb(194, 730, 232, 724, 1), 6) + pth(wb(268, 724, 306, 730, 1), 6))
+        face.append(circ(188, 792, 15, CORAL, 0, CORAL) + circ(312, 792, 15, CORAL, 0, CORAL))
+        face.append(f'<g style="{smile_a}"><path d="M216,795 Q250,830 284,795" style="stroke:{INK};stroke-width:8;fill:none"/></g>')
+        face.append(f'<g style="{open_a}"><ellipse cx="250" cy="806" rx="20" ry="24" style="fill:{INK};stroke:none"/></g>')
     head = f'<g style="{head_anim}">{"".join(face)}</g>'
 
     scene_svg = ('<svg class="sk" viewBox="0 0 1080 1920" style="position:absolute;left:0;top:0;width:{w}px;height:{h}px">'.format(w=w, h=h)
