@@ -529,6 +529,12 @@ def build_edu(t, sc, C):
         css += (".globe{border-radius:50%;overflow:hidden}.beltband{position:absolute;left:0;width:100%;background:rgba(238,117,86,.5);"
                 "clip-path:inset(0 100% 0 0)}.beltband.on{animation:wipe .6s linear both}")
 
+    elif t == "sketch":
+        from scenes_print_sketch import build_sketch
+        body_, css_ = build_sketch(sc, C)
+        parts.append(body_)
+        css += css_
+
     else:
         raise SystemExit(f"print style has no scene type '{t}'")
 

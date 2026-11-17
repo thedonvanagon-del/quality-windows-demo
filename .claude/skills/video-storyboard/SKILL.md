@@ -64,6 +64,8 @@ Scene types and their fields:
 
 More diagram scenes: `cracks` (two big temperatures with starbursts), `roast` (five hand-drawn beans, green to dark), `compare` (2 to 4 torn cards side by side; each column has `title`, `rows`, `bg`, optional `bean` colour and `small`; scene takes `banner` and `note`), `myth` (`claim` struck through, then `fact`), `methods` (four brew methods with icons and a grind scale), `belt` (globe with the tropics band shaded).
 
+`sketch`: a hand-drawn barista demonstrating one step of a pour-over (`step` 0 intro, 1 set up, 2 rinse, 3 add coffee, 4 bloom, 5 pour, 6 drink; `scenes_print_sketch.py`). Arms are two-link limbs solved with inverse kinematics, so the kettle stays in the hand and the stream lands on the dripper. Scale readings and the timer are scripted per step. Example: `examples/how-to-pour-over.json`. Steps are standard pour-over practice (1:16, 195-205F, rinse, 2x-weight bloom for 30-45 s, slow circles, about 3 minutes); the on-screen timer is labelled "sped up".
+
 The first four are the original educational set. Example: `examples/why-coffee-tastes-sour-or-bitter.json` (27s). Their copy is standard brewing guidance (SCA ranges: 195-205F water, 18-22% extraction, about 1:16 ratio); check any new numbers before adding them.
 
 Only Brothers is used. Keep every word on screen from the logo, the catalog, or text the owner supplied.
