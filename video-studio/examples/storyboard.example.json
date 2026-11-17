@@ -1,0 +1,14 @@
+{
+  "title": "Morning Cup Sample",
+  "brand": "buddhabeans",
+  "format": "9:16",
+  "fps": 30,
+  "transition": 0.5,
+  "scenes": [
+    {"type": "title", "duration": 3.5, "text": "Single origin. Slow roasted.", "sub": "Rare beans, picked with care.", "caption": "Start with what's in the cup."},
+    {"type": "bullets", "duration": 5, "text": "What you'll taste", "bullets": ["Bright, fruity top notes", "Smooth cocoa finish", "Clean, no bitterness"], "caption": "Bright up front. Smooth at the end."},
+    {"type": "quote", "duration": 4, "text": "Best cup I've had all year.", "attribution": "Verified customer"},
+    {"type": "outro", "duration": 3.5, "text": "Brew something good.", "sub": "Retail and wholesale."}
+  ],
+  "audio": {}
+}
