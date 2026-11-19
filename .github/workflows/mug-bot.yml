@@ -1,0 +1,68 @@
+name: mug-bot
+
+# Christmas coffee-pun mugs for Buddha Beans Coffee. Twice a week it makes one
+# new mug as an unpublished Printify draft and pings Telegram with the mockup.
+# Nothing goes public until you run this workflow with mode=publish and the
+# draft's product ID. Setup lives in mug-bot/README.md.
+
+on:
+  schedule:
+    - cron: "17 14 * * 1,4"   # Monday and Thursday, a draft each
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: What to run
+        type: choice
+        options: [make, drafts, publish]
+        default: make
+      product_id:
+        description: Printify product ID (publish only)
+        type: string
+      title:
+        description: Force the words on the mug (make only, optional)
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mug-bot
+  cancel-in-progress: false
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - run: pip install pillow
+
+      - name: mugbot
+        working-directory: mug-bot
+        env:
+          PRINTIFY_API_TOKEN: ${{ secrets.PRINTIFY_API_TOKEN }}
+          PRINTIFY_SHOP_ID: ${{ vars.PRINTIFY_SHOP_ID }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          SHOPIFY_STORE: ${{ vars.SHOPIFY_STORE }}
+          SHOPIFY_ADMIN_TOKEN: ${{ secrets.SHOPIFY_ADMIN_TOKEN }}
+          SHOPIFY_BLOG_ID: ${{ vars.SHOPIFY_BLOG_ID }}
+          PINTEREST_ACCESS_TOKEN: ${{ secrets.PINTEREST_ACCESS_TOKEN }}
+          PINTEREST_BOARD_ID: ${{ vars.PINTEREST_BOARD_ID }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          MUG_PRICE_USD: ${{ vars.MUG_PRICE_USD }}
+          MODE: ${{ inputs.mode || 'make' }}
+          PRODUCT_ID: ${{ inputs.product_id }}
+          TITLE: ${{ inputs.title }}
+          PYTHONUNBUFFERED: "1"
+        run: |
+          case "$MODE" in
+            drafts) python -m mugbot drafts ;;
+            publish) python -m mugbot publish "$PRODUCT_ID" ;;
+            *) python -m mugbot make ${TITLE:+--title "$TITLE"} ;;
+          esac
