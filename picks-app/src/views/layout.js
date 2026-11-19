@@ -1,0 +1,179 @@
+import { THEMES } from '../config.js';
+import { html } from '../html.js';
+import { formatOdds } from '../picks.js';
+import { showsSitePicks, siteLink } from '../site.js';
+import { barColor, sheetPath } from '../themes.js';
+import { when } from '../time.js';
+import { avatar } from './avatar.js';
+import { icons } from './icons.js';
+
+/**
+ * The page shell. `ctx` carries the app name, the signed-in player, the
+ * flash message and the asset URLs; `active` lights up a nav link.
+ */
+export function layout(ctx, { title, active, body, description, share }) {
+  const { user, flash, app } = ctx;
+  // The launch screen: the crest, LOCKBOX and the motto, whenever the app is
+  // opened after 20 minutes or more away. Every page renews a short-lived
+  // cookie (send() sets it), so moving around inside the app never shows it.
+  const splash = ctx.req?.method === 'GET' && !ctx.cookieValues?.bb_seen;
+  ctx.pageShown = true;
+  // A team or custom look comes from its own stylesheet. Players who chose a
+  // color that has since been retired get the default.
+  const style = user?.style ?? null;
+  const theme = style ? 'custom' : THEMES.includes(user?.theme) ? user.theme : app.theme;
+  // Dark or light page, whatever the look: name colors swap to their light-page shades on light.
+  const mode = (style ? style.mode : theme) === 'light' ? 'light' : 'dark';
+  const playing = Boolean(user?.screenName);
+  const profile = playing ? `/u/${encodeURIComponent(user.screenName)}` : null;
+  const nav = playing
+    ? [
+        ['games', '/games', 'Games', icons.games],
+        ['picks', '/picks', 'My bets', icons.picks],
+        ['tournaments', '/tournaments', 'Tournaments', icons.bracket],
+        ['board', '/leaderboard', 'Leaderboard', icons.board],
+        ['groups', '/groups', 'Chat Rooms', icons.groups],
+        ['more', '/more', 'More', icons.more],
+      ]
+    : [['board', '/leaderboard', 'Leaderboard', icons.board]];
+  // No counts on the tab bar (owner's call, 2026-11-06): new things show only on the bell up top.
+  // A slim bar over the tab bar while a parlay is being built.
+  const draft = playing && ctx.parlay?.legs && ctx.url.pathname !== '/parlay' ? ctx.parlay : null;
+  const parlayBar = draft
+    ? html`<a class="parlay-bar" href="/parlay"><span><b>Parlay</b> · ${draft.legs} ${draft.legs === 1 ? 'leg' : 'legs'} · <span class="pb-odds">${formatOdds(draft.odds).replace(/^-/, '\u2212')}</span></span><span class="pb-go">Review</span></a>`
+    : '';
+  const link = ([key, href, label, icon], wrap = false) =>
+    html`<a href="${href}" class="${key === active ? 'on' : ''}" ${key === active ? html`aria-current="page"` : ''}><span class="ic">${icon}</span><span ${wrap ? html`class="tab-wrap"` : ''}>${label}</span></a>`;
+
+  return html`<!doctype html>
+<html lang="en" data-theme="${theme}" data-mode="${mode}">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>${title ? `${title} · ${app.name}` : app.name}</title>
+<meta name="description" content="${description ?? 'Make your picks before kickoff. They lock, they get graded off the final score, and nobody can edit them.'}">
+<meta name="theme-color" content="${barColor(style, theme)}">
+<meta property="og:site_name" content="${app.name}">
+<meta property="og:type" content="${share ? 'profile' : 'website'}">
+<meta property="og:title" content="${share?.title ?? (title ? `${title} · ${app.name}` : app.name)}">
+<meta property="og:description" content="${share?.description ?? description ?? 'Make your picks before kickoff. They lock, they get graded off the final score, and nobody can edit them.'}">
+<meta property="og:url" content="${ctx.origin}${ctx.url.pathname}">
+<meta property="og:image" content="${ctx.origin}/static/icon-512.png">
+<meta name="twitter:card" content="summary">
+<link rel="icon" type="image/png" href="${app.assets.logo}">
+<link rel="apple-touch-icon" href="${app.assets.touchIcon}">
+<link rel="manifest" href="${app.assets.manifest}">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="${app.shortName ?? app.name}">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<link rel="stylesheet" href="${app.assets.css}">
+${style ? html`<link rel="stylesheet" href="${sheetPath(style)}">` : ''}
+<script src="${app.assets.js}" defer></script>
+</head>
+<body class="${[playing ? 'signed-in' : '', draft ? 'has-parlay' : ''].filter(Boolean).join(' ')}">
+${splash ? html`<div class="splash" aria-hidden="true" data-splash><img class="splash-logo" src="${app.assets.logo}" alt="" width="132" height="132"><b class="splash-name">${app.name}</b><span class="splash-by">by BOOKIEBULLIES.COM</span>${app.motto ? html`<span class="splash-motto">${app.motto}</span>` : ''}</div>` : ''}
+<header class="top">
+  <div class="wrap">
+    <a class="brand" href="/"><img class="brand-logo" src="${app.assets.logo}" alt="" width="34" height="34"><span class="brand-name"><span class="brand-word">${app.name}</span><small class="brand-by">by BOOKIEBULLIES.COM</small></span></a>
+    <nav class="nav" aria-label="Main">${nav.map(link)}</nav>
+    <div class="top-right">
+      ${playing
+        ? unitsPill(ctx.myUnits?.() ?? null, profile)
+        : active === 'install' ? '' : html`<a class="get-app" href="/install" data-get-app>${icons.download}<span>Get the app</span></a>`}
+      ${playing ? html`<a class="bell ${active === 'notifications' ? 'on' : ''}" href="/notifications" aria-label="Notifications${ctx.unread ? `, ${ctx.unread} new` : ''}">${icons.bell}${ctx.unread ? html`<b class="badge">${ctx.unread > 99 ? '99+' : ctx.unread}</b>` : ''}</a>` : ''}
+      ${playing
+        ? html`<a class="user-chip ${active === 'me' ? 'on' : ''}" href="${profile}">${avatar(user)}<span class="name">${user.screenName}</span></a>`
+        : user
+          ? ''
+          : html`<a class="btn ghost small" href="/login">Log in</a><a class="btn small" href="/signup">Join now</a>`}
+    </div>
+  </div>
+</header>
+${user && !user.verified
+  ? html`<div class="verify-bar"><div class="wrap">
+      <span>Confirm your email to put your record on the leaderboards. Check ${user.email}.</span>
+      <form method="post" action="/verify/resend">${csrfField(ctx)}<input type="hidden" name="next" value="${ctx.url.pathname}"><button class="btn small ghost">Send a new link</button></form>
+    </div></div>`
+  : ''}
+${active === 'install' ? '' : html`<div class="app-banner" data-app-banner hidden>
+  <div class="wrap">
+    <img src="${app.assets.touchIcon}" alt="" width="36" height="36">
+    <a class="btn app-banner-go" href="/install" data-get-app>Get the ${app.shortName ?? app.name} App</a>
+    <button type="button" class="app-banner-close" data-banner-close aria-label="Not now">×</button>
+  </div>
+</div>`}
+${active === 'install' ? '' : html`<div class="ios-install" data-ios-install hidden>
+  <div class="ios-card" role="dialog" aria-modal="true" aria-labelledby="ios-install-title">
+    <button type="button" class="ios-close" data-ios-close aria-label="Close">×</button>
+    <div class="ios-head"><img src="${app.assets.touchIcon}" alt="" width="52" height="52"><div><b id="ios-install-title">Add ${app.shortName ?? app.name} to your Home Screen</b><small>Free. About ten seconds.</small></div></div>
+    <ol class="ios-steps">
+      <li><span class="step-n">1</span><span>Tap the Share button <svg class="ios-glyph" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12M8 7l4-4 4 4"/><path d="M6 11H5a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-8a1 1 0 0 0-1-1h-1"/></svg> <span data-where="safari">in Safari's bar below<small>On newer iPhones, tap <b>⋯</b>, then <b>Share</b>.</small></span><span data-where="chrome" hidden>next to the address bar, top right</span></span></li>
+      <li><span class="step-n">2</span><span>Scroll down and tap <svg class="ios-glyph" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="3.5" width="17" height="17" rx="4"/><path d="M12 8v8M8 12h8"/></svg> <b>Add to Home Screen</b></span></li>
+      <li><span class="step-n">3</span><span>Tap <b>Add</b>, then open it from your Home Screen</span></li>
+    </ol>
+  </div>
+  <div class="ios-arrow" aria-hidden="true">↓</div>
+</div>`}
+<main class="wrap">
+  ${ctx.flashShown ? '' : flash?.type === 'locked' ? lockedTicket(ctx, flash) : flash ? html`<div class="flash ${flash.type === 'error' ? 'err' : 'ok'}" role="status">${flash.text}</div>` : ''}
+  ${body}
+</main>
+<footer>
+  <div class="wrap">
+    ${user ? html`<form method="post" action="/logout" class="logout">${csrfField(ctx)}<button class="btn quiet small">Log out</button></form>` : ''}
+    <p>Picks lock at kickoff and grade off ESPN's final scores. Nothing gets edited after the fact.</p>
+    <p>Just picks, no betting here. 21+. If gambling stops being fun, call 1-800-GAMBLER.</p>
+    <p><a href="/terms">Terms</a> · <a href="/privacy">Privacy</a></p>
+  </div>
+</footer>
+${playing
+  ? html`<div class="dock">${parlayBar}<nav class="tabbar" aria-label="Main">${nav
+    // Six tabs share a phone's width, so the longest labels get shorter names.
+    // Profile isn't a tab (2026-11-06): it's the avatar up top, and first in More.
+    .map(([key, href, label, icon]) => link([key, href, TAB_LABEL[key] ?? label, icon], TAB_WRAP.has(key)))}</nav></div>`
+  : ''}
+</body>
+</html>`;
+}
+
+const TAB_LABEL = { board: 'Leaders', tournaments: 'Tourneys' };
+// "Chat Rooms" (2026-11-06) measures 60px in the tab font, inside a tab's
+// 64px at 390px wide, so it's one line there. On a narrower phone it may
+// wrap to "Chat" over "Rooms" rather than cut off (style.css, under 380px).
+const TAB_WRAP = new Set(['groups']);
+
+export function csrfField(ctx) {
+  return ctx.session ? html`<input type="hidden" name="_csrf" value="${ctx.session.csrf}">` : '';
+}
+
+/**
+ * The player's all-time record in units, top right: "+12.4u ▲" in green,
+ * "−3.2u ▼" in red, linking to their profile. Nothing when there's no number.
+ */
+export function unitsPill(units, href) {
+  if (units == null || !Number.isFinite(units)) return '';
+  const n = Math.round(units * 10) / 10;
+  const dir = n > 0 ? 'up' : n < 0 ? 'down' : 'even';
+  const size = Math.abs(n);
+  const text = `${n > 0 ? '+' : n < 0 ? '−' : ''}${size}u`;
+  const said = `${n > 0 ? 'Up' : n < 0 ? 'Down' : 'Even at'} ${size} ${size === 1 ? 'unit' : 'units'}, all time. Your profile`;
+  return html`<a class="units-pill ${dir}" href="${href}" aria-label="${said}" title="Your record in units, all time">${text}${dir === 'even' ? '' : html`<span class="arrow" aria-hidden="true">${dir === 'up' ? '▲' : '▼'}</span>`}</a>`;
+}
+
+/**
+ * The receipt a pick gets the moment it goes in: the bet, a LOCKED stamp and
+ * the exact time. With the site's picks on, one quiet line points to them.
+ * On the games board it sits on the picked game's card instead (play.js).
+ */
+export function lockedTicket(ctx, flash) {
+  return html`<div class="locked-ticket" role="status">
+    <span class="stamp">Locked</span>
+    <div class="lt-body">
+      <b>${flash.text}</b>
+      <span class="lt-motto">Once it's in, it's on the record.</span>
+      ${flash.at ? html`<span>On the record <time datetime="${flash.at}" data-local="long">${when(flash.at)}</time>. It can't be edited after the game starts.</span>` : ''}
+      ${showsSitePicks(ctx.user) ? html`<a class="lt-site" href="${siteLink(ctx.app.site, 'ticket')}" target="_blank" rel="noopener">Want a second opinion? See the model's picks →</a>` : ''}
+    </div>
+  </div>`;
+}

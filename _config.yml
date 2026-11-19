@@ -5,4 +5,5 @@ exclude:
   - aws
   - sites
   - cfb-bot
+  - picks-app
   - mug-bot

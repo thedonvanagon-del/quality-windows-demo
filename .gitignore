@@ -30,3 +30,6 @@ node_modules/
 # cfb-bot keeps its state in the Actions cache, never in git.
 cfb-bot/state/
 __pycache__/
+
+# The picks app's database: every account and record. Never in git.
+picks-app/data/
