@@ -88,3 +88,17 @@ jobs:
       - name: demo runs end to end
         working-directory: cfb-bot
         run: python -m cfbbot --demo
+
+  picks-app:
+    name: picks app tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: unit and app tests
+        working-directory: picks-app
+        run: npm test

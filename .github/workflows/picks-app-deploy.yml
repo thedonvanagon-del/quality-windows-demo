@@ -1,0 +1,74 @@
+name: picks-app deploy
+
+# Ships the Bookie Bullies app to its Lightsail server whenever picks-app
+# changes on main. It stays switched off (skipped, not failed) until the
+# server exists: set the repo variable APP_HOST to the server's static IP and
+# the secret APP_SSH_KEY to the private deploy key. aws/stacks/bookie-bullies-app
+# has the steps.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "picks-app/**"
+      - ".github/workflows/picks-app-deploy.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: picks-app-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    if: vars.APP_HOST != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      APP_HOST: ${{ vars.APP_HOST }}
+      APP_URL: ${{ vars.APP_URL || 'https://app.bookiebullies.com' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: tests
+        working-directory: picks-app
+        run: npm test
+
+      - name: ssh key
+        env:
+          APP_SSH_KEY: ${{ secrets.APP_SSH_KEY }}
+        run: |
+          set -euo pipefail
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$APP_SSH_KEY" > ~/.ssh/deploy
+          chmod 600 ~/.ssh/deploy
+          ssh-keyscan -t ed25519 "$APP_HOST" >> ~/.ssh/known_hosts
+
+      # Code only. The database lives in /var/lib/bookie-bullies-app and the
+      # settings in /etc/bookie-bullies-app.env; neither is touched.
+      - name: copy the app
+        run: |
+          set -euo pipefail
+          rsync -az --delete -e "ssh -i ~/.ssh/deploy" \
+            picks-app/package.json picks-app/src picks-app/public \
+            "ubuntu@$APP_HOST:/opt/bookie-bullies-app/"
+
+      - name: restart
+        run: ssh -i ~/.ssh/deploy "ubuntu@$APP_HOST" 'sudo systemctl restart bookie-bullies-app'
+
+      - name: check it answers
+        run: |
+          set -euo pipefail
+          for i in $(seq 1 20); do
+            if curl -fsS "$APP_URL/healthz"; then echo; exit 0; fi
+            sleep 3
+          done
+          echo "::error::$APP_URL/healthz did not answer after a minute"
+          ssh -i ~/.ssh/deploy "ubuntu@$APP_HOST" 'sudo journalctl -u bookie-bullies-app -n 50 --no-pager'
+          exit 1
