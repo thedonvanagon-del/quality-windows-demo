@@ -122,6 +122,8 @@ FREELLMAPI_VERSION=v0.16.0 bash ~/Downloads/install.sh
 
 This keeps your account, your provider keys, your settings and your port. If the version name is wrong or the download fails, nothing changes. If `install.sh` is no longer in Downloads, download it again the same way as in step 1.
 
+**Know this before installing v0.16 or later fresh.** From v0.16, a brand-new install switches on, by itself, the providers that need no key: Kilo, OVH and AI Horde. Kilo logs prompts and answers for training. AI Horde runs on volunteers' computers. Updating an existing install doesn't do this. It only shows an "Enable all" offer on the Keys page, which you can dismiss. If you do install fresh on a newer version, open **Keys** and switch off any of those you don't want before you send anything private.
+
 **Port 3001 already taken?** Install on another one with `FREELLMAPI_PORT=3002 bash ~/Downloads/install.sh`. The dashboard is then at http://localhost:3002, and later runs remember the new port.
 
 ## Why not the official one-liner?
