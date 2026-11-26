@@ -1395,3 +1395,5 @@ In rough order of value:
 - The README has the details: settings, file map, security notes.
 
 - 2026-11-11: No BB Pick / BB Lock chips on the game cards (owner asked). The model's picks stay on the site; the Locks card at the top of the board and the "See the model's picks" link on the LOCKED ticket still point there.
+
+- 2026-11-26: **bookiebullies.app** is live. The owner bought it; DNS has A records `@` and `www` → 3.136.213.29 (the app server). Caddy on the server redirects both (302) to https://app.bookiebullies.com/install and gets the .app certificate itself (.app is HTTPS-only). Added on the server by hand with a Caddyfile append, and now also in `aws/stacks/bookie-bullies-app/setup.sh.tftpl` so a rebuilt server keeps it. Once LockBox is in the App Store and Google Play, point it at a smart "get the app" page that sends iPhones and Androids to their store.
