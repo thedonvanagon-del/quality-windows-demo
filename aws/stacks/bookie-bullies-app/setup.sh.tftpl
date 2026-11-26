@@ -78,6 +78,11 @@ ${domain} {
 	encode zstd gzip
 	reverse_proxy 127.0.0.1:3000
 }
+
+# The short address: bookiebullies.app sends people to the install page.
+bookiebullies.app, www.bookiebullies.app {
+	redir https://${domain}/install 302
+}
 CADDY
 systemctl reload caddy || systemctl restart caddy
 SETUP
