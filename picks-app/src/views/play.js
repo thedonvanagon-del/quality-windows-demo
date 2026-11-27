@@ -597,7 +597,7 @@ export function gamePage(ctx, { game, started, messages, picksBy, mine, leg = nu
         messages,
         action: `/games/${encodeURIComponent(game.id)}/chat`,
         placeholder: 'Say something about the game',
-        rules: 'Keep it about the games. No harassment, hate or selling picks in chat; put your link on your profile instead. Three reports hide a message.',
+        rules: 'Keep it about the games. No harassment, hate or selling picks in chat; put your link on your profile instead. Three reports hide a message; block a player from their profile to stop seeing them.',
         tags: (m) => (started ? picksBy.get(m.user_id) ?? [] : []).map((p) => html`<span class="msg-pick">${selection(p.market, p.side, p.line, game)} ${formatUnits(p.units)}</span>`),
       })}
     `,

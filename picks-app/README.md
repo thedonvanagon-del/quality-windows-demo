@@ -182,6 +182,13 @@ npm start       # the real thing, against ESPN, with the database in data/bookie
 | `ADMIN_EMAILS` | none | Who can open `/admin/reports` (reported chat) and `/admin/tournaments`, comma-separated, any case. Each admin also has to have an account with that email, confirmed. |
 | `SITE_URL` | `https://www.bookiebullies.com` | The daily picks site the app links to (More, the BB Pick chips, the Locks card, the LOCKED ticket, the share image). |
 | `OFFICIAL_PICKS_URL` | `https://www.bookiebullies.com/picks_log.jsonl` | The site's picks log, read every 15 minutes and posted as the official BookieBullies account. `off` turns it off. |
+| `APNS_KEY_ID` | none | iPhone app push: the 10-character Key ID of the APNs key (Apple Developer → Keys). With `APNS_TEAM_ID` and a key, push to the App Store app is on. |
+| `APNS_TEAM_ID` | none | iPhone app push: the 10-character Team ID (Apple Developer → Membership). |
+| `APNS_KEY_FILE` | none | iPhone app push: the path to the `.p8` key file, like `/etc/bookie-bullies-app/AuthKey_ABC123DEFG.p8` (owner root, group bbapp, mode 640). |
+| `APNS_KEY` | none | Instead of `APNS_KEY_FILE`: the `.p8` key's contents on one line, with `\n` for the line breaks. |
+| `APNS_BUNDLE_ID` | `com.bookiebullies.lockbox` | The app's bundle id (the APNs topic). |
+| `APNS_SANDBOX` | off | Send to Apple's sandbox, for builds run from Xcode. TestFlight and App Store builds use the real one (off). |
+| `FCM_SERVICE_ACCOUNT_FILE` | none | Android app push: the path to the Firebase service account JSON (Firebase console → Project settings → Service accounts → Generate new private key), like `/etc/bookie-bullies-app/fcm-service-account.json` (root:bbapp, 640). |
 
 ## Putting it online
 
@@ -231,6 +238,25 @@ tar czf - -C picks-app package.json src public | ssh -i ~/bb-deploy ubuntu@<ip> 
   'tar xzf - -C /opt/bookie-bullies-app && sudo systemctl restart bookie-bullies-app'
 ```
 
+**Turning on push for the App Store and Google Play apps** (`mobile/`), once
+the keys exist (`mobile/STORE.md` has the steps to get them). Until then the
+server logs "native push off" once at start and keeps the apps' device tokens
+for later. On the server:
+```
+sudo install -d -o root -g bbapp -m 750 /etc/bookie-bullies-app
+sudo install -o root -g bbapp -m 640 AuthKey_ABC123DEFG.p8 /etc/bookie-bullies-app/
+sudo install -o root -g bbapp -m 640 fcm-service-account.json /etc/bookie-bullies-app/
+sudo nano /etc/bookie-bullies-app.env
+#   APNS_KEY_ID=ABC123DEFG
+#   APNS_TEAM_ID=XYZ987TEAM
+#   APNS_KEY_FILE=/etc/bookie-bullies-app/AuthKey_ABC123DEFG.p8
+#   FCM_SERVICE_ACCOUNT_FILE=/etc/bookie-bullies-app/fcm-service-account.json
+sudo systemctl restart bookie-bullies-app
+sudo journalctl -u bookie-bullies-app -n 20 | grep "native push"   # "native push on for iPhone ..."
+```
+The service may read anything under `/etc` (it can't write there), so no
+change to the service file is needed.
+
 On the server: the code is in `/opt/bookie-bullies-app`, the database in
 `/var/lib/bookie-bullies-app/bookiebullies.db`, settings in
 `/etc/bookie-bullies-app.env`, and logs from
@@ -270,6 +296,14 @@ There's also a Dockerfile, for any host that runs containers and keeps a disk.
   type and `nosniff`, only while someone has it; any other name is a 404.
   Three reports hide a photo or cover until an admin looks.
 
+- The App Store and Google Play apps (`mobile/`) load this site in a native
+  shell. Their user agent carries "LockBoxApp", which only hides the Get the
+  app prompts; nothing that matters trusts it. Device tokens come in through
+  `POST /push/native` with the same origin and form-token checks as every
+  form, are checked letter for letter (64 hex for Apple, FCM's own alphabet
+  for Google), and are capped at 10 a player. The APNs key and the Firebase
+  service account stay in files on the server, never in git.
+
 ## Not built yet
 
 - **Props, futures.** Sides, totals and moneylines (straight or in parlays) only.
@@ -291,6 +325,7 @@ src/games.js      keeps the games table fresh, and freezes each game's closing l
 src/clv.js        closing line value: the close, CLV per pick, Beat the close
 src/summaries.js  injuries and form for game pages: cached 30 minutes, fetched in the background
 src/chat.js       chat for games, groups and tournaments: posting, deleting, reports, unread counts
+src/blocks.js     blocking a player: block, unblock, who's blocked (chat, feeds and follows check it)
 src/picks.js      lock rules, line checks, grading, payouts (parlays' too)
 src/parlays.js    the parlay draft, locking a parlay, deleting one
 src/stats.js      records and leaderboards
@@ -312,6 +347,8 @@ src/invites.js    invite links: codes, counting a friend once they're confirmed 
 src/reminders.js  the Lines are up and Streak reminders, once a day each
 src/gamealerts.js follow a game: follows, the five alert settings, and the once-a-minute check that
                   sends starts, lead changes, close finishes, breaks and finals (never twice)
+src/nativepush.js push to the App Store and Google Play apps: APNs (HTTP/2, a .p8 key) and FCM HTTP v1
+                  (a service account), device tokens, both off until their keys are set
 src/groups.js     friend groups and invite codes, and local rooms (their chat is in chat.js)
 src/cities.js     the cities a local room can be for
 src/official.js   the official BookieBullies account and its picks importer

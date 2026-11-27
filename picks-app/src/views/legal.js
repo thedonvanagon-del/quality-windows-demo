@@ -36,7 +36,7 @@ export function terms(ctx, { contact }) {
     <p>Your screen name, bio, link, record and started picks are public. If you link to a place where you sell picks, that sale is between you and your buyers; ${app} isn't part of it and doesn't take payment. Don't claim "guaranteed" or "lock" wins, don't pretend to be someone else, and don't post anything illegal, hateful or harassing.</p>
 
     <h2>Game chat</h2>
-    <p>Each game has a public chat. What you post there is public and signed with your screen name. Keep it about the games: no harassment, hate, threats, spam, or selling picks in chat (your profile link is the place for that). You can delete your own messages. Messages that several players report are hidden until we look at them.</p>
+    <p>Each game has a public chat. What you post there is public and signed with your screen name. Keep it about the games: no harassment, hate, threats, spam, or selling picks in chat (your profile link is the place for that). You can delete your own messages. Messages that several players report are hidden until we look at them. You can also block any player from their profile: you stop seeing their messages and picks, and they can't follow you.</p>
 
     <h2>When we can step in</h2>
     <p>We can remove content, reset a record built on bad data or cheating, or close accounts that break these terms. We can change or end features, or ${app} itself.</p>
@@ -61,9 +61,10 @@ export function privacy(ctx, { contact }) {
     <ul>
       <li><strong>Account:</strong> your email, a scrambled (hashed) copy of your password, your screen name, and, only if you add them, your first and last name, bio and a link.</li>
       <li><strong>Picks:</strong> every pick you make, the line and time it was locked, and how many units you played.</li>
-      <li><strong>Settings:</strong> your app color and the groups you're in.</li>
+      <li><strong>Settings:</strong> your app color, your name color and icon, your home city if you pick one, and the groups you're in.</li>
+      <li><strong>Photos:</strong> a profile photo and a cover photo, only if you add them. We strip location and camera details from them on our server.</li>
       <li><strong>Chat:</strong> messages you post in game chats, and any reports you make.</li>
-      <li><strong>Follows and notifications:</strong> who you follow, your notification settings and inbox, and, if you turn on phone notifications, the delivery address your phone's browser gives us (from Apple, Google, Mozilla or Microsoft). Messages to your phone are encrypted so only your phone can read them.</li>
+      <li><strong>Follows and notifications:</strong> who you follow, your notification settings and inbox, and, if you turn on phone notifications, the delivery address your phone's browser gives us (from Apple, Google, Mozilla or Microsoft), or, in the ${app} app from the App Store or Google Play, the push token Apple or Google gives your phone. Messages through a browser are encrypted so only your phone can read them; the app's go through Apple's and Google's push services.</li>
       <li><strong>Basics to keep the app working:</strong> a sign-in cookie, and your IP address for a short time to stop password guessing and spam signups.</li>
     </ul>
     <p>We don't ask for your address, phone number, payment details or ID, and we don't use ad trackers.</p>

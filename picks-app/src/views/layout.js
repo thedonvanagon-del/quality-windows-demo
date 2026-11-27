@@ -46,7 +46,7 @@ export function layout(ctx, { title, active, body, description, share }) {
     html`<a href="${href}" class="${key === active ? 'on' : ''}" ${key === active ? html`aria-current="page"` : ''}><span class="ic">${icon}</span><span ${wrap ? html`class="tab-wrap"` : ''}>${label}</span></a>`;
 
   return html`<!doctype html>
-<html lang="en" data-theme="${theme}" data-mode="${mode}">
+<html lang="en" data-theme="${theme}" data-mode="${mode}"${ctx.isNativeApp ? html` class="native"` : ''}>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
@@ -80,7 +80,7 @@ ${splash ? html`<div class="splash" aria-hidden="true" data-splash><img class="s
     <div class="top-right">
       ${playing
         ? unitsPill(ctx.myUnits?.() ?? null, profile)
-        : active === 'install' ? '' : html`<a class="get-app" href="/install" data-get-app>${icons.download}<span>Get the app</span></a>`}
+        : active === 'install' || ctx.isNativeApp ? '' : html`<a class="get-app" href="/install" data-get-app>${icons.download}<span>Get the app</span></a>`}
       ${playing ? html`<a class="bell ${active === 'notifications' ? 'on' : ''}" href="/notifications" aria-label="Notifications${ctx.unread ? `, ${ctx.unread} new` : ''}">${icons.bell}${ctx.unread ? html`<b class="badge">${ctx.unread > 99 ? '99+' : ctx.unread}</b>` : ''}</a>` : ''}
       ${playing
         ? html`<a class="user-chip ${active === 'me' ? 'on' : ''}" href="${profile}">${avatar(user)}<span class="name">${user.screenName}</span></a>`
@@ -96,14 +96,14 @@ ${user && !user.verified
       <form method="post" action="/verify/resend">${csrfField(ctx)}<input type="hidden" name="next" value="${ctx.url.pathname}"><button class="btn small ghost">Send a new link</button></form>
     </div></div>`
   : ''}
-${active === 'install' ? '' : html`<div class="app-banner" data-app-banner hidden>
+${active === 'install' || ctx.isNativeApp ? '' : html`<div class="app-banner" data-app-banner hidden>
   <div class="wrap">
     <img src="${app.assets.touchIcon}" alt="" width="36" height="36">
     <a class="btn app-banner-go" href="/install" data-get-app>Get the ${app.shortName ?? app.name} App</a>
     <button type="button" class="app-banner-close" data-banner-close aria-label="Not now">×</button>
   </div>
 </div>`}
-${active === 'install' ? '' : html`<div class="ios-install" data-ios-install hidden>
+${active === 'install' || ctx.isNativeApp ? '' : html`<div class="ios-install" data-ios-install hidden>
   <div class="ios-card" role="dialog" aria-modal="true" aria-labelledby="ios-install-title">
     <button type="button" class="ios-close" data-ios-close aria-label="Close">×</button>
     <div class="ios-head"><img src="${app.assets.touchIcon}" alt="" width="52" height="52"><div><b id="ios-install-title">Add ${app.shortName ?? app.name} to your Home Screen</b><small>Free. About ten seconds.</small></div></div>

@@ -1,0 +1,10 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">LockBox</string>
+    <string name="title_activity_main">LockBox</string>
+    <string name="package_name">com.bookiebullies.lockbox</string>
+    <string name="custom_url_scheme">com.bookiebullies.lockbox</string>
+    <string name="notification_channel_id" translatable="false">game_alerts</string>
+    <string name="notification_channel_name">Game alerts</string>
+    <string name="notification_channel_description">Your bets settling, games you follow, players you follow</string>
+</resources>

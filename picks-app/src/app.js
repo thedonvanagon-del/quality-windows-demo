@@ -8,6 +8,7 @@ import { fileURLToPath } from 'node:url';
 
 import * as auth from './auth.js';
 import { badgesOf, topBadges } from './badges.js';
+import { block, blockedList, isBlocked, unblock, withoutBlocked } from './blocks.js';
 import { clvSummary } from './clv.js';
 import { chatCounts, chatGames, deleteMessage, HIDE_AFTER_REPORTS, markGroupRead, messages, postMessage, removeMessage, reportedMessages, reportMessage, restoreMessage, threadOfMessage, unreadCounts } from './chat.js';
 import { CITY, cityGroups } from './cities.js';
@@ -36,6 +37,7 @@ import { changeScreenName, nameProblem, nextNameChange, renamedTo } from './name
 import { createNotifier } from './notify.js';
 import { ensureOfficial } from './official.js';
 import { addLeg, deleteParlay, draftLegs, draftOnGames, draftSummary, lockParlay, parlayGameIds, pruneDraft, removeLeg } from './parlays.js';
+import { cleanDeviceToken, deviceTokenCount, removeDeviceToken, saveDeviceToken } from './nativepush.js';
 import { validSubscription } from './push.js';
 import { deletePick, formatLine, formatOdds, formatUnits, isLocked, makePick, MARKETS, price, toWin } from './picks.js';
 import { SPORT, SPORTS } from './sports.js';
@@ -722,7 +724,7 @@ export function createApp({ store, games, espn = null, config, mailer = createMa
     const game = games.get(id);
     if (!game) return notFound(ctx);
     const started = isLocked(game, ctx.now);
-    const list = withLooks(messages(store, { gameId: game.id }), 'user_id');
+    const list = withLooks(messages(store, { gameId: game.id, viewerId: ctx.user.id }), 'user_id');
     // Picks show beside names only once the game starts, like everywhere else.
     const picksBy = new Map();
     if (started && list.length) {
@@ -777,7 +779,7 @@ export function createApp({ store, games, espn = null, config, mailer = createMa
     if (!signedIn(ctx)) return;
     const game = games.get(id);
     if (!game) return notFound(ctx);
-    const phones = store.get('SELECT COUNT(*) AS n FROM push_subscriptions WHERE user_id = ?', ctx.user.id).n;
+    const phones = phonesOf(ctx.user.id);
     send(ctx, 200, alertViews.gameAlertsPage(ctx, {
       game, following: isFollowingGame(store, ctx.user.id, game.id), prefs: alertPrefs(store, ctx.user.id), phones, pushKey: push?.publicKey() ?? null,
     }));
@@ -1109,7 +1111,7 @@ export function createApp({ store, games, espn = null, config, mailer = createMa
       live = true;
     }
     rows = withLooks(rows.slice(0, 100));
-    const chat = canChat(store, row, userId) ? withLooks(messages(store, { tournamentId: row.id }), 'user_id') : null;
+    const chat = canChat(store, row, userId) ? withLooks(messages(store, { tournamentId: row.id, viewerId: userId }), 'user_id') : null;
     const host = seen.host ?? null;
     const mine = Boolean(host && userId != null && row.created_by === userId);
     const won = userId != null ? t.podium?.find((r) => r.id === userId) ?? null : null;
@@ -1677,14 +1679,14 @@ export function createApp({ store, games, espn = null, config, mailer = createMa
       return send(ctx, 200, local.roomPreview(ctx, { room: { ...room, city: CITY[room.city_slug] ?? null }, members }));
     }
     const rows = withLooks(leaderboard(store, { groupId: group.id, sport: group.sport, period: periodOf(ctx.query) }, ctx.now));
-    const chat = withLooks(messages(store, { groupId: group.id }), 'user_id');
+    const chat = withLooks(messages(store, { groupId: group.id, viewerId: ctx.user.id }), 'user_id');
     // Opening the group (or its chat refreshing) reads everything in it.
     markGroupRead(store, { groupId: group.id, userId: ctx.user.id, now: ctx.now });
     send(ctx, 200, social.group(ctx, {
       group,
       rows,
       members: withLooks(membersOf(store, group.id)),
-      feed: withLooks(groupFeed(store, group, ctx.now), 'userId'),
+      feed: withLooks(withoutBlocked(store, ctx.user.id, groupFeed(store, group, ctx.now), 'userId'), 'userId'),
       inviteUrl: group.invite_code ? `${origin(ctx)}/join/${group.invite_code}` : null,
       messages: chat,
       city: group.kind === 'local' ? CITY[group.city_slug] ?? null : null,
@@ -1841,6 +1843,8 @@ export function createApp({ store, games, espn = null, config, mailer = createMa
     if (player.screen_name !== name) return redirect(ctx, `/u/${encodeURIComponent(player.screen_name)}`);
     const { picks, hidden } = publicPicks(store, player.id, { viewerId: ctx.user?.id, now: ctx.now });
     const own = ctx.user?.id === player.id;
+    // Someone the viewer blocked: their page opens, with a banner to unblock, and no photos, bio, link or picks.
+    const blocked = !own && isBlocked(store, ctx.user?.screenName ? ctx.user.id : null, player.id);
     // Their look, for the banner and the team badge: a matched team, custom colors, or a preset.
     const style = styleOf(player);
     const look = { style, team: style && player.theme_team ? teamByKey(store, player.theme_team) : null, preset: style ? null : player.theme };
@@ -1854,7 +1858,7 @@ export function createApp({ store, games, espn = null, config, mailer = createMa
     };
     // The banner's cover photo: the same rules as the photo.
     const cover = {
-      file: player.cover_hidden ? null : player.cover,
+      file: player.cover_hidden || blocked ? null : player.cover,
       hidden: Boolean(player.cover && player.cover_hidden),
       reported: reportedBy(store, player.id, player.cover, ctx.user?.id),
       blockedUntil: own ? uploadBlockedUntil(store, player.id, ctx.now, 'cover') : null,
@@ -1864,7 +1868,9 @@ export function createApp({ store, games, espn = null, config, mailer = createMa
     // How their name shows on the boards, checked the same way as on a board.
     const tag = nametagsFor(store, [player.id], catalog).get(player.id);
     send(ctx, 200, social.profile(ctx, {
-      player: { ...player, photo: player.photo_hidden ? null : player.photo, nameColor: tag?.color ?? null, nameIcon: tag?.icon ?? null },
+      player: { ...player, photo: player.photo_hidden || blocked ? null : player.photo, nameColor: tag?.color ?? null, nameIcon: tag?.icon ?? null },
+      blocked,
+      blockedPlayers: own ? blockedList(store, player.id) : null,
       nametag: own && !player.official ? nametagChoices(player) : null,
       look,
       photo,
@@ -1878,8 +1884,8 @@ export function createApp({ store, games, espn = null, config, mailer = createMa
       rank: rankOf(store, player.id, ctx.now),
       follows: followCounts(store, player.id),
       following: isFollowing(store, ctx.user?.id, player.id),
-      picks,
-      hidden,
+      picks: blocked ? [] : picks,
+      hidden: blocked ? 0 : hidden,
       nextChange: ctx.user?.id === player.id ? nextNameChange(player.name_changed_at, ctx.now) : null,
       badges: player.official ? [] : badgesOf(store, player.id),
       streak: player.official ? null : streakOf(store, player.id),
@@ -1941,7 +1947,9 @@ export function createApp({ store, games, espn = null, config, mailer = createMa
     if (!signedIn(ctx)) return;
     const player = store.get('SELECT id, screen_name FROM users WHERE screen_name = ?', name);
     if (!player) return notFound(ctx);
-    const result = follow(store, { followerId: ctx.user.id, followeeId: player.id, now: ctx.now });
+    const result = isBlocked(store, ctx.user.id, player.id)
+      ? { error: `You blocked ${player.screen_name}. Unblock them first to follow.` }
+      : follow(store, { followerId: ctx.user.id, followeeId: player.id, now: ctx.now });
     flash(ctx, result.error ? 'error' : 'ok', result.error ?? `Following ${player.screen_name}. Their picks show in Following once each game starts.`);
     redirect(ctx, safeNext(ctx.form.get('next')) ?? `/u/${encodeURIComponent(player.screen_name)}`);
   }
@@ -1954,9 +1962,29 @@ export function createApp({ store, games, espn = null, config, mailer = createMa
     redirect(ctx, safeNext(ctx.form.get('next')) ?? `/u/${encodeURIComponent(player.screen_name)}`);
   }
 
+  /** Block a player (src/blocks.js): from the "⋯" on their profile, after "Yes, block". */
+  function blockPost(ctx, { name }) {
+    if (!signedIn(ctx)) return;
+    const player = store.get('SELECT id, screen_name FROM users WHERE screen_name = ?', name);
+    if (!player) return notFound(ctx);
+    const result = block(store, { blockerId: ctx.user.id, blockedId: player.id, now: ctx.now });
+    flash(ctx, result.error ? 'error' : 'ok', result.error ?? `You blocked ${player.screen_name}. You won't see their messages or picks, and they can't follow you.`);
+    redirect(ctx, `/u/${encodeURIComponent(player.screen_name)}`);
+  }
+
+  /** Unblock, from their profile's banner or the Blocked players list on your own. */
+  function unblockPost(ctx, { name }) {
+    if (!signedIn(ctx)) return;
+    const player = store.get('SELECT id, screen_name FROM users WHERE screen_name = ?', name);
+    if (!player) return notFound(ctx);
+    if (unblock(store, { blockerId: ctx.user.id, blockedId: player.id })) flash(ctx, 'ok', `You unblocked ${player.screen_name}.`);
+    redirect(ctx, safeNext(ctx.form.get('next')) ?? `/u/${encodeURIComponent(player.screen_name)}`);
+  }
+
   /** Who's on a heater: the best last ten over the past 30 days. */
   function hotPage(ctx) {
-    const rows = withLooks(hotStreaks(store, ctx.now));
+    // Hot streaks is for finding players to follow: anyone the viewer blocked stays off it.
+    const rows = withLooks(withoutBlocked(store, ctx.user?.id, hotStreaks(store, ctx.now)));
     const followed = followingAmong(store, ctx.user?.id, rows.map((r) => r.id));
     send(ctx, 200, social.hot(ctx, { rows, followed }));
   }
@@ -1964,7 +1992,9 @@ export function createApp({ store, games, espn = null, config, mailer = createMa
   /** Picks from everyone the player follows, once each game starts. */
   function followingPage(ctx) {
     if (!signedIn(ctx)) return;
-    send(ctx, 200, social.following(ctx, { feed: withLooks(followFeed(store, ctx.user.id, ctx.now), 'userId'), people: withLooks(followingList(store, ctx.user.id)) }));
+    // Blocking ends a follow, so this is only a backstop.
+    const feed = withoutBlocked(store, ctx.user.id, followFeed(store, ctx.user.id, ctx.now), 'userId');
+    send(ctx, 200, social.following(ctx, { feed: withLooks(feed, 'userId'), people: withLooks(withoutBlocked(store, ctx.user.id, followingList(store, ctx.user.id))) }));
   }
 
   // ---- notifications ------------------------------------------------------
@@ -1972,7 +2002,9 @@ export function createApp({ store, games, espn = null, config, mailer = createMa
   /** The inbox. Opening it marks everything read. */
   function notificationsPage(ctx) {
     if (!signedIn(ctx)) return;
-    const list = notifier.list(ctx.user.id);
+    // Notes about a player the viewer blocked (a follow note, an invite) stay out of the inbox.
+    const blockedPaths = new Set(blockedList(store, ctx.user.id).map((b) => `/u/${encodeURIComponent(b.screen_name)}`));
+    const list = notifier.list(ctx.user.id).filter((n) => !blockedPaths.has(n.url));
     // Notes about a player (a follow, an invite) show that player's photo.
     const names = [...new Set(list.map((n) => /^\/u\/([^/?#]+)$/.exec(n.url ?? '')?.[1]).filter(Boolean).map((n) => { try { return decodeURIComponent(n); } catch { return null; } }).filter(Boolean))];
     const faces = new Map();
@@ -1982,7 +2014,7 @@ export function createApp({ store, games, espn = null, config, mailer = createMa
     }
     for (const n of list) if (n.kind !== 'photo') n.face = faces.get(n.url) ?? null;
     const prefs = store.get('SELECT notify_settled, notify_follows, notify_lines, notify_streak, notify_tournaments, notify_tournament_updates FROM users WHERE id = ?', ctx.user.id);
-    const phones = store.get('SELECT COUNT(*) AS n FROM push_subscriptions WHERE user_id = ?', ctx.user.id).n;
+    const phones = phonesOf(ctx.user.id);
     notifier.markRead(ctx.user.id, ctx.now);
     ctx.unread = 0;
     send(ctx, 200, moreViews.notifications(ctx, { list, prefs, phones, pushKey: push?.publicKey() ?? null }));
@@ -1998,6 +2030,9 @@ export function createApp({ store, games, espn = null, config, mailer = createMa
     flash(ctx, 'ok', 'Saved.');
     redirect(ctx, '/notifications');
   }
+
+  /** Devices with phone notifications on: browsers (web push) and the App Store and Google Play apps. */
+  const phonesOf = (userId) => store.get('SELECT COUNT(*) AS n FROM push_subscriptions WHERE user_id = ?', userId).n + deviceTokenCount(store, userId);
 
   /** A phone turning push on: keep its subscription, tied to this player. */
   function pushSubscribe(ctx) {
@@ -2017,8 +2052,34 @@ export function createApp({ store, games, espn = null, config, mailer = createMa
   function pushUnsubscribe(ctx) {
     if (!signedIn(ctx)) return;
     store.run('DELETE FROM push_subscriptions WHERE user_id = ?', ctx.user.id);
+    store.run('DELETE FROM device_tokens WHERE user_id = ?', ctx.user.id);
     flash(ctx, 'ok', 'Phone notifications are off on every device.');
     redirect(ctx, '/notifications');
+  }
+
+  /**
+   * The App Store or Google Play app handing over its push token (public/app.js,
+   * the native block at the end): platform "ios" (an APNs token) or "android"
+   * (an FCM token). Answers JSON; a form token is checked like any POST.
+   */
+  function nativePushRegister(ctx) {
+    if (!ctx.user?.screenName) return sendJson(ctx, 401, { ok: false, error: 'Log in first.' });
+    const platform = ctx.form.get('platform') ?? '';
+    const token = cleanDeviceToken(platform, ctx.form.get('token') ?? '');
+    if (!token) return sendJson(ctx, 400, { ok: false, error: 'That device token was turned down.' });
+    saveDeviceToken(store, ctx.user.id, platform, token, ctx.now);
+    sendJson(ctx, 200, { ok: true, devices: phonesOf(ctx.user.id) });
+  }
+
+  /**
+   * Signing out in the app: the phone stops getting that player's
+   * notifications. The app sends this from the first signed-out page it
+   * shows (right after Log out, or after a session ran out), so it works
+   * signed out too: only the phone knows its token.
+   */
+  function nativePushRemove(ctx) {
+    const removed = removeDeviceToken(store, ctx.form.get('token'));
+    sendJson(ctx, 200, { ok: true, removed });
   }
 
   /** The service worker has to come from the site's root to cover every page. */
@@ -2414,6 +2475,8 @@ export function createApp({ store, games, espn = null, config, mailer = createMa
     ['GET', '/u/:name', profilePage],
     ['POST', '/u/:name/follow', followPost],
     ['POST', '/u/:name/unfollow', unfollowPost],
+    ['POST', '/u/:name/block', blockPost],
+    ['POST', '/u/:name/unblock', unblockPost],
     ['POST', '/u/:name/photo/report', reportPost('avatar')],
     ['POST', '/u/:name/cover/report', reportPost('cover')],
     ['GET', '/following', followingPage],
@@ -2422,6 +2485,8 @@ export function createApp({ store, games, espn = null, config, mailer = createMa
     ['POST', '/notifications/settings', notifyPrefs],
     ['POST', '/push/subscribe', pushSubscribe],
     ['POST', '/push/unsubscribe', pushUnsubscribe],
+    ['POST', '/push/native', nativePushRegister],
+    ['POST', '/push/native/remove', nativePushRemove],
     ['GET', '/sw.js', serviceWorker],
     ['GET', '/more', morePage],
     ['GET', '/install', (ctx) => send(ctx, 200, moreViews.install(ctx))],
@@ -2464,6 +2529,10 @@ export function createApp({ store, games, espn = null, config, mailer = createMa
   return async function handle(req, res) {
     const url = new URL(req.url, 'http://local');
     const ctx = { req, res, app, url, query: url.searchParams, now: now(), origin: null, cookies: [], cookieValues: {}, user: null, session: null, flash: null, form: null };
+    // Inside the App Store or Google Play app (mobile/capacitor.config.js adds
+    // "LockBoxApp" to its user agent). Only for hiding Get the app prompts:
+    // anyone can send any user agent, so nothing that matters trusts it.
+    ctx.isNativeApp = /\bLockBoxApp\b/.test(req.headers['user-agent'] ?? '');
     try {
       ctx.origin = config.appUrl ?? origin(ctx);
       const route = match(req.method, url.pathname);

@@ -956,6 +956,52 @@ not dollars, and nothing is paid out.
   is on the Home Screen (iOS 16.4+). The App Store version isn't needed for this.
 
 ### Getting the app
+- **2026-11-27: App Store and Google Play apps, built and waiting on the
+  accounts** (owner's ask; the LLC and D-U-N-S number are 2 to 4 weeks out,
+  no Mac). `mobile/` (its own README and STORE.md) is a Capacitor 8 shell,
+  app id `com.bookiebullies.lockbox`, name LockBox, that **loads the live
+  site** (`server.url`), with a bundled offline page ("No connection.
+  LockBox needs the internet to load your board.", Try again), the crest on
+  navy for icons and splash, and plugins for push, splash, status bar,
+  haptics, the back button and the in-app browser. iOS uses Swift Package
+  Manager (no CocoaPods, no `pod install`). Everything is inert until keys
+  exist:
+  - **Native push on the server, no packages** (`src/nativepush.js`): APNs
+    over `node:http2` with an ES256 token from the `.p8` key (kept 50
+    minutes), FCM HTTP v1 with an RS256 service-account assertion (the
+    access token kept until it runs out). Each is off, with one "native push
+    off" log line at start, until its settings are there (`APNS_KEY_ID`,
+    `APNS_TEAM_ID`, `APNS_KEY_FILE` or `APNS_KEY`, `APNS_BUNDLE_ID`,
+    `APNS_SANDBOX`; `FCM_SERVICE_ACCOUNT_FILE`). `combinePush` makes the
+    notifier send every notification to web push and the apps alike.
+    Dead tokens (APNs 410, BadDeviceToken, Unregistered; FCM UNREGISTERED,
+    a bad registration token) are deleted; a bad message never deletes one.
+  - **device_tokens** (migration at the end of `MIGRATIONS`): one row per
+    phone, moved to whoever signs in on it, 10 a player (the one seen
+    longest ago goes). `POST /push/native` (platform, token; JSON back) and
+    `POST /push/native/remove` (works signed out: the app sends it from the
+    first signed-out page, so Log out and an expired session both drop the
+    phone). "Turn off on every device" clears them too; "On for N devices"
+    counts them.
+  - **In the app** (`public/app.js`, the block at the end): `html.native`;
+    no Get the app button, banner, pop-up or More row (the server drops them
+    too when the user agent has `LockBoxApp`, which Capacitor appends; never
+    trusted for anything else). The permission prompt is **never on first
+    load**: it comes after following a game, or from "Turn on for this
+    device" (notifications page, game alerts sheet), which uses the app's
+    own push there. Tapping a notification opens its page (same-site paths
+    only). A locked pick gives a light haptic tap. Off-site links open in
+    the in-app browser. Android's back button closes a sheet, then goes back.
+    An Android build without Firebase's `google-services.json` leaves
+    `LockBoxPush` out of its user agent and never offers push.
+  - **CI**: `mobile-android.yml` builds a debug APK on PRs touching
+    `mobile/` and a signed AAB on request once the keystore secrets exist;
+    `mobile-ios.yml` (by hand only: macOS minutes cost 10x) builds for the
+    simulator unsigned, and archives and uploads to TestFlight once the App
+    Store Connect key secrets exist.
+  - **Waiting on the owner**: the accounts and keys, in the order in
+    `mobile/STORE.md`, which also has the store listing text, the age
+    rating and privacy answers, the review notes and the screenshots.
 - **2026-10-31: Get the app**, as easy as possible on both phones. A button at
   the top and a one-time bar on phones (Not now hides it for good) lead to
   `/install`. Chrome and Edge (Android, computers) get the real Install prompt
@@ -1038,6 +1084,32 @@ not dollars, and nothing is paid out.
     the database or changing backups has to move and back up the photos too.
 
 ### Chat
+- **2026-11-27: Block a player** (for App Store guideline 1.2: apps with
+  chat and profiles must let people block abusive users). `src/blocks.js`,
+  table `user_blocks` (blocker, blocked, time; goes with either account).
+  - **Where:** a "⋯" by Follow on someone else's profile opens in place to
+    "Block X? You won't see their messages or picks, and they can't follow
+    you. They aren't told." and **Yes, block** (plain `<details>`, no
+    script, no pop-up). `POST /u/<name>/block` and `/unblock` (form token;
+    yourself is refused, an unknown name is a 404). Anyone but yourself,
+    the official account included.
+  - **For the blocker:** their messages leave game, group/room and
+    tournament chat (filtered in `messages()` by `viewerId`, so the 15-second
+    refresh is filtered too) and the Groups list's unread counts; their
+    picks leave Following and a group's feed; they're off Hot streaks; notes
+    about them (follow notes, invite notes: any inbox note linking to their
+    profile) leave the inbox, and no new follow note goes either way. Their
+    profile still opens, with "You blocked this player · Unblock" and no
+    photo, cover, bio, link or picks (the record stays).
+  - **Kept:** leaderboards, standings, search, group member lists: a record
+    is public, and dropping someone would move ranks. Admin moderation
+    doesn't look at blocks.
+  - **Follows:** blocking ends both follows; neither can follow the other
+    while it stands (the blocked player gets "You can't follow this
+    player.", nothing more). Unblocking doesn't bring the follows back.
+  - **Blocked players** list with Unblock in your own profile's settings,
+    after the name-on-the-boards picker. The chat rules under each chat box
+    and the Terms say you can block from a profile.
 - **2026-11-06: Local rooms** (owner's design). A public group per city, so
   players can talk to and rank against bettors near them.
   - **A room is a group** (`friend_groups.kind = 'local'`), with its own chat,
@@ -1350,6 +1422,14 @@ Beta launch checklist (2026-10-27). The app code is merged; these get it online.
    order and the lock either way. During the tournament, check that results
    fill in; if not, enter them on the same page.
 
+14. **The App Store and Google Play apps** (2026-11-27). Built in `mobile/`;
+   waiting on the LLC, the D-U-N-S number and the two developer accounts.
+   `mobile/STORE.md` has the steps in order (keys, GitHub secrets, the
+   release workflows, the listing text, the privacy and age-rating answers,
+   the review notes) and what review may flag. Before submitting: a word
+   filter on chat, bios and names (Apple 1.2 wants one; there isn't one),
+   Block on profiles (being built), and the review account.
+
 ## Ideas, not built yet
 
 In rough order of value:
@@ -1378,7 +1458,7 @@ In rough order of value:
 7. **Weekly winners in groups.**
 8. ~~**Notifications** when bets settle~~ (built 2026-10-30) ~~or lines go up~~
    (built 2026-11-05, Lines are up). Game-start alerts and the App Store push are still open.
-9. App Store and Google Play versions.
+9. App Store and Google Play versions: built 2026-11-27 (`mobile/`), waiting on the developer accounts.
 10. ~~Trash talk in groups~~ (built 2026-11-05, group chat). (~~Following players~~: built 2026-10-30.)
 11. ~~Changing a screen name~~ (built 2026-11-05), props, ~~parlays~~ (built 2026-11-05), more admin
     tools (~~reported chat~~ built 2026-11-05; fixing a bad grade is still by hand).

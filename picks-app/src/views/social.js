@@ -136,8 +136,8 @@ export function group(ctx, { group, rows, members, feed, inviteUrl, messages = [
           action: `/groups/${group.id}/chat`,
           placeholder: isLocal ? `Talk to ${city?.name ?? group.name}` : `Talk some trash to ${group.name}`,
           rules: isLocal
-            ? `Everyone in the ${group.name} room sees this. Trash talk is fine; harassment, hate and selling picks aren't. Three reports hide a message${admin ? ', and as an admin you can delete any message here' : ''}.`
-            : `Only members of ${group.name} see this. Trash talk is fine; harassment, hate and selling picks aren't. Three reports hide a message${isOwner ? ', and you can delete any message here' : ''}.`,
+            ? `Everyone in the ${group.name} room sees this. Trash talk is fine; harassment, hate and selling picks aren't. Three reports hide a message${admin ? ', and as an admin you can delete any message here' : ''}. Block a player from their profile to stop seeing them.`
+            : `Only members of ${group.name} see this. Trash talk is fine; harassment, hate and selling picks aren't. Three reports hide a message${isOwner ? ', and you can delete any message here' : ''}. Block a player from their profile to stop seeing them.`,
           canDelete: (m) => m.user_id === ctx.user.id || mod,
         })}
 
@@ -641,6 +641,43 @@ function clvLine(clv) {
   </div>`;
 }
 
+/**
+ * The "⋯" by Follow on someone else's profile: opening it shows what
+ * blocking does and a "Yes, block" button, so blocking takes two taps and no
+ * pop-up. Plain HTML (details), no script.
+ */
+function blockMenu(ctx, player) {
+  const name = player.screen_name;
+  return html`<details class="profile-more">
+    <summary class="btn ghost small" aria-label="More for ${name}">⋯</summary>
+    <div class="profile-more-menu">
+      <p><b>Block ${name}?</b> You won't see their messages or picks, and they can't follow you. They aren't told.</p>
+      <form method="post" action="/u/${encodeURIComponent(name)}/block">${csrfField(ctx)}<button class="btn danger small">Yes, block</button></form>
+    </div>
+  </details>`;
+}
+
+/** On a blocked player's profile, in place of their photos, bio and picks. */
+function blockedNote(ctx, player) {
+  return html`<div class="blocked-note" role="note">
+    <span>You blocked this player.</span>
+    <form method="post" action="/u/${encodeURIComponent(player.screen_name)}/unblock">${csrfField(ctx)}<button class="btn ghost small">Unblock</button></form>
+  </div>`;
+}
+
+/** Your blocked players, each with Unblock: in your own profile's settings. */
+function blockedSection(ctx, list) {
+  const back = `/u/${encodeURIComponent(ctx.user.screenName)}#blocked`;
+  return html`<h2 id="blocked">Blocked players</h2>
+    ${list.length
+      ? html`<ul class="blocked-list">${list.map((b) => html`<li>
+          <a class="who" href="/u/${encodeURIComponent(b.screen_name)}">${b.screen_name}</a>
+          <form method="post" action="/u/${encodeURIComponent(b.screen_name)}/unblock">${csrfField(ctx)}<input type="hidden" name="next" value="${back}"><button class="btn ghost small">Unblock</button></form>
+        </li>`)}</ul>`
+      : html`<p class="muted small">Nobody. To block a player, open their profile and tap ⋯ by Follow.</p>`}
+    <p class="muted small">You don't see a blocked player's chat messages or picks in your feeds, and they can't follow you. They aren't told.</p>`;
+}
+
 /** Your city, from the same list as the directory. Picking one joins its room, starting it if need be. */
 function homeCityForm(ctx, home, cities) {
   return html`<h2>Your city</h2>
@@ -652,7 +689,7 @@ function homeCityForm(ctx, home, cities) {
     </form>`;
 }
 
-export function profile(ctx, { player, nametag = null, record, bySport, split = null, series = [], last10 = null, rank = null, follows = { followers: 0, following: 0 }, following = false, picks, hidden, nextChange = null, badges = [], streak = null, cup = null, clv = null, look = { preset: null }, photo = {}, cover = {}, teams = null, home = null, cities = null }) {
+export function profile(ctx, { player, nametag = null, record, bySport, split = null, series = [], last10 = null, rank = null, follows = { followers: 0, following: 0 }, following = false, picks, hidden, nextChange = null, badges = [], streak = null, cup = null, clv = null, look = { preset: null }, photo = {}, cover = {}, teams = null, home = null, cities = null, blocked = false, blockedPlayers = null }) {
   const own = ctx.user?.id === player.id;
   const team = look.team ?? null;
   // Anyone signed in can report someone else's photo, once.
@@ -681,16 +718,18 @@ export function profile(ctx, { player, nametag = null, record, bySport, split = 
       </header>
       ${player.official ? html`<p class="muted small">The official account. Listed on the boards, never ranked. <span class="lock-tag">Lock</span>marks the site's locks.</p>` : ''}
       ${player.first_name || player.last_name ? html`<p class="real-name">${[player.first_name, player.last_name].filter(Boolean).join(' ')}</p>` : ''}
-      ${player.bio ? html`<p class="bio">${player.bio}</p>` : ''}
+      ${blocked ? blockedNote(ctx, player) : ''}
+      ${player.bio && !blocked ? html`<p class="bio">${player.bio}</p>` : ''}
       ${home ? html`<p class="home-city">${cityPin(home)}</p>` : ''}
       <p class="follow-counts"><b>${follows.followers}</b> ${follows.followers === 1 ? 'follower' : 'followers'} · <b>${follows.following}</b> following</p>
       <div class="row profile-actions">
-        ${ctx.user?.screenName && ctx.user.id !== player.id ? followButton(ctx, player.screen_name, following) : ''}
-        ${player.link_url ? html`<a class="btn small" href="${player.link_url}" target="_blank" rel="nofollow noopener noreferrer ugc">${player.link_label} ↗</a>` : ''}
+        ${ctx.user?.screenName && ctx.user.id !== player.id && !blocked ? followButton(ctx, player.screen_name, following) : ''}
+        ${player.link_url && !blocked ? html`<a class="btn small" href="${player.link_url}" target="_blank" rel="nofollow noopener noreferrer ugc">${player.link_label} ↗</a>` : ''}
         <button class="btn ghost small" type="button" data-share="${ctx.origin}/u/${encodeURIComponent(player.screen_name)}" data-share-text="${shareCard(player, record).title}" hidden>Share profile</button>
         ${ctx.user?.id === player.id ? html`<a class="btn ghost small" href="/invite">Invite friends</a>` : ''}
         ${report}
         ${reportCover}
+        ${ctx.user?.screenName && !own && !blocked ? blockMenu(ctx, player) : ''}
       </div>
       <p class="lede">On the record since ${joined(player.created_at)}. ${record.graded} graded ${record.graded === 1 ? 'pick' : 'picks'}, every one locked before its game.</p>
       ${recordCard(ctx, { player, record, series, last10, rank })}
@@ -698,7 +737,7 @@ export function profile(ctx, { player, nametag = null, record, bySport, split = 
       ${streak?.played ? html`<p class="streak-line"><a href="/streak">${icons.flame}<span>Streak: <b>${streak.current}</b> · Best: <b>${streak.best}</b></span></a></p>` : ''}
       ${cup ? html`<p class="streak-line cup-line"><a href="/cup">${icons.board}<span>Cup: <b>${cup.rank ? `#${cup.rank}` : '–'}</b> · <b>${cup.points} pts</b></span></a></p>` : ''}
       ${badgeChips(badges)}
-      ${own ? html`${photoForm(ctx, player, photo)}${coverForm(ctx, player, cover)}${screenNameForm(ctx, player, nextChange)}${nameForm(ctx, player)}${bioForm(ctx, player)}${linkForm(ctx, player)}${cities ? homeCityForm(ctx, home, cities) : ''}${colorPicker(ctx, { teams, look })}${sitePicksSetting(ctx)}${nametag ? nametagPicker(ctx, { player, record, nametag }) : ''}` : ''}
+      ${own ? html`${photoForm(ctx, player, photo)}${coverForm(ctx, player, cover)}${screenNameForm(ctx, player, nextChange)}${nameForm(ctx, player)}${bioForm(ctx, player)}${linkForm(ctx, player)}${cities ? homeCityForm(ctx, home, cities) : ''}${colorPicker(ctx, { teams, look })}${sitePicksSetting(ctx)}${nametag ? nametagPicker(ctx, { player, record, nametag }) : ''}${blockedPlayers ? blockedSection(ctx, blockedPlayers) : ''}` : ''}
       ${!own && photo.upload ? photoForm(ctx, player, photo) : ''}
       ${!own && cover.upload ? coverForm(ctx, player, cover) : ''}
       ${bySport.length
@@ -715,9 +754,11 @@ export function profile(ctx, { player, nametag = null, record, bySport, split = 
       ${split ? breakdownTable(split) : ''}
       <h2>Picks</h2>
       ${hidden ? html`<p class="muted">${hidden} open ${hidden === 1 ? 'pick' : 'picks'}, shown once the game starts.</p>` : ''}
-      ${picks.length
-        ? html`<ul class="tickets">${picks.map((p) => betItem(p))}</ul>`
-        : html`<div class="card empty">No picks on the record yet.</div>`}
+      ${blocked
+        ? html`<div class="card empty">Hidden because you blocked ${player.screen_name}.</div>`
+        : picks.length
+          ? html`<ul class="tickets">${picks.map((p) => betItem(p))}</ul>`
+          : html`<div class="card empty">No picks on the record yet.</div>`}
       ${ctx.user?.id === player.id ? deleteForm(ctx) : ''}
     `,
   });

@@ -916,6 +916,32 @@ export const MIGRATIONS = [
     checked_at TEXT NOT NULL
   );
   `,
+  `
+  -- Blocking (src/blocks.js): the blocker stops seeing the blocked player's
+  -- chat messages, picks in feeds and notes about them; neither can follow
+  -- the other. Goes with either account.
+  CREATE TABLE user_blocks (
+    blocker_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    blocked_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    created_at TEXT NOT NULL,
+    PRIMARY KEY (blocker_id, blocked_id)
+  );
+  CREATE INDEX user_blocks_blocked ON user_blocks(blocked_id);
+  `,
+  // The App Store and Google Play apps' push tokens (src/nativepush.js): an
+  // APNs token (64 hex) or an FCM token, one row per phone, moved to whoever
+  // signs in on it.
+  `
+  CREATE TABLE device_tokens (
+    id INTEGER PRIMARY KEY,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    platform TEXT NOT NULL CHECK (platform IN ('ios', 'android')),
+    token TEXT NOT NULL UNIQUE,
+    created_at TEXT NOT NULL,
+    last_seen_at TEXT NOT NULL
+  );
+  CREATE INDEX device_tokens_user ON device_tokens(user_id, last_seen_at);
+  `,
 ];
 
 export function openStore(file) {

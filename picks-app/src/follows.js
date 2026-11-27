@@ -1,8 +1,12 @@
 // Following: a player can follow anyone, and gets a feed of their picks once
-// each game starts (open picks stay hidden, same as everywhere else).
+// each game starts (open picks stay hidden, same as everywhere else). A block
+// either way rules a follow out (src/blocks.js).
+
+import { eitherBlocked } from './blocks.js';
 
 export function follow(store, { followerId, followeeId, now }) {
   if (followerId === followeeId) return { error: "You can't follow yourself." };
+  if (eitherBlocked(store, followerId, followeeId)) return { error: "You can't follow this player." };
   store.run('INSERT OR IGNORE INTO follows (follower_id, followee_id, created_at) VALUES (?, ?, ?)', followerId, followeeId, now.toISOString());
   return {};
 }
@@ -45,7 +49,9 @@ export function followingList(store, followerId) {
 export function followersToNotify(store, followeeId) {
   return store.all(
     `SELECT f.follower_id AS id FROM follows f JOIN users u ON u.id = f.follower_id
-      WHERE f.followee_id = ? AND u.notify_follows = 1`,
+      WHERE f.followee_id = ? AND u.notify_follows = 1
+        AND NOT EXISTS (SELECT 1 FROM user_blocks b WHERE (b.blocker_id = f.follower_id AND b.blocked_id = f.followee_id)
+                                                     OR (b.blocker_id = f.followee_id AND b.blocked_id = f.follower_id))`,
     followeeId,
   ).map((r) => r.id);
 }
