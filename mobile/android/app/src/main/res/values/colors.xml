@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- LockBox's Scoreboard look: navy page, amber accent. -->
+    <color name="lockbox_navy">#0A1228</color>
+    <color name="lockbox_accent">#FFB020</color>
+</resources>

@@ -1396,6 +1396,14 @@ Beta launch checklist (2026-10-27). The app code is merged; these get it online.
    order and the lock either way. During the tournament, check that results
    fill in; if not, enter them on the same page.
 
+14. **The App Store and Google Play apps** (2026-11-27). Built in `mobile/`;
+   waiting on the LLC, the D-U-N-S number and the two developer accounts.
+   `mobile/STORE.md` has the steps in order (keys, GitHub secrets, the
+   release workflows, the listing text, the privacy and age-rating answers,
+   the review notes) and what review may flag. Before submitting: a word
+   filter on chat, bios and names (Apple 1.2 wants one; there isn't one),
+   Block on profiles (being built), and the review account.
+
 ## Ideas, not built yet
 
 In rough order of value:

@@ -1,0 +1,171 @@
+name: mobile android
+
+# Builds the LockBox Android app (mobile/). Every PR that touches mobile/
+# gets a debug APK to install and try. Run it by hand with "release" ticked
+# for a signed AAB to upload to Google Play; that part skips itself (with a
+# note, not a failure) until the upload key secrets exist:
+#   ANDROID_KEYSTORE_BASE64    the upload keystore (.jks), base64 -w0
+#   ANDROID_KEYSTORE_PASSWORD  its password
+#   ANDROID_KEY_ALIAS          the key's alias in it
+#   ANDROID_KEY_PASSWORD       the key's password
+#   GOOGLE_SERVICES_JSON       optional: Firebase's google-services.json, for push
+# mobile/README.md has how to make each one.
+
+on:
+  workflow_dispatch:
+    inputs:
+      release:
+        description: "Also build a signed AAB for Google Play"
+        type: boolean
+        default: false
+      version_name:
+        description: "Version shown in the store (like 1.0.0)"
+        type: string
+        default: "1.0.0"
+  pull_request:
+    paths:
+      - "mobile/**"
+      - ".github/workflows/mobile-android.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mobile-android-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  debug:
+    name: debug APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: mobile
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: gradle
+
+      - uses: android-actions/setup-android@v3
+
+      - name: install
+        run: npm ci
+
+      - name: config checks
+        run: npm test
+
+      - name: sync the native project
+        run: npx cap sync android
+
+      - name: build
+        working-directory: mobile/android
+        run: ./gradlew assembleDebug --no-daemon --stacktrace
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: lockbox-debug-apk
+          path: mobile/android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 14
+
+  release:
+    name: signed AAB
+    if: github.event_name == 'workflow_dispatch' && inputs.release
+    needs: debug
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+      ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+      ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+      ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+      GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
+    defaults:
+      run:
+        working-directory: mobile
+    steps:
+      - name: are the signing secrets there?
+        id: secrets
+        working-directory: .
+        run: |
+          missing=""
+          for name in ANDROID_KEYSTORE_BASE64 ANDROID_KEYSTORE_PASSWORD ANDROID_KEY_ALIAS ANDROID_KEY_PASSWORD; do
+            if [ -z "${!name}" ]; then missing="$missing $name"; fi
+          done
+          if [ -n "$missing" ]; then
+            echo "::notice::No signed AAB: these secrets aren't set yet:$missing (mobile/README.md has the steps)."
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/checkout@v4
+        if: steps.secrets.outputs.ready == 'true'
+
+      - uses: actions/setup-node@v4
+        if: steps.secrets.outputs.ready == 'true'
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+
+      - uses: actions/setup-java@v4
+        if: steps.secrets.outputs.ready == 'true'
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: gradle
+
+      - uses: android-actions/setup-android@v3
+        if: steps.secrets.outputs.ready == 'true'
+
+      - name: install
+        if: steps.secrets.outputs.ready == 'true'
+        run: npm ci
+
+      # Before the sync: capacitor.config.js turns push on in the build only
+      # when this file is there.
+      - name: Firebase config for push
+        if: steps.secrets.outputs.ready == 'true'
+        run: |
+          if [ -n "$GOOGLE_SERVICES_JSON" ]; then
+            printf '%s' "$GOOGLE_SERVICES_JSON" > android/app/google-services.json
+          else
+            echo "::warning::GOOGLE_SERVICES_JSON isn't set: this build has no push notifications."
+          fi
+
+      - name: sync the native project
+        if: steps.secrets.outputs.ready == 'true'
+        run: npx cap sync android
+
+      - name: build and sign
+        if: steps.secrets.outputs.ready == 'true'
+        working-directory: mobile/android
+        env:
+          LOCKBOX_VERSION_CODE: ${{ github.run_number }}
+          LOCKBOX_VERSION_NAME: ${{ inputs.version_name }}
+        run: |
+          set -euo pipefail
+          export ANDROID_KEYSTORE_FILE="$RUNNER_TEMP/upload.jks"
+          printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 -d > "$ANDROID_KEYSTORE_FILE"
+          ./gradlew bundleRelease --no-daemon --stacktrace
+          rm -f "$ANDROID_KEYSTORE_FILE"
+
+      - uses: actions/upload-artifact@v4
+        if: steps.secrets.outputs.ready == 'true'
+        with:
+          name: lockbox-release-aab
+          path: mobile/android/app/build/outputs/bundle/release/app-release.aab
+          if-no-files-found: error
+          retention-days: 30
