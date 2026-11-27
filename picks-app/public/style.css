@@ -1964,3 +1964,21 @@ form.follow .bell { border: 0; background: none; cursor: pointer; font: inherit;
 .gc .mk-tab:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .gc .mk-dot { margin-left: 0; vertical-align: 0; box-shadow: 0 0 0 2px var(--bg); }
 .gc .mk-tab[aria-pressed="true"] .mk-dot { box-shadow: 0 0 0 2px var(--accent-ink); }
+
+/* ---- Blocking (src/blocks.js) ----------------------------------------------
+   The "⋯" by Follow on a profile opens in place to "Block X?" and "Yes, block"
+   (plain details, no script); a blocked player's profile gets a note with
+   Unblock; your own profile lists who you blocked. */
+.profile-more > summary { list-style: none; min-width: 44px; letter-spacing: 0.1em; }
+.profile-more > summary::-webkit-details-marker { display: none; }
+.profile-more[open] { flex-basis: 100%; }
+.profile-more[open] > summary { border-color: var(--muted); }
+.profile-more-menu { margin-top: 8px; max-width: 420px; padding: 12px 14px; border: 1px solid color-mix(in srgb, var(--loss) 35%, var(--line)); border-radius: var(--r); background: var(--card); }
+.profile-more-menu p { margin: 0 0 10px; font-size: 0.9rem; color: var(--muted); }
+.profile-more-menu p b { color: var(--ink); }
+.blocked-note { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px 12px; margin: 12px 0 0; padding: 10px 14px; border: 1px solid var(--line); border-radius: var(--r); background: var(--raised); font-weight: 700; }
+.blocked-note form { margin: 0; }
+.blocked-list { list-style: none; margin: 0 0 8px; padding: 0; max-width: 560px; }
+.blocked-list li { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 0; border-bottom: 1px solid var(--line); }
+.blocked-list .who { min-width: 0; overflow-wrap: anywhere; font-weight: 700; }
+.blocked-list form { margin: 0; flex: none; }

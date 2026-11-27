@@ -916,6 +916,18 @@ export const MIGRATIONS = [
     checked_at TEXT NOT NULL
   );
   `,
+  `
+  -- Blocking (src/blocks.js): the blocker stops seeing the blocked player's
+  -- chat messages, picks in feeds and notes about them; neither can follow
+  -- the other. Goes with either account.
+  CREATE TABLE user_blocks (
+    blocker_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    blocked_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    created_at TEXT NOT NULL,
+    PRIMARY KEY (blocker_id, blocked_id)
+  );
+  CREATE INDEX user_blocks_blocked ON user_blocks(blocked_id);
+  `,
 ];
 
 export function openStore(file) {

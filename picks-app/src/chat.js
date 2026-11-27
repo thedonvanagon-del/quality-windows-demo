@@ -38,17 +38,23 @@ export function postMessage(store, { gameId = null, groupId = null, tournamentId
   return { id: Number(lastInsertRowid) };
 }
 
-/** The newest `limit` messages in a thread ({ gameId }, { groupId } or { tournamentId }), oldest first. Reported ones come back with `hidden`. */
+/**
+ * The newest `limit` messages in a thread ({ gameId }, { groupId } or
+ * { tournamentId }), oldest first. Reported ones come back with `hidden`.
+ * With `viewerId`, messages from players the viewer blocked are left out.
+ */
 export function messages(store, where, limit = 150) {
   const [column, value] = thread(where);
+  const viewerId = where.viewerId ?? null;
   return store
     .all(
       `SELECT m.id, m.user_id, m.body, m.created_at, u.screen_name,
               (SELECT COUNT(*) FROM chat_reports r WHERE r.message_id = m.id) AS reports
          FROM chat_messages m JOIN users u ON u.id = m.user_id
         WHERE m.${column} = ? AND m.deleted_at IS NULL
+          AND (? IS NULL OR m.user_id NOT IN (SELECT blocked_id FROM user_blocks WHERE blocker_id = ?))
         ORDER BY m.id DESC LIMIT ?`,
-      value, limit,
+      value, viewerId, viewerId, limit,
     )
     .reverse()
     .map((m) => ({ ...m, hidden: m.reports >= HIDE_AFTER_REPORTS }));
@@ -88,7 +94,7 @@ export function markGroupRead(store, { groupId, userId, now }) {
 /**
  * group id -> messages the player hasn't seen, for the Groups list: other
  * people's messages since they last opened the chat (or since they joined),
- * leaving out deleted and hidden ones.
+ * leaving out deleted and hidden ones, and those from players they blocked.
  */
 export function unreadCounts(store, userId) {
   const rows = store.all(
@@ -98,8 +104,9 @@ export function unreadCounts(store, userId) {
       WHERE gm.user_id = ? AND m.user_id != ? AND m.deleted_at IS NULL
         AND m.created_at > COALESCE(gm.chat_read_at, gm.joined_at)
         AND (SELECT COUNT(*) FROM chat_reports r WHERE r.message_id = m.id) < ?
+        AND m.user_id NOT IN (SELECT blocked_id FROM user_blocks WHERE blocker_id = ?)
       GROUP BY gm.group_id`,
-    userId, userId, HIDE_AFTER_REPORTS,
+    userId, userId, HIDE_AFTER_REPORTS, userId,
   );
   return new Map(rows.map((r) => [r.group_id, r.n]));
 }

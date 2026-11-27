@@ -171,7 +171,7 @@ function chatSection(ctx, t, { chat, canceled, entry }) {
       messages: chat,
       action: `/tournaments/${t.slug}/chat`,
       placeholder: `Talk to everyone in ${t.name}`,
-      rules: `${t.kind === 'weekly' ? 'Everyone in the Weekly Open sees this' : `Only players in ${t.name} see this`}. Trash talk is fine; harassment, hate and selling picks aren't. Three reports hide a message.`,
+      rules: `${t.kind === 'weekly' ? 'Everyone in the Weekly Open sees this' : `Only players in ${t.name} see this`}. Trash talk is fine; harassment, hate and selling picks aren't. Three reports hide a message; block a player from their profile to stop seeing them.`,
     });
   } else if (canceled) {
     return '';

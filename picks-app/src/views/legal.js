@@ -36,7 +36,7 @@ export function terms(ctx, { contact }) {
     <p>Your screen name, bio, link, record and started picks are public. If you link to a place where you sell picks, that sale is between you and your buyers; ${app} isn't part of it and doesn't take payment. Don't claim "guaranteed" or "lock" wins, don't pretend to be someone else, and don't post anything illegal, hateful or harassing.</p>
 
     <h2>Game chat</h2>
-    <p>Each game has a public chat. What you post there is public and signed with your screen name. Keep it about the games: no harassment, hate, threats, spam, or selling picks in chat (your profile link is the place for that). You can delete your own messages. Messages that several players report are hidden until we look at them.</p>
+    <p>Each game has a public chat. What you post there is public and signed with your screen name. Keep it about the games: no harassment, hate, threats, spam, or selling picks in chat (your profile link is the place for that). You can delete your own messages. Messages that several players report are hidden until we look at them. You can also block any player from their profile: you stop seeing their messages and picks, and they can't follow you.</p>
 
     <h2>When we can step in</h2>
     <p>We can remove content, reset a record built on bad data or cheating, or close accounts that break these terms. We can change or end features, or ${app} itself.</p>

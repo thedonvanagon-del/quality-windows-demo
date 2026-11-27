@@ -1038,6 +1038,32 @@ not dollars, and nothing is paid out.
     the database or changing backups has to move and back up the photos too.
 
 ### Chat
+- **2026-11-27: Block a player** (for App Store guideline 1.2: apps with
+  chat and profiles must let people block abusive users). `src/blocks.js`,
+  table `user_blocks` (blocker, blocked, time; goes with either account).
+  - **Where:** a "⋯" by Follow on someone else's profile opens in place to
+    "Block X? You won't see their messages or picks, and they can't follow
+    you. They aren't told." and **Yes, block** (plain `<details>`, no
+    script, no pop-up). `POST /u/<name>/block` and `/unblock` (form token;
+    yourself is refused, an unknown name is a 404). Anyone but yourself,
+    the official account included.
+  - **For the blocker:** their messages leave game, group/room and
+    tournament chat (filtered in `messages()` by `viewerId`, so the 15-second
+    refresh is filtered too) and the Groups list's unread counts; their
+    picks leave Following and a group's feed; they're off Hot streaks; notes
+    about them (follow notes, invite notes: any inbox note linking to their
+    profile) leave the inbox, and no new follow note goes either way. Their
+    profile still opens, with "You blocked this player · Unblock" and no
+    photo, cover, bio, link or picks (the record stays).
+  - **Kept:** leaderboards, standings, search, group member lists: a record
+    is public, and dropping someone would move ranks. Admin moderation
+    doesn't look at blocks.
+  - **Follows:** blocking ends both follows; neither can follow the other
+    while it stands (the blocked player gets "You can't follow this
+    player.", nothing more). Unblocking doesn't bring the follows back.
+  - **Blocked players** list with Unblock in your own profile's settings,
+    after the name-on-the-boards picker. The chat rules under each chat box
+    and the Terms say you can block from a profile.
 - **2026-11-06: Local rooms** (owner's design). A public group per city, so
   players can talk to and rank against bettors near them.
   - **A room is a group** (`friend_groups.kind = 'local'`), with its own chat,
