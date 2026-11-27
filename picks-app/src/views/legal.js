@@ -61,9 +61,10 @@ export function privacy(ctx, { contact }) {
     <ul>
       <li><strong>Account:</strong> your email, a scrambled (hashed) copy of your password, your screen name, and, only if you add them, your first and last name, bio and a link.</li>
       <li><strong>Picks:</strong> every pick you make, the line and time it was locked, and how many units you played.</li>
-      <li><strong>Settings:</strong> your app color and the groups you're in.</li>
+      <li><strong>Settings:</strong> your app color, your name color and icon, your home city if you pick one, and the groups you're in.</li>
+      <li><strong>Photos:</strong> a profile photo and a cover photo, only if you add them. We strip location and camera details from them on our server.</li>
       <li><strong>Chat:</strong> messages you post in game chats, and any reports you make.</li>
-      <li><strong>Follows and notifications:</strong> who you follow, your notification settings and inbox, and, if you turn on phone notifications, the delivery address your phone's browser gives us (from Apple, Google, Mozilla or Microsoft). Messages to your phone are encrypted so only your phone can read them.</li>
+      <li><strong>Follows and notifications:</strong> who you follow, your notification settings and inbox, and, if you turn on phone notifications, the delivery address your phone's browser gives us (from Apple, Google, Mozilla or Microsoft), or, in the ${app} app from the App Store or Google Play, the push token Apple or Google gives your phone. Messages through a browser are encrypted so only your phone can read them; the app's go through Apple's and Google's push services.</li>
       <li><strong>Basics to keep the app working:</strong> a sign-in cookie, and your IP address for a short time to stop password guessing and spam signups.</li>
     </ul>
     <p>We don't ask for your address, phone number, payment details or ID, and we don't use ad trackers.</p>

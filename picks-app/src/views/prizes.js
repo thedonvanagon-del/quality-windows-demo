@@ -17,6 +17,8 @@ export function rulesPage(ctx, { t, prize, admin, appName, contact }) {
   const value = dollars(prize.value_cents);
   const sections = [
     ['Sponsor', html`${prize.sponsor} ("Sponsor") sponsors this tournament and its prize. It is run in the ${appName} app (app.bookiebullies.com).`],
+    // App Store rule 5.3.2 (and Google Play's contest policy): the rules say the stores aren't sponsors.
+    ['Apple and Google are not sponsors', html`Apple Inc. and Google LLC are not sponsors of this tournament and are not involved with it in any way. Neither runs it, picks the winner or provides the prize.`],
     ['No purchase necessary', html`<b>NO PURCHASE NECESSARY TO ENTER OR WIN.</b> A purchase or payment of any kind will not improve your chances of winning. There is no entry fee and no way to pay one.`],
     ['Eligibility', html`Open to: ${prize.eligibility}. You need a ${appName} account with a confirmed email. Employees of the Sponsor and of ${appName}, and their immediate families and households, are not eligible.`],
     ['Entry period', html`${t.window}. Entries are accepted from when the tournament is published until it ends. The app's clock is the official clock.`],
