@@ -1,0 +1,21 @@
+{
+  "name": "mug-bot-diner-art",
+  "private": true,
+  "description": "Fonts for the 70s/80s diner mug designs. All SIL Open Font License.",
+  "dependencies": {
+    "@fontsource/bowlby-one": "^5.0.0",
+    "@fontsource/bungee": "^5.0.0",
+    "@fontsource/bungee-inline": "^5.0.0",
+    "@fontsource/bungee-shade": "^5.0.0",
+    "@fontsource/chango": "^5.0.0",
+    "@fontsource/damion": "^5.0.0",
+    "@fontsource/kaushan-script": "^5.0.0",
+    "@fontsource/lobster": "^5.0.0",
+    "@fontsource/monoton": "^5.0.0",
+    "@fontsource/pacifico": "^5.0.0",
+    "@fontsource/righteous": "^5.0.0",
+    "@fontsource/rubik-mono-one": "^5.0.0",
+    "@fontsource/shrikhand": "^5.0.0",
+    "@fontsource/yellowtail": "^5.0.0"
+  }
+}

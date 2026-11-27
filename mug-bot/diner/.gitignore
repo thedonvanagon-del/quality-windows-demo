@@ -1,0 +1,6 @@
+svg/
+art/
+page.html
+meta.json
+*.png
+!buddha-beans-logo.png

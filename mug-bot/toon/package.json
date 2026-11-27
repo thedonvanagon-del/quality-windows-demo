@@ -1,0 +1,27 @@
+{
+  "name": "mug-bot-toon-art",
+  "private": true,
+  "description": "Fonts for the retro cartoon mug designs. All SIL Open Font License.",
+  "dependencies": {
+    "@fontsource/alfa-slab-one": "^5.0.0",
+    "@fontsource/bagel-fat-one": "^5.0.0",
+    "@fontsource/bebas-neue": "^5.0.0",
+    "@fontsource/bowlby-one": "^5.0.0",
+    "@fontsource/bungee": "^5.0.0",
+    "@fontsource/bungee-inline": "^5.0.0",
+    "@fontsource/bungee-shade": "^5.0.0",
+    "@fontsource/chango": "^5.0.0",
+    "@fontsource/damion": "^5.0.0",
+    "@fontsource/kaushan-script": "^5.0.0",
+    "@fontsource/lilita-one": "^5.0.0",
+    "@fontsource/lobster": "^5.0.0",
+    "@fontsource/monoton": "^5.0.0",
+    "@fontsource/pacifico": "^5.0.0",
+    "@fontsource/righteous": "^5.0.0",
+    "@fontsource/rubik-mono-one": "^5.0.0",
+    "@fontsource/rye": "^5.0.0",
+    "@fontsource/shrikhand": "^5.0.0",
+    "@fontsource/titan-one": "^5.0.0",
+    "@fontsource/yellowtail": "^5.0.0"
+  }
+}
