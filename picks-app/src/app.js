@@ -37,6 +37,7 @@ import { changeScreenName, nameProblem, nextNameChange, renamedTo } from './name
 import { createNotifier } from './notify.js';
 import { ensureOfficial } from './official.js';
 import { addLeg, deleteParlay, draftLegs, draftOnGames, draftSummary, lockParlay, parlayGameIds, pruneDraft, removeLeg } from './parlays.js';
+import { cleanDeviceToken, deviceTokenCount, removeDeviceToken, saveDeviceToken } from './nativepush.js';
 import { validSubscription } from './push.js';
 import { deletePick, formatLine, formatOdds, formatUnits, isLocked, makePick, MARKETS, price, toWin } from './picks.js';
 import { SPORT, SPORTS } from './sports.js';
@@ -778,7 +779,7 @@ export function createApp({ store, games, espn = null, config, mailer = createMa
     if (!signedIn(ctx)) return;
     const game = games.get(id);
     if (!game) return notFound(ctx);
-    const phones = store.get('SELECT COUNT(*) AS n FROM push_subscriptions WHERE user_id = ?', ctx.user.id).n;
+    const phones = phonesOf(ctx.user.id);
     send(ctx, 200, alertViews.gameAlertsPage(ctx, {
       game, following: isFollowingGame(store, ctx.user.id, game.id), prefs: alertPrefs(store, ctx.user.id), phones, pushKey: push?.publicKey() ?? null,
     }));
@@ -2013,7 +2014,7 @@ export function createApp({ store, games, espn = null, config, mailer = createMa
     }
     for (const n of list) if (n.kind !== 'photo') n.face = faces.get(n.url) ?? null;
     const prefs = store.get('SELECT notify_settled, notify_follows, notify_lines, notify_streak, notify_tournaments, notify_tournament_updates FROM users WHERE id = ?', ctx.user.id);
-    const phones = store.get('SELECT COUNT(*) AS n FROM push_subscriptions WHERE user_id = ?', ctx.user.id).n;
+    const phones = phonesOf(ctx.user.id);
     notifier.markRead(ctx.user.id, ctx.now);
     ctx.unread = 0;
     send(ctx, 200, moreViews.notifications(ctx, { list, prefs, phones, pushKey: push?.publicKey() ?? null }));
@@ -2029,6 +2030,9 @@ export function createApp({ store, games, espn = null, config, mailer = createMa
     flash(ctx, 'ok', 'Saved.');
     redirect(ctx, '/notifications');
   }
+
+  /** Devices with phone notifications on: browsers (web push) and the App Store and Google Play apps. */
+  const phonesOf = (userId) => store.get('SELECT COUNT(*) AS n FROM push_subscriptions WHERE user_id = ?', userId).n + deviceTokenCount(store, userId);
 
   /** A phone turning push on: keep its subscription, tied to this player. */
   function pushSubscribe(ctx) {
@@ -2048,8 +2052,34 @@ export function createApp({ store, games, espn = null, config, mailer = createMa
   function pushUnsubscribe(ctx) {
     if (!signedIn(ctx)) return;
     store.run('DELETE FROM push_subscriptions WHERE user_id = ?', ctx.user.id);
+    store.run('DELETE FROM device_tokens WHERE user_id = ?', ctx.user.id);
     flash(ctx, 'ok', 'Phone notifications are off on every device.');
     redirect(ctx, '/notifications');
+  }
+
+  /**
+   * The App Store or Google Play app handing over its push token (public/app.js,
+   * the native block at the end): platform "ios" (an APNs token) or "android"
+   * (an FCM token). Answers JSON; a form token is checked like any POST.
+   */
+  function nativePushRegister(ctx) {
+    if (!ctx.user?.screenName) return sendJson(ctx, 401, { ok: false, error: 'Log in first.' });
+    const platform = ctx.form.get('platform') ?? '';
+    const token = cleanDeviceToken(platform, ctx.form.get('token') ?? '');
+    if (!token) return sendJson(ctx, 400, { ok: false, error: 'That device token was turned down.' });
+    saveDeviceToken(store, ctx.user.id, platform, token, ctx.now);
+    sendJson(ctx, 200, { ok: true, devices: phonesOf(ctx.user.id) });
+  }
+
+  /**
+   * Signing out in the app: the phone stops getting that player's
+   * notifications. The app sends this from the first signed-out page it
+   * shows (right after Log out, or after a session ran out), so it works
+   * signed out too: only the phone knows its token.
+   */
+  function nativePushRemove(ctx) {
+    const removed = removeDeviceToken(store, ctx.form.get('token'));
+    sendJson(ctx, 200, { ok: true, removed });
   }
 
   /** The service worker has to come from the site's root to cover every page. */
@@ -2455,6 +2485,8 @@ export function createApp({ store, games, espn = null, config, mailer = createMa
     ['POST', '/notifications/settings', notifyPrefs],
     ['POST', '/push/subscribe', pushSubscribe],
     ['POST', '/push/unsubscribe', pushUnsubscribe],
+    ['POST', '/push/native', nativePushRegister],
+    ['POST', '/push/native/remove', nativePushRemove],
     ['GET', '/sw.js', serviceWorker],
     ['GET', '/more', morePage],
     ['GET', '/install', (ctx) => send(ctx, 200, moreViews.install(ctx))],
@@ -2497,6 +2529,10 @@ export function createApp({ store, games, espn = null, config, mailer = createMa
   return async function handle(req, res) {
     const url = new URL(req.url, 'http://local');
     const ctx = { req, res, app, url, query: url.searchParams, now: now(), origin: null, cookies: [], cookieValues: {}, user: null, session: null, flash: null, form: null };
+    // Inside the App Store or Google Play app (mobile/capacitor.config.js adds
+    // "LockBoxApp" to its user agent). Only for hiding Get the app prompts:
+    // anyone can send any user agent, so nothing that matters trusts it.
+    ctx.isNativeApp = /\bLockBoxApp\b/.test(req.headers['user-agent'] ?? '');
     try {
       ctx.origin = config.appUrl ?? origin(ctx);
       const route = match(req.method, url.pathname);

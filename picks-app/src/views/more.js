@@ -30,7 +30,7 @@ export function more(ctx, { liveCount, admin = false, reported = 0, reportedCups
           <span class="go">${icons.chevron}</span>
         </a></li>
         ${row(`/u/${encodeURIComponent(ctx.user.screenName)}`, icons.me, 'Your profile', 'Your record, badges and settings')}
-        ${row('/install', icons.download, 'Get the app', 'Put LockBox on your Home Screen', '', 'get-app-row')}
+        ${ctx.isNativeApp ? '' : row('/install', icons.download, 'Get the app', 'Put LockBox on your Home Screen', '', 'get-app-row')}
         ${row('/live', icons.live, 'Live games', 'Scores right now, with your bets on them', liveCount ? html`<span class="count">${liveCount} live</span>` : '')}
         ${row('/contest', icons.board, 'This week\'s contest', 'Free weekly contest, and the winners wall')}
         ${row('/streak', icons.flame, 'Streak', 'One Streak pick a day. How long can you go?')}
@@ -151,6 +151,18 @@ export function notifications(ctx, { list, prefs, phones, pushKey }) {
 /** How to put the app on a phone or computer. The page shows the viewer's own device first. */
 export function install(ctx) {
   const step = (n, text) => html`<li><span class="step-n">${n}</span><span>${text}</span></li>`;
+  // Already in the App Store or Google Play app: nothing to install.
+  if (ctx.isNativeApp) {
+    return layout(ctx, {
+      title: 'Get the app',
+      active: 'install',
+      body: html`
+        <h1>You have the app</h1>
+        <p class="lede">You're already in LockBox. Turn on notifications to hear when your bets settle and when games you follow get going.</p>
+        <p><a class="btn" href="/notifications">Notification settings</a> <a class="btn ghost" href="/games">Back to the board</a></p>
+      `,
+    });
+  }
   return layout(ctx, {
     title: 'Get the app',
     active: 'install',

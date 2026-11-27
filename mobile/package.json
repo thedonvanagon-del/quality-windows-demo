@@ -1,0 +1,30 @@
+{
+  "name": "lockbox-mobile",
+  "version": "1.0.0",
+  "private": true,
+  "description": "LockBox for iPhone and Android: a Capacitor shell around https://app.bookiebullies.com",
+  "scripts": {
+    "sync": "cap sync",
+    "assets": "capacitor-assets generate --ios --android --iconBackgroundColor '#0a1228' --iconBackgroundColorDark '#0a1228' --splashBackgroundColor '#0a1228' --splashBackgroundColorDark '#0a1228'",
+    "android:debug": "cap sync android && cd android && ./gradlew assembleDebug",
+    "test": "node --test test/*.test.mjs"
+  },
+  "dependencies": {
+    "@capacitor/android": "^8.6.3",
+    "@capacitor/app": "^8.1.2",
+    "@capacitor/browser": "^8.0.5",
+    "@capacitor/core": "^8.6.3",
+    "@capacitor/haptics": "^8.0.2",
+    "@capacitor/ios": "^8.6.3",
+    "@capacitor/push-notifications": "^8.1.3",
+    "@capacitor/splash-screen": "^8.0.2",
+    "@capacitor/status-bar": "^8.0.4"
+  },
+  "devDependencies": {
+    "@capacitor/assets": "^4.0.0",
+    "@capacitor/cli": "^8.6.3"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}

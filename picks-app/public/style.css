@@ -1982,3 +1982,15 @@ form.follow .bell { border: 0; background: none; cursor: pointer; font: inherit;
 .blocked-list li { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 0; border-bottom: 1px solid var(--line); }
 .blocked-list .who { min-width: 0; overflow-wrap: anywhere; font-weight: 700; }
 .blocked-list form { margin: 0; flex: none; }
+/* ---- The App Store and Google Play app --------------------------------------
+   html.native: inside the app (the server sets it from the user agent, and
+   app.js from window.Capacitor). html.native-push: that app can get push. */
+/* Nothing to install: it's installed. */
+.native .get-app, .native .app-banner, .native .ios-install, .native .get-app-row, .native [data-install-now] { display: none !important; }
+/* Web push's "add it to your Home Screen first" help doesn't apply in the app. */
+.native [data-push-help] { display: none !important; }
+/* "Turn on for this device" turns on the app's own notifications instead. */
+.native-push [data-push-on][hidden]:not(.push-done) { display: inline-flex !important; }
+.native-push [data-push-on].push-done { display: none !important; }
+/* The app draws under the status bar (viewport-fit=cover): the top bar starts below it. */
+.native .top { padding-top: env(safe-area-inset-top); }

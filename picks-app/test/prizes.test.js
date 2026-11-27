@@ -124,6 +124,7 @@ describe('prize tournaments', () => {
     for (const part of [
       /Official rules Coffee Cup\. Free to enter\. Prize: A bag of Buddha Beans coffee \(about \$25, from Buddha Beans Coffee Co\.\)\./,
       /Sponsor Buddha Beans Coffee Co\. \("Sponsor"\) sponsors this tournament/,
+      /Apple and Google are not sponsors Apple Inc\. and Google LLC are not sponsors of this tournament and are not involved with it in any way\./,
       /No purchase necessary NO PURCHASE NECESSARY TO ENTER OR WIN\./,
       /Eligibility Open to: US residents 21\+, void where prohibited\./,
       /Entry period Sat, Nov 7, 12:00 PM – 11:59 PM ET\./,

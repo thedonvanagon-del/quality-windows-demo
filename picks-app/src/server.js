@@ -16,6 +16,7 @@ import { createMailer } from './mail.js';
 import { createNotifier } from './notify.js';
 import { createOfficialImporter } from './official.js';
 import { closePickemWeeks, gradePickem } from './pickem.js';
+import { combinePush, createNativePush, nativeSendersFrom } from './nativepush.js';
 import { createPush } from './push.js';
 import { createReminders } from './reminders.js';
 import { createSummaries } from './summaries.js';
@@ -41,7 +42,10 @@ const anchor = new Date();
 const espn = config.demo ? createDemoEspn({ anchor }) : createEspn();
 // Phone notifications sign as the contact address; demo mode never sends any.
 const push = createPush({ store, subject: `mailto:${config.contactEmail}`, enabled: !config.demo });
-const notifier = createNotifier({ store, push });
+// The App Store and Google Play apps: each platform is off until its keys are set.
+const nativePush = createNativePush({ store, ...(config.demo ? {} : nativeSendersFrom(config)) });
+// Every notification goes to browsers (web push) and to the apps.
+const notifier = createNotifier({ store, push: combinePush(push, nativePush) });
 // After grading: tell the bettors, check them for new badges, and tell
 // tournament entrants who moved into the top 3.
 const games = createGames({
