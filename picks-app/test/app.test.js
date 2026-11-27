@@ -113,6 +113,27 @@ describe('accounts', () => {
     assert.doesNotMatch((await app.browser().get('/u/Ann')).text, /annpicks/);
   });
 
+  test('inside the phone app, no off-site link button on profiles', async () => {
+    const native = { 'user-agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 LockBoxApp' };
+    const b = await player('ann@example.com', 'Ann');
+    await b.get('/u/Ann');
+    await b.post('/link', { link_url: 't.me/annpicks', link_label: 'Get my picks' });
+    const bob = await player('bob@example.com', 'Bob');
+
+    const web = (await bob.get('/u/Ann')).text;
+    assert.match(web, /href="https:\/\/t\.me\/annpicks"[^>]*>Get my picks ↗<\/a>/, 'a browser gets the button');
+    const inApp = (await bob.request('/u/Ann', { headers: native })).text;
+    assert.doesNotMatch(inApp, /annpicks|Get my picks/, 'the app gets no button');
+    assert.doesNotMatch((await app.browser().request('/u/Ann', { headers: native })).text, /annpicks/, 'nor a visitor in the app');
+
+    // The owner keeps the form in the app, with a note where it shows.
+    const own = (await b.request('/u/Ann', { headers: native })).text;
+    assert.match(own, /name="link_url" value="https:\/\/t\.me\/annpicks"/);
+    assert.match(visible(own), /Your link Shows on the web version of your profile\./);
+    assert.doesNotMatch(visible(own), /buy your picks/);
+    assert.doesNotMatch(visible((await b.get('/u/Ann')).text), /Shows on the web version/, 'no note on the web');
+  });
+
   test('show the record when a profile link is shared', async () => {
     const ann = await player('ann@example.com', 'Ann');
     await ann.post('/picks', { ...BILLS_PLUS, units: '2' });
@@ -268,6 +289,8 @@ describe('picks', () => {
     const b = await player('ann@example.com', 'Ann');
     const slip = await b.get('/pick?game=nfl:1&market=spread&side=away');
     assert.match(visible(slip.text), /Bills \+3\.5/);
+    assert.match(visible(slip.text), /Line from ESPN\./);
+    assert.doesNotMatch(slip.text, /DraftKings/, "ESPN's odds provider, a sportsbook, isn't named");
 
     const res = await b.post('/picks', { ...BILLS_PLUS, units: '2' });
     // Back to the same game on the board, not the top of the page.

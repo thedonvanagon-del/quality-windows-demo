@@ -51,6 +51,7 @@ import {
 } from './tournaments.js';
 import { addDays, dateLabel, etDay, mondayOf, weekLabel } from './time.js';
 import { breakdown, hotStreaks, lastTen, leaderboard, PERIODS, rankOf, record, recordBySport, searchPlayers, splits, unitsSeries } from './stats.js';
+import { hasBadLanguage } from './wordfilter.js';
 import * as account from './views/account.js';
 import * as alertViews from './views/alerts.js';
 import * as legal from './views/legal.js';
@@ -2310,7 +2311,9 @@ export function createApp({ store, games, espn = null, config, mailer = createMa
       flash(ctx, 'error', link.error);
     } else {
       store.run('UPDATE users SET link_url = ?, link_label = ? WHERE id = ?', link.url, link.label, ctx.user.id);
-      flash(ctx, 'ok', link.url ? `Your ${link.label} button is on your profile.` : 'Link removed.');
+      // Inside the phone app the button only shows on the web (views/social.js).
+      const where = ctx.isNativeApp ? 'the web version of your profile' : 'your profile';
+      flash(ctx, 'ok', link.url ? `Your ${link.label} button is on ${where}.` : 'Link removed.');
     }
     redirect(ctx, `/u/${encodeURIComponent(ctx.user.screenName)}`);
   }
@@ -2321,6 +2324,8 @@ export function createApp({ store, games, espn = null, config, mailer = createMa
     const bio = String(ctx.form.get('bio') ?? '').replace(/\s+/g, ' ').trim();
     if (bio.length > BIO_MAX) {
       flash(ctx, 'error', `Keep your bio to ${BIO_MAX} characters.`);
+    } else if (hasBadLanguage(bio)) {
+      flash(ctx, 'error', "Your bio has language that isn't allowed. Try it another way.");
     } else {
       store.run('UPDATE users SET bio = ? WHERE id = ?', bio || null, ctx.user.id);
       flash(ctx, 'ok', bio ? 'Bio saved.' : 'Bio cleared.');
@@ -2530,8 +2535,9 @@ export function createApp({ store, games, espn = null, config, mailer = createMa
     const url = new URL(req.url, 'http://local');
     const ctx = { req, res, app, url, query: url.searchParams, now: now(), origin: null, cookies: [], cookieValues: {}, user: null, session: null, flash: null, form: null };
     // Inside the App Store or Google Play app (mobile/capacitor.config.js adds
-    // "LockBoxApp" to its user agent). Only for hiding Get the app prompts:
-    // anyone can send any user agent, so nothing that matters trusts it.
+    // "LockBoxApp" to its user agent). Only for hiding Get the app prompts
+    // and players' off-site links: anyone can send any user agent, so nothing
+    // that matters trusts it.
     ctx.isNativeApp = /\bLockBoxApp\b/.test(req.headers['user-agent'] ?? '');
     try {
       ctx.origin = config.appUrl ?? origin(ctx);

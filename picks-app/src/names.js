@@ -4,6 +4,7 @@
 
 import { screenNameProblem } from './auth.js';
 import { DAY } from './time.js';
+import { hasBadLanguage, NAME_REFUSED } from './wordfilter.js';
 
 export const CHANGE_EVERY_DAYS = 30;
 export const HOLD_DAYS = 90;
@@ -14,6 +15,7 @@ const TAKEN = 'Someone already has that name. Try another.';
 export function nameProblem(store, name, { userId = null, now }) {
   const problem = screenNameProblem(name);
   if (problem) return problem;
+  if (hasBadLanguage(name)) return NAME_REFUSED;
   if (store.get('SELECT 1 AS x FROM users WHERE screen_name = ? AND id IS NOT ?', name, userId)) return TAKEN;
   const since = new Date(now.getTime() - HOLD_DAYS * DAY).toISOString();
   if (store.get('SELECT 1 AS x FROM name_history WHERE old_name = ? AND changed_at > ? AND user_id IS NOT ?', name, since, userId)) return TAKEN;

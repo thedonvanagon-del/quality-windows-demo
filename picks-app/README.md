@@ -326,6 +326,7 @@ src/clv.js        closing line value: the close, CLV per pick, Beat the close
 src/summaries.js  injuries and form for game pages: cached 30 minutes, fetched in the background
 src/chat.js       chat for games, groups and tournaments: posting, deleting, reports, unread counts
 src/blocks.js     blocking a player: block, unblock, who's blocked (chat, feeds and follows check it)
+src/wordfilter.js the language filter: slurs refused, strong profanity masked in chat and refused in names
 src/picks.js      lock rules, line checks, grading, payouts (parlays' too)
 src/parlays.js    the parlay draft, locking a parlay, deleting one
 src/stats.js      records and leaderboards

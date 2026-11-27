@@ -10,6 +10,7 @@
 import crypto from 'node:crypto';
 import { CITY } from './cities.js';
 import { SPORT } from './sports.js';
+import { hasBadLanguage, NAME_REFUSED } from './wordfilter.js';
 
 // No 0/O or 1/I/L, so a code read out loud comes through.
 const ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
@@ -21,6 +22,7 @@ function inviteCode() {
 export function createGroup(store, { ownerId, name, sport, now }) {
   name = String(name ?? '').trim().replace(/\s+/g, ' ');
   if (name.length < 2 || name.length > 40) return { error: 'Give the group a name of 2 to 40 characters.' };
+  if (hasBadLanguage(name)) return { error: NAME_REFUSED };
   if (sport && !SPORT[sport]) return { error: 'Pick a sport from the list.' };
   const owned = store.get("SELECT COUNT(*) AS n FROM friend_groups WHERE owner_id = ? AND kind = 'private'", ownerId).n;
   if (owned >= 20) return { error: 'You can run up to 20 groups.' };

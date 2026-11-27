@@ -1,6 +1,8 @@
 // The one outside link a player can put on their profile. Only plain web
 // addresses, and a short label that defaults to the site's name.
 
+import { hasBadLanguage } from './wordfilter.js';
+
 export const LINK_LABEL_MAX = 30;
 
 const KNOWN = [
@@ -31,6 +33,7 @@ export function cleanLink(rawUrl, rawLabel) {
   }
   if (url.href.length > 200) return { error: 'That link is too long. Keep it under 200 characters.' };
   if (label.length > LINK_LABEL_MAX) return { error: `Keep the button label to ${LINK_LABEL_MAX} characters.` };
+  if (hasBadLanguage(label)) return { error: "Pick a different label. That one has language that isn't allowed." };
   const host = url.hostname.toLowerCase();
   return { url: url.href, label: label || (KNOWN.find(([re]) => re.test(host))?.[1] ?? 'Website') };
 }
