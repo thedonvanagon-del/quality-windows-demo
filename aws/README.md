@@ -7,6 +7,7 @@ Two static sites share one module, and the Bookie Bullies app has its own stack:
 | `nosy-neighbors` | `sites/nosy-neighbors/` (symlinks to the repo-root site) | `nosyneighbors.coffee` |
 | `sb-builder` | `sites/sb-builder/` | not set yet — you fill it in |
 | `bookie-bullies-app` | `picks-app/` (a Node server, not a static site) | `app.bookiebullies.com` |
+| *(no stack of its own)* | `studio-app/` (booking site for the esthetician; runs on the same Lightsail server as the app above) | you choose, like `book.example.com` |
 
 The two static sites get the same architecture: a private S3 bucket, CloudFront in front of it
 via Origin Access Control, an ACM certificate, and Route53 records. Nothing is
