@@ -44,6 +44,7 @@ import { isDraftPrize, prizeOf } from './prizes.js';
 import { SPORT } from './sports.js';
 import { withRates } from './stats.js';
 import { addDays, etDay, etToUtc, HOUR, mondayOf, weekday } from './time.js';
+import { hasBadLanguage, NAME_REFUSED } from './wordfilter.js';
 
 export const AHEAD_DAYS = 2;
 export const CLOSE_AFTER_HOURS = 30;
@@ -486,7 +487,8 @@ const LINKY = /https?:|www\.|t\.me\/|\b[a-z0-9-]+\.(?:com|net|org|io|gg|co|me|tv
 /**
  * A player-made tournament's name, tidied, or why it can't be one: 3 to 40
  * characters, no links, no @ mentions, nothing that passes for the official
- * account (the screen-name check, spaces ignored).
+ * account (the screen-name check, spaces ignored), no slurs or strong
+ * profanity (wordfilter.js).
  */
 export function cleanTournamentName(raw) {
   const name = String(raw ?? '')
@@ -498,6 +500,7 @@ export function cleanTournamentName(raw) {
   if (LINKY.test(name)) return { error: 'No links in the name.' };
   if (/@\w/.test(name)) return { error: 'No @ mentions in the name.' };
   if (looksOfficial(name)) return { error: 'That name could pass for the official account. Try another.' };
+  if (hasBadLanguage(name)) return { error: NAME_REFUSED };
   return { name };
 }
 

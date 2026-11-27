@@ -5,6 +5,7 @@ import crypto from 'node:crypto';
 import { promisify } from 'node:util';
 
 import { styleOf } from './themes.js';
+import { hasBadLanguage, NAME_REFUSED } from './wordfilter.js';
 
 const scrypt = promisify(crypto.scrypt);
 
@@ -189,6 +190,7 @@ export function useVerify(store, token, now) {
 export function cleanName(value) {
   const name = String(value ?? '').replace(/[\p{Cc}\p{Cf}]/gu, '').replace(/\s+/g, ' ').trim();
   if (name.length > NAME_MAX) return { error: `Keep each name to ${NAME_MAX} characters.` };
+  if (hasBadLanguage(name)) return { error: NAME_REFUSED };
   return { name: name || null };
 }
 

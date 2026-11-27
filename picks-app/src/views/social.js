@@ -254,12 +254,17 @@ function deleteForm(ctx) {
     </details>`;
 }
 
-/** One button on the profile to wherever the player sells picks or posts. */
+/**
+ * One button on the profile to wherever the player sells picks or posts.
+ * Inside the App Store and Google Play app the button isn't shown (an
+ * off-site link to paid picks can get the app rejected), so the form says so.
+ */
 function linkForm(ctx, player) {
   return html`<h2>Your link</h2>
+    ${ctx.isNativeApp ? html`<p class="muted small">Shows on the web version of your profile.</p>` : ''}
     <form class="form link-form" method="post" action="/link">
       ${csrfField(ctx)}
-      <label>Link <span class="hint">Where people can follow you or buy your picks: Telegram, Instagram, X, Discord, a website.</span>
+      <label>Link <span class="hint">${ctx.isNativeApp ? 'Where people can follow you' : 'Where people can follow you or buy your picks'}: Telegram, Instagram, X, Discord, a website.</span>
         <input type="text" name="link_url" value="${player.link_url ?? ''}" inputmode="url" autocomplete="url" placeholder="https://t.me/yourname" maxlength="200"></label>
       <label>Button label <span class="hint">Optional. Leave it blank and we'll name the site.</span>
         <input type="text" name="link_label" value="${player.link_label ?? ''}" maxlength="30" placeholder="Get my picks"></label>
@@ -724,7 +729,7 @@ export function profile(ctx, { player, nametag = null, record, bySport, split = 
       <p class="follow-counts"><b>${follows.followers}</b> ${follows.followers === 1 ? 'follower' : 'followers'} · <b>${follows.following}</b> following</p>
       <div class="row profile-actions">
         ${ctx.user?.screenName && ctx.user.id !== player.id && !blocked ? followButton(ctx, player.screen_name, following) : ''}
-        ${player.link_url && !blocked ? html`<a class="btn small" href="${player.link_url}" target="_blank" rel="nofollow noopener noreferrer ugc">${player.link_label} ↗</a>` : ''}
+        ${player.link_url && !blocked && !ctx.isNativeApp ? html`<a class="btn small" href="${player.link_url}" target="_blank" rel="nofollow noopener noreferrer ugc">${player.link_label} ↗</a>` : ''}
         <button class="btn ghost small" type="button" data-share="${ctx.origin}/u/${encodeURIComponent(player.screen_name)}" data-share-text="${shareCard(player, record).title}" hidden>Share profile</button>
         ${ctx.user?.id === player.id ? html`<a class="btn ghost small" href="/invite">Invite friends</a>` : ''}
         ${report}

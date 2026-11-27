@@ -5,10 +5,15 @@
 // any message in it, and three reports from different players hide a message
 // until someone looks at it.
 
+import { filterChat } from './wordfilter.js';
+
 export const CHAT_MAX = 280;
 export const HIDE_AFTER_REPORTS = 3;
 
-/** Tidy a message: no control characters, at most one blank line in a row. */
+/**
+ * Tidy a message: no control characters, at most one blank line in a row,
+ * strong profanity masked ("f***"). A slur refuses it (wordfilter.js).
+ */
 export function cleanMessage(text) {
   const body = String(text ?? '')
     .replace(/\r\n?/g, '\n')
@@ -17,7 +22,7 @@ export function cleanMessage(text) {
     .trim();
   if (!body) return { error: 'Type something first.' };
   if ([...body].length > CHAT_MAX) return { error: `Keep it under ${CHAT_MAX} characters.` };
-  return { body };
+  return filterChat(body);
 }
 
 /** The thread's column and value: { gameId }, { groupId } or { tournamentId }, exactly one. */

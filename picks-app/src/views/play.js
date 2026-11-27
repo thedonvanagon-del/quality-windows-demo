@@ -406,7 +406,7 @@ export function slip(ctx, { game, market, side, current, error, units, board = n
                 <button class="btn ghost" formaction="/parlay/legs" formnovalidate data-busy="Adding…">Add to parlay</button>
               </div>
             </form>
-            <p class="fine">You can delete it until the game starts. After that it's on your record for good.${game.lines.book ? ` Line from ${game.lines.book} via ESPN.` : ''}</p>
+            <p class="fine">You can delete it until the game starts. After that it's on your record for good. Line from ESPN.</p>
           </div>
         </div>
       </div>

@@ -253,7 +253,7 @@ export function chatBox(ctx, { messages, action, placeholder, rules, tags = () =
           <textarea id="chat-body" name="body" rows="2" maxlength="280" required placeholder="${placeholder}"></textarea>
           <button class="btn">Send</button>
         </form>
-        <p class="fine">${rules}</p>`
+        <p class="fine">${rules} A filter masks strong profanity and blocks slurs.</p>`
       : html`<p class="muted">Confirm your email to join the chat. The link is in your inbox.</p>`}
   </div>`;
 }

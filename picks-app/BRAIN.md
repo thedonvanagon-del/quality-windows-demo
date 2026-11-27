@@ -1084,6 +1084,46 @@ not dollars, and nothing is paid out.
     the database or changing backups has to move and back up the photos too.
 
 ### Chat
+- **2026-11-27: Language filter, no sportsbook names, no pick-selling links
+  in the phone app** (App Store prep: guidelines 1.2 and 3.1.1/3.1.3).
+  - **`src/wordfilter.js`**, pure functions. Two lists: **slurs** (racial,
+    ethnic, homophobic, transphobic, ableist) are refused everywhere; **strong
+    profanity** (f-word, c-word, s-word, bitch and the like) is **masked in
+    chat** ("f***") and **refused in names**. Mild words stay (damn, hell,
+    crap, sucks, ass, piss, dick, cock: "Dick Vitale", "Gamecocks").
+    Matching is per word on normalized text: NFKC, lowercase, invisible
+    characters, accents and Cyrillic/Greek look-alikes gone, leetspeak read
+    (1 as i and as l), runs of 3+ letters collapsed to one and to two,
+    camelCase parts checked, a plural's singular checked. Only the strongest
+    (f-word, c-word, n-word, f-slur) are also caught inside longer words and
+    spelled out ("f u c k", "f.u.c.k", "f_u_c_k"), with ordinary words that
+    contain them allowed (Scunthorpe, snigger, niggardly). A few real phrases
+    pass ("Van Dyke", "spic and span", "chink in the armor", "Kike
+    Hernandez", "Squaw Valley"). The file's header says how to extend it.
+  - **Where:** chat (game, group and room, tournament: `cleanMessage`, so
+    `postMessage` everywhere) masks or refuses with "That message has
+    language that isn't allowed here."; screen names (`nameProblem`), first
+    and last names (`auth.cleanName`), group names, player tournament and
+    league names (`cleanTournamentName`) refuse with "Pick a different name.
+    That one has language that isn't allowed."; bios and link labels refuse
+    with their own line. Not filtered: admin-made tournaments, room renames
+    (admins), the official account's imported picks, anything already saved.
+  - The chat rules under every chat box and the Terms' Game chat paragraph
+    mention the filter; the Terms now say "zero tolerance for objectionable
+    content or abusive users".
+  - **Left out on purpose:** "coon" (Coon Rapids, coonhound), "negro" (the
+    Negro Leagues), "redskin" (the old Washington team's name), "homo",
+    "queer", "dick", "cock". "shit" is a whole-word match only, so
+    "shittalkers" in one lowercase word gets through (Matsushita, shitake).
+  - **The pick slip says "Line from ESPN."**: it used to name ESPN's odds
+    provider ("Line from ESPN BET via ESPN"), a real sportsbook. The book is
+    still stored with the lines; no page shows it.
+  - **Inside the phone app** (`ctx.isNativeApp`), a profile shows no
+    player-set link button (pick services are often paid: Apple 3.1.1 /
+    3.1.3). The web keeps it. The owner's form stays, with "Shows on the
+    web version of your profile." and no "buy your picks" in its hint. The
+    profile is the only place a player's own URL shows. Links to
+    www.bookiebullies.com stay (the owner's own free site).
 - **2026-11-27: Block a player** (for App Store guideline 1.2: apps with
   chat and profiles must let people block abusive users). `src/blocks.js`,
   table `user_blocks` (blocker, blocked, time; goes with either account).
