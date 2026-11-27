@@ -57,7 +57,11 @@ jobs:
           java-version: "21"
           cache: gradle
 
+      # The action's default list asks for "tools", which Google no longer
+      # ships; name what the build needs instead.
       - uses: android-actions/setup-android@v3
+        with:
+          packages: "platform-tools platforms;android-36"
 
       - name: install
         run: npm ci
@@ -129,6 +133,8 @@ jobs:
 
       - uses: android-actions/setup-android@v3
         if: steps.secrets.outputs.ready == 'true'
+        with:
+          packages: "platform-tools platforms;android-36"
 
       - name: install
         if: steps.secrets.outputs.ready == 'true'
