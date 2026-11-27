@@ -1,5 +1,6 @@
 """What the bot remembers between scans: pregame lines it saw before kickoff,
-picks it already sent (so it doesn't repeat itself), and how they finished.
+picks it already sent (so it doesn't repeat itself), how they finished, and
+the season's running record.
 
 On GitHub Actions this file rides between runs in the Actions cache."""
 
@@ -7,7 +8,12 @@ import json
 import os
 from datetime import date, timedelta
 
-from .util import parse_time
+from .util import decimal_odds, parse_time
+
+# The season record starts with the first slate on today's model. The first
+# Saturday (October 17, 2026) ran looser thresholds and offshore books.
+RECORD_SINCE = date(2026, 10, 18)
+BUCKETS = ("spreads", "overs", "unders", "board")
 
 
 class State:
@@ -93,6 +99,19 @@ class State:
     def mark_recap_sent(self, day):
         self._slate(day)["recap_sent"] = True
 
+    def season_record(self, day):
+        """Every graded pick of `day`'s season, by bucket, as
+        {bucket: [wins, losses, pushes, units]}: totals kept for slates
+        already pruned, plus the slates still here."""
+        season = season_of(day)
+        record = {b: list(row) for b, row in self.data.get("archive", {}).get(str(season), {}).items()}
+        for key, slate in self.data["slates"].items():
+            slate_day = date.fromisoformat(key)
+            if slate_day >= RECORD_SINCE and season_of(slate_day) == season:
+                for alert_key, alert in slate["alerts"].items():
+                    tally(record, alert_key, alert)
+        return record
+
     def prune(self, now):
         cutoff = now - timedelta(days=4)
         self.data["pregame"] = {
@@ -100,10 +119,44 @@ class State:
             if (parse_time(v.get("updated")) or cutoff) > cutoff
         }
         oldest = (now - timedelta(days=30)).date()
-        self.data["slates"] = {k: v for k, v in self.data["slates"].items() if date.fromisoformat(k) >= oldest}
+        for key in [k for k in self.data["slates"] if date.fromisoformat(k) < oldest]:
+            slate_day = date.fromisoformat(key)
+            if slate_day >= RECORD_SINCE:  # keep its results in the season totals
+                archive = self.data.setdefault("archive", {}).setdefault(str(season_of(slate_day)), {})
+                for alert_key, alert in self.data["slates"][key]["alerts"].items():
+                    tally(archive, alert_key, alert)
+            del self.data["slates"][key]
 
     def _slate(self, day):
         return self.data["slates"].setdefault(day.isoformat(), {"alerts": {}, "recap_sent": False})
+
+
+def season_of(day):
+    """Bowls and the NFL playoffs run into the new year; they belong to the
+    season that started the fall before."""
+    return day.year if day.month >= 3 else day.year - 1
+
+
+def bucket(alert_key, alert):
+    if alert_key.endswith(":board"):
+        return "board"
+    if alert["market"] == "spread":
+        return "spreads"
+    return alert["side"] + "s"
+
+
+def units(result, price):
+    """Won or lost betting one unit."""
+    return decimal_odds(price) - 1 if result == "win" else -1.0 if result == "loss" else 0.0
+
+
+def tally(record, alert_key, alert):
+    result = alert.get("result")
+    if result not in ("win", "loss", "push"):
+        return
+    row = record.setdefault(bucket(alert_key, alert), [0, 0, 0, 0.0])
+    row[("win", "loss", "push").index(result)] += 1
+    row[3] += units(result, alert["price"])
 
 
 def grade(alert, home_margin, total):

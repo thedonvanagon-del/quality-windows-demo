@@ -48,6 +48,7 @@ PRIOR_MINUTES = 120.0  # minutes of evidence the pregame total is worth
 MIN_REMAINING = 10.0
 MIN_BOOKS = 2         # one book's odd number is not a market
 ML_MAX_PRICE = 500    # past this a moneyline is a lottery ticket, not a bet
+MAX_JUICE = -250      # never lay more: at -250 a bet has to cash 71% just to break even
 STRENGTH_PRIOR_MINUTES = 120.0  # minutes of evidence the pregame spread is worth against yardage
 
 
@@ -114,6 +115,11 @@ def sigma(full_game, game):
     return full_game * math.sqrt(max(game.remaining_minutes / GAME_MINUTES, 0.04))
 
 
+def affordable(quote):
+    """The price doesn't lay more than MAX_JUICE."""
+    return quote.price >= MAX_JUICE
+
+
 def priceable(game):
     """Live, in regulation, and with enough clock left for the model to mean something."""
     return game.state == "in" and not game.overtime and game.remaining_minutes >= MIN_REMAINING
@@ -137,7 +143,7 @@ def _side_pick(game, lines, pregame_spread, threshold, yards, sport):
     sd = sigma(sport.sigma_margin, game)
     for side, sign in (("home", 1), ("away", -1)):
         quote = lines.best.get(side)
-        if not quote:
+        if not quote or not affordable(quote):
             continue
         # Judge on whichever margin is less kind to this side.
         side_margin = min(sign * m for m in margins)
@@ -157,6 +163,8 @@ def _total_pick(game, lines, pregame_total, threshold, yards, sport):
     projected = fair_total(game, pregame_total, yards, sport)
     sd = sigma(sport.sigma_total, game)
     over, under = lines.best.get("over"), lines.best.get("under")
+    over = over if over and affordable(over) else None
+    under = under if under and affordable(under) else None
     if over and projected - over.point >= threshold:
         edge = projected - over.point
         return Pick(game, "total", "over", over, projected, edge, norm_cdf(edge / sd), pregame_total, yards=yards)

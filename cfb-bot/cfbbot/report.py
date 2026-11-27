@@ -5,11 +5,13 @@ from html import escape
 
 from .model import fair_home_margin, fair_total
 from .sports import NCAAF
+from .state import BUCKETS
 from .util import fmt_spread, implied
 
 FOOTER = "Big gaps usually mean the book knows something: injury, weather, a QB change. Check before you bet."
 BOARD_FOOTER = "No such thing as a real lock. These are better numbers than the sharp market, not sure things."
 RESULT_ICONS = {"win": "✅", "loss": "❌", "push": "➖", "void": "⚪"}
+BUCKET_NAMES = {"spreads": "Spreads", "overs": "Overs", "unders": "Unders", "board": "Board 🔒"}
 
 
 def clock(now_et):
@@ -58,16 +60,27 @@ def fair_lines_message(now_et, live_count, priced, notes=(), sport=NCAAF):
     return "\n\n".join(parts)
 
 
-def recap_message(day, alerts, sport=NCAAF):
+def recap_message(day, alerts, sport=NCAAF, season=None):
+    """The day's picks graded, then the season so far when there is one
+    (`season` is State.season_record)."""
     results = [a.get("result") for a in alerts]
-    wins, losses, pushes = (results.count(r) for r in ("win", "loss", "push"))
-    record = f"{wins}-{losses}" + (f"-{pushes}" if pushes else "")
-    lines = [f"🏈 <b>{sport.name} {day:%A} recap</b> · {record}"]
+    lines = [f"🏈 <b>{sport.name} {day:%A} recap</b> · {_record(*(results.count(r) for r in ('win', 'loss', 'push')))}"]
     for a in alerts:
         icon = RESULT_ICONS.get(a.get("result"), "❔")
         final = f" · {escape(a['final'])}" if a.get("final") else " · no final score"
         lines.append(f"{icon} {escape(a['label'])} {a['price']:+d}{final}")
+    if season:
+        rows = season.values()
+        wins, losses, pushes = (sum(r[i] for r in rows) for i in range(3))
+        lines.append("")
+        lines.append(f"<b>Season</b> · {_record(wins, losses, pushes)} · {sum(r[3] for r in rows):+.1f} units, 1 a pick")
+        lines.append(" · ".join(f"{BUCKET_NAMES[b]} {_record(*season[b][:3])} {season[b][3]:+.1f}"
+                                for b in BUCKETS if b in season))
     return "\n".join(lines)
+
+
+def _record(wins, losses, pushes):
+    return f"{wins}-{losses}" + (f"-{pushes}" if pushes else "")
 
 
 def board_message(now_et, picks, sport=NCAAF):

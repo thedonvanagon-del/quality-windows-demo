@@ -68,6 +68,15 @@ class Find(unittest.TestCase):
         (pick,) = board.find(games(), [ev], MORNING, NFL)
         self.assertAlmostEqual(pick.prob, 0.5 + 0.075)
 
+    def test_never_lays_more_than_250(self):
+        # Pinnacle makes Ole Miss a 78% side at -7.5, so -7 at -260 would
+        # still show value. It's past the -250 cap, so it stays off the board.
+        ev = event(spreads("pinnacle", "Pinnacle", -7.5, -400, +300), spreads("fanduel", "FanDuel", -7.0, -260, +200))
+        self.assertEqual(board.find(games(), [ev], MORNING, NCAAF), [])
+        ev = event(spreads("pinnacle", "Pinnacle", -7.5, -400, +300), spreads("fanduel", "FanDuel", -7.0, -250, +200))
+        (pick,) = board.find(games(), [ev], MORNING, NCAAF)
+        self.assertEqual((pick.label, pick.quote.price), ("Ole Miss -7", -250))
+
     def test_matching_pinnacle_is_not_an_edge(self):
         ev = event(spreads("pinnacle", "Pinnacle", -7.5, -105, -105), spreads("fanduel", "FanDuel", -7.5, -110, -110))
         self.assertEqual(board.find(games(), [ev], MORNING, NCAAF), [])
