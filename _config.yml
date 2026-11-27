@@ -6,3 +6,4 @@ exclude:
   - sites
   - cfb-bot
   - picks-app
+  - freellmapi-free
