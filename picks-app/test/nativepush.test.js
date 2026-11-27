@@ -62,8 +62,8 @@ describe('device tokens', () => {
     saveDeviceToken(store, 2, 'ios', (5).toString(16).padStart(64, '0'), new Date('2026-11-02'));
     assert.equal(store.get('SELECT user_id FROM device_tokens WHERE token = ?', (5).toString(16).padStart(64, '0')).user_id, 2);
     assert.equal(store.get('SELECT COUNT(*) AS n FROM device_tokens').n, 10, 'one row per token');
-    assert.equal(removeDeviceToken(store, 1, (5).toString(16).padStart(64, '0')), 0, "can't remove someone else's");
-    assert.equal(removeDeviceToken(store, 2, (5).toString(16).padStart(64, '0')), 1);
+    assert.equal(removeDeviceToken(store, (5).toString(16).padStart(64, '0').toUpperCase()), 1);
+    assert.equal(removeDeviceToken(store, (5).toString(16).padStart(64, '0')), 0, 'already gone');
     store.run('DELETE FROM users WHERE id = 1');
     assert.equal(store.get('SELECT COUNT(*) AS n FROM device_tokens').n, 0, 'deleting the account deletes its tokens');
   });
@@ -360,8 +360,12 @@ describe('the app routes', () => {
     assert.equal(app.store.get('SELECT user_id FROM device_tokens WHERE token = ?', (5).toString(16).padStart(64, 'b')).user_id, 2);
 
     assert.deepEqual(JSON.parse((await ann.post('/push/native/remove', { token: (6).toString(16).padStart(64, 'b') })).text), { ok: true, removed: 1 });
-    assert.deepEqual(JSON.parse((await ann.post('/push/native/remove', { token: (5).toString(16).padStart(64, 'b') })).text), { ok: true, removed: 0 }, "not Ann's any more");
-    assert.equal(tokens().length, MAX_DEVICES - 1);
+    assert.equal((await ann.post('/push/native/remove', { token: (7).toString(16).padStart(64, 'b') }, { csrf: false })).status, 403, 'signed in, it needs the form token');
+    // Signed out (the page right after Log out), the phone still drops its token.
+    await bob.post('/logout');
+    assert.deepEqual(JSON.parse((await bob.post('/push/native/remove', { token: (5).toString(16).padStart(64, 'b') })).text), { ok: true, removed: 1 });
+    assert.equal((await app.browser().post('/push/native/remove', { token: (8).toString(16).padStart(64, 'b') }, { origin: 'https://evil.example' })).status, 403, 'never from another site');
+    assert.equal(tokens().length, MAX_DEVICES - 2);
   });
 
   test('every notification goes to the app too, and Turn off on every device turns it off', async () => {

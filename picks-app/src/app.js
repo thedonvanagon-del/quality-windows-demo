@@ -2040,10 +2040,14 @@ export function createApp({ store, games, espn = null, config, mailer = createMa
     sendJson(ctx, 200, { ok: true, devices: phonesOf(ctx.user.id) });
   }
 
-  /** Signing out in the app: this phone stops getting this player's notifications. */
+  /**
+   * Signing out in the app: the phone stops getting that player's
+   * notifications. The app sends this from the first signed-out page it
+   * shows (right after Log out, or after a session ran out), so it works
+   * signed out too: only the phone knows its token.
+   */
   function nativePushRemove(ctx) {
-    if (!ctx.user?.screenName) return sendJson(ctx, 401, { ok: false, error: 'Log in first.' });
-    const removed = removeDeviceToken(store, ctx.user.id, ctx.form.get('token'));
+    const removed = removeDeviceToken(store, ctx.form.get('token'));
     sendJson(ctx, 200, { ok: true, removed });
   }
 

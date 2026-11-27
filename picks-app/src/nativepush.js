@@ -65,9 +65,13 @@ export function saveDeviceToken(store, userId, platform, token, now = new Date()
   });
 }
 
-/** Signing out on a phone: forget its token, only if it's this player's. */
-export function removeDeviceToken(store, userId, token) {
-  return Number(store.run('DELETE FROM device_tokens WHERE user_id = ? AND token = ?', userId, String(token ?? '').trim()).changes);
+/**
+ * Signing out on a phone: forget its token, whoever it was for. Only the
+ * phone itself knows its token, so knowing it is enough.
+ */
+export function removeDeviceToken(store, token) {
+  const value = String(token ?? '').trim();
+  return Number(store.run('DELETE FROM device_tokens WHERE token = ? OR token = ?', value, value.toLowerCase()).changes);
 }
 
 export const deviceTokenCount = (store, userId) => store.get('SELECT COUNT(*) AS n FROM device_tokens WHERE user_id = ?', userId).n;

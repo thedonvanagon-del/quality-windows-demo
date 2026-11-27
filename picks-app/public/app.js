@@ -1147,3 +1147,215 @@ document.addEventListener('change', async (event) => {
     form.submit();
   }
 });
+
+// ---- The App Store and Google Play app ------------------------------------------
+// mobile/ wraps this site in a native shell (Capacitor) that loads it from
+// app.bookiebullies.com and adds window.Capacitor. Everywhere else this block
+// does nothing. Inside the app: the Get the app prompts go (the .native class;
+// the server drops most of them already, from the user agent), push goes
+// through the phone's own notifications instead of web push, a locked pick
+// taps the phone, off-site links open in the in-app browser, and Android's
+// back button goes back.
+(() => {
+  const cap = window.Capacitor;
+  if (!cap?.isNativePlatform?.()) return;
+  const root = document.documentElement;
+  root.classList.add('native');
+  const plugins = cap.Plugins ?? {};
+  const platform = cap.getPlatform?.() === 'android' ? 'android' : 'ios';
+  const Push = plugins.PushNotifications;
+  // A build that can't get push (Android without Firebase) leaves LockBoxPush
+  // out of its user agent, so it never offers notifications it can't deliver.
+  const pushReady = Boolean(Push) && /\bLockBoxPush\b/.test(navigator.userAgent);
+  if (pushReady) root.classList.add('native-push');
+  const signedIn = document.body.classList.contains('signed-in');
+  const csrf = () => document.querySelector('input[name="_csrf"]')?.value ?? '';
+  const saved = {
+    get(key) {
+      try {
+        return localStorage.getItem(key);
+      } catch {
+        return null;
+      }
+    },
+    set(key, value) {
+      try {
+        localStorage.setItem(key, value);
+      } catch {
+        // Nowhere to keep it.
+      }
+    },
+    drop(key) {
+      try {
+        localStorage.removeItem(key);
+      } catch {
+        // Nothing kept.
+      }
+    },
+  };
+  // "on" once the player turned notifications on in this app, and the token
+  // the server has for this phone.
+  const ON = 'lb-push';
+  const TOKEN = 'lb-push-token';
+
+  const post = (path, fields) => fetch(path, {
+    method: 'POST',
+    credentials: 'same-origin',
+    headers: { 'content-type': 'application/x-www-form-urlencoded', accept: 'application/json' },
+    body: new URLSearchParams({ _csrf: csrf(), ...fields }),
+  });
+
+  // The status bar follows the player's look: light text on dark looks, dark on Light.
+  const bar = document.querySelector('meta[name="theme-color"]')?.content;
+  plugins.StatusBar?.setStyle?.({ style: root.dataset.mode === 'light' ? 'LIGHT' : 'DARK' })?.catch?.(() => {});
+  if (platform === 'android' && bar) plugins.StatusBar?.setBackgroundColor?.({ color: bar })?.catch?.(() => {});
+  plugins.SplashScreen?.hide?.()?.catch?.(() => {});
+
+  // A pick (or parlay) just locked: a light tap, like a ticket printing.
+  if (document.querySelector('.locked-ticket')) plugins.Haptics?.impact?.({ style: 'LIGHT' })?.catch?.(() => {});
+
+  // Off-site links (www.bookiebullies.com, a player's own link) open in the
+  // in-app browser, so the board stays right underneath.
+  document.addEventListener('click', (event) => {
+    if (event.defaultPrevented || event.button !== 0) return;
+    const link = event.target.closest?.('a[href]');
+    if (!link) return;
+    let url;
+    try {
+      url = new URL(link.href, window.location.href);
+    } catch {
+      return;
+    }
+    if (!/^https?:$/.test(url.protocol) || url.origin === window.location.origin) return;
+    event.preventDefault();
+    const fallback = () => window.open(url.href, '_blank', 'noopener');
+    if (plugins.Browser?.open) plugins.Browser.open({ url: url.href, toolbarColor: bar || '#0a1228', presentationStyle: 'popover' }).catch(fallback);
+    else fallback();
+  });
+
+  // Android's back button: close a sheet first, then go back, then leave the app.
+  plugins.App?.addListener?.('backButton', ({ canGoBack }) => {
+    const open = document.querySelector('dialog[open]');
+    if (open) open.close();
+    else if (canGoBack) window.history.back();
+    else plugins.App.exitApp?.();
+  });
+
+  if (!pushReady) return;
+
+  // Tapping a notification opens its page (only this site's own pages).
+  Push.addListener('pushNotificationActionPerformed', ({ notification }) => {
+    const url = notification?.data?.url;
+    if (typeof url === 'string' && /^\/(?![/\\])/.test(url)) window.location.href = url;
+  });
+  // Android: notifications arrive on the Game alerts channel (MainActivity
+  // makes it too, before any page loads).
+  if (platform === 'android') {
+    Push.createChannel?.({ id: 'game_alerts', name: 'Game alerts', description: 'Your bets, games you follow, players you follow', importance: 4, visibility: 1, sound: 'default' })?.catch?.(() => {});
+  }
+
+  // Signed out (right after Log out, or once a session ran out): this phone
+  // stops getting that player's notifications.
+  const kept = saved.get(TOKEN);
+  if (!signedIn) {
+    if (kept) {
+      post('/push/native/remove', { token: kept }).then((res) => {
+        if (!res.ok) return;
+        saved.drop(TOKEN);
+        saved.drop(ON);
+      }).catch(() => {});
+    }
+    return;
+  }
+
+  // register() answers through the 'registration' event. One wait at a time.
+  let waiting = null;
+  Push.addListener('registration', ({ value }) => {
+    if (waiting) {
+      waiting.resolve(value);
+      waiting = null;
+    } else if (value && value !== saved.get(TOKEN) && saved.get(ON) === 'on') {
+      // The phone's token changed: tell the server, quietly.
+      post('/push/native', { platform, token: value }).then((res) => res.ok && saved.set(TOKEN, value)).catch(() => {});
+    }
+  });
+  Push.addListener('registrationError', ({ error }) => {
+    waiting?.reject(new Error(error || 'registration failed'));
+    waiting = null;
+  });
+
+  /**
+   * Turn notifications on for this phone. With `ask`, the phone's own
+   * permission prompt shows if it hasn't been answered yet. Says how it
+   * went: 'on', 'denied', 'off' (not asked) or 'error'.
+   */
+  async function turnOn({ ask }) {
+    try {
+      let { receive } = await Push.checkPermissions();
+      if (receive === 'prompt' || receive === 'prompt-with-rationale') {
+        if (!ask) return 'off';
+        ({ receive } = await Push.requestPermissions());
+      }
+      if (receive !== 'granted') return 'denied';
+      const token = await new Promise((resolve, reject) => {
+        waiting = { resolve, reject };
+        Promise.resolve(Push.register()).catch(reject);
+        setTimeout(() => reject(new Error('no token')), 20_000);
+      });
+      const res = await post('/push/native', { platform, token });
+      if (!res.ok) return 'error';
+      saved.set(ON, 'on');
+      saved.set(TOKEN, token);
+      return 'on';
+    } catch {
+      return 'error';
+    }
+  }
+
+  const said = {
+    on: "You're set. Notifications will show on this phone.",
+    denied: `Notifications are off for LockBox. Turn them on in ${platform === 'ios' ? 'Settings, Notifications, LockBox' : 'Settings, Apps, LockBox, Notifications'}, then try again.`,
+    error: "That didn't work. Try again in a minute.",
+  };
+
+  // Once a visit, a phone that's on checks in (its token may have changed).
+  let checked = false;
+  try {
+    checked = sessionStorage.getItem('lb-push-checked') === '1';
+    sessionStorage.setItem('lb-push-checked', '1');
+  } catch {
+    checked = false;
+  }
+  if (!checked && saved.get(ON) === 'on') {
+    Promise.resolve(Push.checkPermissions()).then(({ receive }) => receive === 'granted' && Push.register()).catch(() => {});
+  }
+
+  // "Turn on for this device" (the notifications page, the game alerts sheet)
+  // uses the phone's own notifications here, not web push: caught before the
+  // web push handler sees the tap.
+  document.addEventListener('click', async (event) => {
+    const button = event.target.closest?.('[data-push-on]');
+    if (!button) return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    if (button.disabled) return;
+    button.disabled = true;
+    const status = button.closest('.push-box')?.querySelector('[data-push-status]');
+    const result = await turnOn({ ask: true });
+    if (status) status.textContent = said[result] ?? '';
+    button.disabled = false;
+    if (result === 'on') button.classList.add('push-done');
+  }, true);
+
+  // Following a game is when alerts start to matter: ask then, not on the
+  // first page. Once this phone is on, never again from here.
+  document.addEventListener('submit', (event) => {
+    const form = event.target;
+    if (!form.matches?.('form[data-follow], form[action$="/follow"]') || !/\/games\//.test(form.getAttribute('action') ?? '')) return;
+    if (saved.get(ON) === 'on') return;
+    setTimeout(async () => {
+      const result = await turnOn({ ask: true });
+      if (result === 'on') toast('Notifications are on. You’ll hear when this game gets going.');
+    }, 1200);
+  });
+})();
