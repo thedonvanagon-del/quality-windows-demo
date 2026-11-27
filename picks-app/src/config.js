@@ -52,6 +52,20 @@ export function loadConfig(env = process.env) {
     // The daily picks site: the More row, the BB Pick chips, the Locks card,
     // the line on the LOCKED ticket and the share image's footer link here.
     siteUrl: (env.SITE_URL || SITE_URL).replace(/\/+$/, ''),
+    // Push to the App Store app (APNs, token auth with the .p8 key from
+    // Apple) and the Google Play app (FCM HTTP v1, a Firebase service
+    // account). Each is off until its keys are set (src/nativepush.js).
+    apns: {
+      keyId: env.APNS_KEY_ID || null,
+      teamId: env.APNS_TEAM_ID || null,
+      keyFile: env.APNS_KEY_FILE || null,
+      key: env.APNS_KEY || null,
+      bundleId: env.APNS_BUNDLE_ID || 'com.bookiebullies.lockbox',
+      sandbox: truthy(env.APNS_SANDBOX),
+    },
+    fcm: {
+      serviceAccountFile: env.FCM_SERVICE_ACCOUNT_FILE || null,
+    },
     // Outgoing email for password resets. For Google Workspace:
     // SMTP_HOST=smtp.gmail.com, SMTP_USER=you@yourdomain, SMTP_PASS=an app password.
     smtp: {

@@ -8,6 +8,7 @@ import { badgesAfterGrading } from '../src/badges.js';
 import { openStore } from '../src/db.js';
 import { parseScoreboard, parseSummary } from '../src/espn.js';
 import { createGames } from '../src/games.js';
+import { combinePush } from '../src/nativepush.js';
 import { createNotifier } from '../src/notify.js';
 import { createPush } from '../src/push.js';
 import { SPORTS } from '../src/sports.js';
@@ -118,14 +119,16 @@ export function setStatus(e, state, name) {
 /**
  * The whole app on a free port, with fakes for ESPN, mail and push.
  * `teamFetch`, when given, is the fetch the team-logo catalog uses (ESPN's
- * team lists); without it the catalog never fetches.
+ * team lists); without it the catalog never fetches. `nativePush(store)`
+ * makes an app push sender (src/nativepush.js) to go with the web push.
  */
-export async function startApp({ time, espn = fakeEspn(), config = {}, teamFetch = null }) {
+export async function startApp({ time, espn = fakeEspn(), config = {}, teamFetch = null, nativePush = null }) {
   const store = openStore(':memory:');
   // Pushes go to a fake push service that only records them.
   const pushed = [];
   const push = createPush({ store, subject: 'mailto:test@example.test', log: quiet, fetch: async (url, init) => (pushed.push({ url, init }), new Response(null, { status: 201 })) });
-  const notifier = createNotifier({ store, push, log: quiet });
+  // `nativePush(store)`, when given, makes the App Store and Google Play sender too.
+  const notifier = createNotifier({ store, push: combinePush(push, nativePush?.(store) ?? null), log: quiet });
   const games = createGames({
     store, espn, now: time.now, log: quiet,
     onGraded: (ids, parlayIds) => {
