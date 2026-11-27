@@ -1,0 +1,104 @@
+{
+ "title": "Light Medium Dark",
+ "brand": "buddhabeans",
+ "style": "print",
+ "format": "9:16",
+ "fps": 24,
+ "bpm": 120,
+ "scenes": [
+  {
+   "type": "slam",
+   "beats": 4,
+   "bg": "ink",
+   "words": [
+    "LIGHT.",
+    "MEDIUM.",
+    "DARK."
+   ],
+   "accent": 2
+  },
+  {
+   "type": "roast",
+   "beats": 8,
+   "bg": "kraft"
+  },
+  {
+   "type": "cracks",
+   "beats": 8,
+   "bg": "ink"
+  },
+  {
+   "type": "compare",
+   "beats": 12,
+   "bg": "kraft",
+   "tag": "(03) WHAT YOU TASTE",
+   "columns": [
+    {
+     "title": [
+      "LIGHT"
+     ],
+     "bean": "#b9803f",
+     "bg": "cream",
+     "rows": [
+      "BRIGHT",
+      "FRUITY",
+      "FLORAL"
+     ]
+    },
+    {
+     "title": [
+      "MEDIUM"
+     ],
+     "bean": "#7a4a26",
+     "bg": "coral",
+     "rows": [
+      "BALANCED",
+      "CARAMEL",
+      "NUTTY"
+     ]
+    },
+    {
+     "title": [
+      "DARK"
+     ],
+     "bean": "#24130b",
+     "bg": "ink",
+     "rows": [
+      "BOLD",
+      "SMOKY",
+      "LOW ACIDITY"
+     ]
+    }
+   ],
+   "banner": "NEITHER IS BETTER.",
+   "banner_at": 7.5,
+   "note": "it's what you like.",
+   "height": 820
+  },
+  {
+   "type": "myth",
+   "beats": 8,
+   "bg": "cream",
+   "claim": [
+    "DARK ROAST",
+    "= MORE CAFFEINE"
+   ],
+   "fact": [
+    "ABOUT",
+    "THE SAME."
+   ],
+   "note": "caffeine barely changes in the roaster."
+  },
+  {
+   "type": "outro",
+   "beats": 6,
+   "bg": "coral",
+   "words": [
+    "PICK YOUR ROAST."
+   ]
+  }
+ ],
+ "audio": {
+  "sfx": true
+ }
+}

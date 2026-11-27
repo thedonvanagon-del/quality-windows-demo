@@ -1,0 +1,70 @@
+{
+ "title": "How To Pour Over Mono",
+ "brand": "buddhabeans",
+ "style": "print",
+ "format": "9:16",
+ "fps": 24,
+ "bpm": 120,
+ "scenes": [
+  {
+   "type": "sketch",
+   "step": 0,
+   "beats": 4,
+   "bg": "kraft",
+   "figure": "mono"
+  },
+  {
+   "type": "sketch",
+   "step": 1,
+   "beats": 6,
+   "bg": "kraft",
+   "figure": "mono"
+  },
+  {
+   "type": "sketch",
+   "step": 2,
+   "beats": 6,
+   "bg": "kraft",
+   "figure": "mono"
+  },
+  {
+   "type": "sketch",
+   "step": 3,
+   "beats": 6,
+   "bg": "kraft",
+   "figure": "mono"
+  },
+  {
+   "type": "sketch",
+   "step": 4,
+   "beats": 8,
+   "bg": "kraft",
+   "figure": "mono"
+  },
+  {
+   "type": "sketch",
+   "step": 5,
+   "beats": 12,
+   "bg": "kraft",
+   "figure": "mono"
+  },
+  {
+   "type": "sketch",
+   "step": 6,
+   "beats": 6,
+   "bg": "kraft",
+   "figure": "mono"
+  },
+  {
+   "type": "outro",
+   "beats": 6,
+   "bg": "coral",
+   "words": [
+    "BREW IT SLOW."
+   ]
+  }
+ ],
+ "audio": {
+  "sfx": true
+ }
+}

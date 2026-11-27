@@ -1,0 +1,23 @@
+{
+  "title": "Meet The Bags Draft",
+  "brand": "buddhabeans",
+  "format": "9:16",
+  "fps": 30,
+  "transition": 0.4,
+  "scenes": [
+    {"type": "logo", "duration": 3.5, "sub": "Meet the bags",
+     "caption": "Every bag tells you where the beans grew."},
+    {"type": "photo", "duration": 6.5, "theme": "kraft", "eyebrow": "One of ours", "text": "Mexico, Chiapas",
+     "bullets": ["Micro-roasted", "12oz bags"], "note": "Chiapas", "image": "bag.jpg",
+     "caption": "Here's one of ours. Look for the origin on the label."},
+    {"type": "bullets", "duration": 6, "theme": "coral", "eyebrow": "The lineup", "text": "Pick your origin",
+     "bullets": ["Mexico, Ethiopia, Colombia", "Peru, Costa Rica", "Burundi, Brazil, Laos"],
+     "from": "light", "to": "mediumdark",
+     "caption": "Mexico. Ethiopia. Colombia. Peru. Costa Rica. Burundi. Brazil. Laos."},
+    {"type": "beans", "duration": 5.5, "theme": "ink", "eyebrow": "Now and then", "text": "Small lots and limited runs",
+     "sub": "When we get them.", "from": "mediumdark", "to": "mediumdark", "steam": true,
+     "caption": "Plus small lots and limited editions when we get them."},
+    {"type": "outro", "duration": 4, "text": "Find your bag."}
+  ],
+  "audio": {"sfx": true}
+}

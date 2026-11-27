@@ -1,0 +1,21 @@
+{
+  "title": "Meet Buddha Beans",
+  "brand": "buddhabeans",
+  "style": "print",
+  "format": "9:16",
+  "fps": 24,
+  "bpm": 120,
+  "groove_from": 4,
+  "scenes": [
+    {"type": "mascot", "beats": 4, "bg": "kraft", "words": ["BUDDHA BEANS"], "sub": "COFFEE CO.", "tag": "EST. 2018"},
+    {"type": "slam", "beats": 3, "bg": "kraft", "words": ["MICRO-", "ROASTED."], "accent": 1},
+    {"type": "slam", "beats": 3, "bg": "coral", "words": ["HIGH", "QUALITY."], "accent": 1},
+    {"type": "slam", "beats": 4, "bg": "ink", "words": ["HEMP", "INFUSED", "COFFEE."], "accent": 2},
+    {"type": "cutout", "beats": 6, "bg": "kraft", "image": "bag.jpg", "words": ["MEXICO,", "CHIAPAS."],
+     "note": "origin's on the label"},
+    {"type": "stack", "beats": 8,
+     "lines": ["FROM:", "MEXICO", "ETHIOPIA", "COLOMBIA", "PERU", "COSTA RICA", "BURUNDI", "BRAZIL", "LAOS", "& MORE."]},
+    {"type": "outro", "beats": 6, "bg": "coral", "words": ["RETAIL + WHOLESALE."]}
+  ],
+  "audio": {"sfx": true}
+}

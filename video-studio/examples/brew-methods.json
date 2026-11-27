@@ -1,0 +1,12 @@
+{
+  "title": "Brew Methods",
+  "brand": "buddhabeans", "style": "print", "format": "9:16", "fps": 24, "bpm": 120,
+  "scenes": [
+    {"type": "slam", "beats": 4, "bg": "coral", "words": ["SAME BEANS.", "FOUR WAYS."], "accent": 1},
+    {"type": "methods", "beats": 16, "bg": "kraft"},
+    {"type": "slam", "beats": 8, "bg": "ink", "words": ["FINER =", "SHORTER.", "COARSER =", "LONGER."],
+     "at": [0, 1, 3, 4], "accent": 3},
+    {"type": "outro", "beats": 6, "bg": "coral", "words": ["GRIND IT RIGHT."]}
+  ],
+  "audio": {"sfx": true}
+}

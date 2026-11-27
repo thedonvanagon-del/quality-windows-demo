@@ -1,0 +1,18 @@
+{
+  "title": "Why Coffee Tastes Sour Or Bitter",
+  "brand": "buddhabeans",
+  "style": "print",
+  "format": "9:16",
+  "fps": 24,
+  "bpm": 120,
+  "groove_from": 4,
+  "scenes": [
+    {"type": "slam", "beats": 4, "bg": "coral", "words": ["SOUR?", "BITTER?", "FIX IT."], "accent": 2},
+    {"type": "cup", "beats": 8, "bg": "kraft"},
+    {"type": "chart", "beats": 12, "bg": "kraft"},
+    {"type": "knobs", "beats": 12, "bg": "ink"},
+    {"type": "fix", "beats": 12, "bg": "kraft"},
+    {"type": "outro", "beats": 6, "bg": "coral", "words": ["BREW IT BETTER."]}
+  ],
+  "audio": {"sfx": true}
+}
